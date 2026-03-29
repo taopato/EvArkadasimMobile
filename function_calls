@@ -1,0 +1,64 @@
+const fetchHouseMembers = async () => {
+  setLoading(true);
+  try {
+    const response = await api.get(`/House/Friends/${houseId}`);
+    console.log("API'den gelen ham üyeler:", JSON.stringify(response.data, null, 2));
+    
+    if (Array.isArray(response.data)) {
+      const formattedMembers = response.data
+        .filter(member => member && (member.id || member.userId))
+        .map(member => {
+          console.log("İşlenen üye verisi:", JSON.stringify(member, null, 2));
+          return {
+            id: member.id || member.userId,
+            fullName: member.fullName || member.name || 'İsimsiz Üye'
+          };
+        });
+      
+      console.log("Formatlanmış üyeler:", JSON.stringify(formattedMembers, null, 2));
+      setMembers(formattedMembers);
+    } else {
+      console.error("API yanıtı dizi değil:", response.data);
+      setMembers([]);
+    }
+  } catch (error) {
+    console.error("Ev üyeleri yüklenirken hata:", error);
+    setMembers([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const memberItems = members
+  .filter(member => member && member.id)
+  .map(member => ({
+    label: member.fullName || 'İsimsiz Üye',
+    value: String(member.id || ''),
+    key: String(member.id || '')
+  }));
+
+<Text style={styles.label}>Ödemeyi Yapan</Text>
+<RNPickerSelect
+  onValueChange={(value) => {
+    console.log("Seçilen üye:", value);
+    setPayerId(value || '');
+  }}
+  value={payerId || ''}
+  items={memberItems}
+  placeholder={{
+    label: "Üyelerden birini seçin",
+    value: ''
+  }}
+  style={{
+    ...pickerSelectStyles,
+    inputIOS: {
+      ...pickerSelectStyles.inputIOS,
+      color: 'black',
+    },
+    inputAndroid: {
+      ...pickerSelectStyles.inputAndroid,
+      color: 'black',
+    }
+  }}
+  useNativeAndroidPickerStyle={false}
+/> 

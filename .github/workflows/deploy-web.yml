@@ -1,0 +1,50 @@
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web
+        env:
+          EXPO_PUBLIC_API_URL: https://api.evarkadasim.co
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+        run: npm run web:build
+
+      - name: Copy web build to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "dist/*"
+          target: "/opt/evarkadasim/web"
+          strip_components: 1
+
+      - name: Fix permissions and reload nginx
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            chown -R www-data:www-data /opt/evarkadasim/web
+            find /opt/evarkadasim/web -type d -exec chmod 755 {} \;
+            find /opt/evarkadasim/web -type f -exec chmod 644 {} \;
+            systemctl reload nginx
