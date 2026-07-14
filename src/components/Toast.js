@@ -9,6 +9,7 @@ import {
   Dimensions,
   Platform
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../shared/theme/ThemeProvider';
 
 const { width } = Dimensions.get('window');
@@ -67,15 +68,15 @@ const Toast = ({
   const getToastStyle = () => {
     switch (type) {
       case 'success':
-        return { backgroundColor: theme.colors.success?.[600], icon: '✅' };
+        return { backgroundColor: theme.colors.success?.[600], icon: 'checkmark-circle' };
       case 'error':
-        return { backgroundColor: theme.colors.error?.[600], icon: '❌' };
+        return { backgroundColor: theme.colors.error?.[600], icon: 'close-circle' };
       case 'warning':
-        return { backgroundColor: theme.colors.warning?.[600], icon: '⚠️' };
+        return { backgroundColor: theme.colors.warning?.[600], icon: 'warning' };
       case 'info':
-        return { backgroundColor: theme.colors.info?.[600], icon: 'ℹ️' };
+        return { backgroundColor: theme.colors.info?.[600], icon: 'information-circle' };
       default:
-        return { backgroundColor: theme.colors.success?.[600], icon: '✅' };
+        return { backgroundColor: theme.colors.success?.[600], icon: 'checkmark-circle' };
     }
   };
 
@@ -100,10 +101,10 @@ const Toast = ({
         onPress={hideToast}
         activeOpacity={0.8}
       >
-        <Text style={[styles.icon, { color: textColor }]}>{toastStyle.icon}</Text>
+        <Ionicons name={toastStyle.icon} size={20} color={textColor} style={styles.icon} />
         <Text style={[styles.message, { color: textColor }]}>{message}</Text>
         <TouchableOpacity onPress={hideToast} style={styles.closeButton}>
-          <Text style={[styles.closeText, { color: textColor }]}>✕</Text>
+          <Ionicons name="close" size={18} color={textColor} />
         </TouchableOpacity>
       </TouchableOpacity>
     </Animated.View>

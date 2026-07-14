@@ -5,60 +5,50 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  ScrollView,
   Platform,
   Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
-import { authApi } from '../services/api';
+import { authApi, houseApi } from '../services/api';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { TextInput as ThemedTextInput } from '../shared/ui/TextInput';
 import { Button as ThemedButton } from '../shared/ui/Button';
 import { GOOGLE_CLIENT_IDS } from '../shared/config/env';
+import { isValidEmail, normalizeEmail } from '../shared/validation/authValidation';
+import { shadow } from '../shared/ui/shadow';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const LOGO = require('../assets/icon.png');
+const getGooglePlatformReady = () => {
+  const isExpoGo = Constants?.appOwnership === 'expo';
+  if (Platform.OS === 'ios') return Boolean(GOOGLE_CLIENT_IDS.ios || (isExpoGo && GOOGLE_CLIENT_IDS.expo));
+  if (Platform.OS === 'android') return Boolean(GOOGLE_CLIENT_IDS.android || (isExpoGo && GOOGLE_CLIENT_IDS.expo));
+  if (Platform.OS === 'web') return Boolean(GOOGLE_CLIENT_IDS.web);
+  return Boolean(GOOGLE_CLIENT_IDS.web || GOOGLE_CLIENT_IDS.expo);
+};
 
-const GirisYap = ({ navigation }) => {
-  const { login } = useAuth();
-  const { theme } = useTheme();
-  const CommonStyles = useCommonStyles();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+const GoogleLoginButton = ({ onSuccess, theme, styles }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const isExpoGo = Constants?.appOwnership === 'expo';
-  const projectNameForProxy = Constants?.expoConfig?.owner && Constants?.expoConfig?.slug
-    ? `@${Constants.expoConfig.owner}/${Constants.expoConfig.slug}`
-    : undefined;
-
-  const googleConfigured = useMemo(
-    () => Boolean(
-      GOOGLE_CLIENT_IDS.web ||
+  const platformReady = getGooglePlatformReady();
+  const googleConfigured = Boolean(
+    GOOGLE_CLIENT_IDS.web ||
       GOOGLE_CLIENT_IDS.android ||
       GOOGLE_CLIENT_IDS.ios ||
       GOOGLE_CLIENT_IDS.expo
-    ),
-    []
   );
 
-  const googleClientConfig = useMemo(
-    () => ({
-      expoClientId: GOOGLE_CLIENT_IDS.expo || undefined,
-      webClientId: GOOGLE_CLIENT_IDS.web || undefined,
-      androidClientId: GOOGLE_CLIENT_IDS.android || undefined,
-      iosClientId: GOOGLE_CLIENT_IDS.ios || undefined,
-      clientId: GOOGLE_CLIENT_IDS.web || GOOGLE_CLIENT_IDS.expo || undefined,
-    }),
-    []
-  );
+  const projectNameForProxy = Constants?.expoConfig?.owner && Constants?.expoConfig?.slug
+    ? `@${Constants.expoConfig.owner}/${Constants.expoConfig.slug}`
+    : undefined;
 
   const googleRedirectUri = useMemo(() => {
     if (isExpoGo) {
@@ -72,30 +62,249 @@ const GirisYap = ({ navigation }) => {
     }
 
     return AuthSession.makeRedirectUri({
-      scheme: 'evarkadasim',
+      scheme: 'roomora',
       path: 'oauthredirect',
     });
   }, [isExpoGo, projectNameForProxy]);
 
+  if (!platformReady) {
+    return (
+      <>
+        <TouchableOpacity
+          style={[
+            styles.googleButton,
+            {
+              borderColor: theme.colors.neutral[200],
+              backgroundColor: theme.colors.background,
+              opacity: 0.62,
+            },
+          ]}
+          onPress={() =>
+            Alert.alert(
+              'Google girişi hazır değil',
+              Platform.OS === 'ios'
+                ? 'iOS için GOOGLE_IOS_CLIENT_ID tanımlanmalı. Şimdilik e-posta ve şifre ile giriş yapabilirsiniz.'
+                : Platform.OS === 'android'
+                  ? 'Android için GOOGLE_ANDROID_CLIENT_ID tanımlanmalı. Şimdilik e-posta ve şifre ile giriş yapabilirsiniz.'
+                  : 'Google client ID alanları henüz tanımlanmamış görünüyor.'
+            )
+          }
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.googleIcon, { color: theme.colors.primary[600] }]}>G</Text>
+          <Text style={[styles.googleText, { color: theme.colors.text.primary }]}>Google ile giriş yap</Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
+          Google girişi için bu platformun client ID bilgisi eksik.
+        </Text>
+      </>
+    );
+  }
+
+  return (
+    <GoogleLoginButtonReady
+      onSuccess={onSuccess}
+      theme={theme}
+      styles={styles}
+      googleRedirectUri={googleRedirectUri}
+      googleConfigured={googleConfigured}
+      googleLoading={googleLoading}
+      setGoogleLoading={setGoogleLoading}
+    />
+  );
+};
+
+const GoogleLoginButtonReady = ({
+  onSuccess,
+  theme,
+  styles,
+  googleRedirectUri,
+  googleConfigured,
+  googleLoading,
+  setGoogleLoading,
+}) => {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: googleClientConfig.clientId,
-    expoClientId: googleClientConfig.expoClientId,
-    webClientId: googleClientConfig.webClientId,
-    androidClientId: googleClientConfig.androidClientId,
-    iosClientId: googleClientConfig.iosClientId,
+    clientId: GOOGLE_CLIENT_IDS.web || GOOGLE_CLIENT_IDS.expo || undefined,
+    expoClientId: GOOGLE_CLIENT_IDS.expo || undefined,
+    webClientId: GOOGLE_CLIENT_IDS.web || undefined,
+    androidClientId: GOOGLE_CLIENT_IDS.android || GOOGLE_CLIENT_IDS.expo || undefined,
+    iosClientId: GOOGLE_CLIENT_IDS.ios || GOOGLE_CLIENT_IDS.expo || undefined,
     redirectUri: googleRedirectUri,
     scopes: ['openid', 'profile', 'email'],
   });
 
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      await promptAsync();
+    } catch (error) {
+      Alert.alert('Google girişi başarısız', error?.message || 'İşlem başlatılamadı.');
+      setGoogleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const runGoogleLogin = async () => {
+      if (response?.type !== 'success') {
+        if (response?.type && response.type !== 'dismiss') {
+          setGoogleLoading(false);
+        }
+        return;
+      }
+
+      const idToken = response?.params?.id_token || response?.authentication?.idToken;
+      if (!idToken) {
+        setGoogleLoading(false);
+        Alert.alert('Google girişi başarısız', 'Google kimlik belirteci alınamadı.');
+        return;
+      }
+
+      try {
+        await onSuccess(idToken);
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    runGoogleLogin();
+  }, [response, onSuccess, setGoogleLoading]);
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[
+          styles.googleButton,
+          {
+            borderColor: theme.colors.neutral[200],
+            backgroundColor: theme.colors.background,
+          },
+        ]}
+        onPress={handleGoogleLogin}
+        disabled={!request || googleLoading}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.googleIcon, { color: theme.colors.primary[600] }]}>G</Text>
+        <Text style={[styles.googleText, { color: theme.colors.text.primary }]}>
+          {googleLoading ? 'Google ile bağlanılıyor...' : 'Google ile giriş yap'}
+        </Text>
+      </TouchableOpacity>
+
+      {!googleConfigured && (
+        <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
+          Google client ID bilgileri tanımlanınca bu buton aktif şekilde çalışacak.
+        </Text>
+      )}
+    </>
+  );
+};
+
+const AppleSignInButton = ({ onSuccess }) => {
+  const [available, setAvailable] = useState(Platform.OS === 'ios');
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AppleAuthentication.isAvailableAsync().then(setAvailable).catch(() => setAvailable(false));
+  }, []);
+
+  if (Platform.OS !== 'ios' || !available) return null;
+
+  return (
+    <AppleAuthentication.AppleAuthenticationButton
+      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+      cornerRadius={12}
+      style={{ height: 48, marginTop: 12 }}
+      onPress={async () => {
+        try {
+          const credential = await AppleAuthentication.signInAsync({
+            requestedScopes: [
+              AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+              AppleAuthentication.AppleAuthenticationScope.EMAIL,
+            ],
+          });
+          const fullName = credential.fullName
+            ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(' ')
+            : undefined;
+          await onSuccess(credential.identityToken, fullName);
+        } catch (error) {
+          if (error?.code === 'ERR_REQUEST_CANCELED') return;
+          Alert.alert('Apple girişi başarısız', error?.message || 'İşlem tamamlanamadı.');
+        }
+      }}
+    />
+  );
+};
+
+const GirisYap = ({ navigation, route }) => {
+  const { login, setDefaultHouseId } = useAuth();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const CommonStyles = useCommonStyles();
+  const invitationToken = route?.params?.invitationToken || '';
+  const invitationHouseId = Number(route?.params?.invitationHouseId || 0);
+  const invitationEmail = route?.params?.invitationEmail || '';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const finalizeInvitationIfNeeded = async () => {
+    if (!invitationToken) return;
+
+    const inviteResponse = await houseApi.acceptInvitation(invitationToken);
+    const joinedHouseId = Number(
+      inviteResponse?.data?.houseId ||
+        inviteResponse?.data?.data?.houseId ||
+        invitationHouseId ||
+        0
+    );
+
+    if (joinedHouseId) {
+      try {
+        const houseResponse = await houseApi.getById(joinedHouseId);
+        await setDefaultHouseId(joinedHouseId, houseResponse?.data?.name || houseResponse?.data?.data?.name);
+      } catch {
+        await setDefaultHouseId(joinedHouseId);
+      }
+    }
+  };
+
+  const ensureDefaultHouse = async (userId) => {
+    if (!userId) return;
+    try {
+      const response = await houseApi.getUserHouses(userId);
+      const raw = response?.data?.data ?? response?.data ?? [];
+      const houses = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      const firstHouse = houses[0];
+      const houseId = firstHouse?.id ?? firstHouse?.Id;
+      const houseName = firstHouse?.name ?? firstHouse?.Name;
+      if (houseId) {
+        await setDefaultHouseId(houseId, houseName);
+      }
+    } catch (error) {
+      console.error('Varsayilan ev secilemedi:', error?.response?.data || error?.message || error);
+    }
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Hata', 'Lütfen e-posta ve şifrenizi giriniz.');
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail || !password.trim()) {
+      Alert.alert('Hata', 'Lütfen e-posta ve şifrenizi girin.');
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      Alert.alert('Hata', 'Lütfen geçerli bir e-posta adresi girin.');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({
+        email: normalizedEmail,
+        password,
+      });
       const raw = response?.data || {};
       const data = raw?.data ?? raw ?? {};
 
@@ -134,27 +343,36 @@ const GirisYap = ({ navigation }) => {
         const fullName = findValueByKeyList(data, ['fullName', 'name']);
         const emailFromApi = findValueByKeyList(data, ['email', 'mail']);
         if (userId || fullName || emailFromApi) {
-          user = { id: userId ?? 0, fullName: fullName ?? email, email: emailFromApi ?? email };
+          user = {
+            id: userId ?? 0,
+            fullName: fullName ?? normalizedEmail,
+            email: emailFromApi ?? normalizedEmail,
+          };
         }
       }
 
       if (token && user) {
         await login(user, token);
+        await finalizeInvitationIfNeeded();
+        await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
         return;
       }
 
       Alert.alert('Giriş başarısız', raw?.message || 'Lütfen bilgilerinizi kontrol edin.');
     } catch (error) {
       const status = error?.response?.status;
-      const raw = error?.response?.data?.message || error?.response?.data || error?.message || '';
+      const raw =
+        error?.response?.data?.message || error?.response?.data || error?.message || '';
       const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
       const lower = text.toLowerCase();
 
       let message = 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.';
-      if (status === 401 || lower.includes('şifre') || lower.includes('password') || lower.includes('invalid')) {
+      if (status === 401 && (lower.includes('kayitli bir kullanici bulunamadi') || lower.includes('uye olun'))) {
+        message = 'Bu e-posta ile kayıtlı bir hesap bulunamadı. Lütfen önce üye olun.';
+      } else if (status === 401 && (lower.includes('sifreniz yanlis') || lower.includes('wrong password'))) {
+        message = 'Şifreniz yanlış. Lütfen tekrar deneyin.';
+      } else if (status === 401) {
         message = 'E-posta veya şifre hatalı.';
-      } else if (lower.includes('locked') || lower.includes('kilit')) {
-        message = 'Hesabınız geçici olarak kilitlendi. Bir süre sonra tekrar deneyin.';
       } else if (text) {
         message = text;
       }
@@ -165,86 +383,94 @@ const GirisYap = ({ navigation }) => {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    if (!googleConfigured || (isExpoGo && !GOOGLE_CLIENT_IDS.web)) {
-      Alert.alert(
-        'Google girişi hazır değil',
-        isExpoGo
-          ? 'Expo Go ile test için GOOGLE_EXPO_CLIENT_ID alanı doldurulmalı.'
-          : 'Frontend ve backend için Google client ID alanları henüz doldurulmamış görünüyor.'
-      );
-      return;
-    }
-
+  const handleGoogleSuccess = async (idToken) => {
     try {
-      setGoogleLoading(true);
-      await promptAsync();
+      const apiResponse = await authApi.googleLogin(idToken);
+      const payload = apiResponse?.data || {};
+      const token = payload?.token;
+      const user = payload?.user;
+
+      if (!token || !user) {
+        throw new Error('Google giriş yanıtı eksik.');
+      }
+
+      await login(user, token);
+      await finalizeInvitationIfNeeded();
+      await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
     } catch (error) {
-      Alert.alert('Google girişi başarısız', error?.message || 'İşlem başlatılamadı.');
-      setGoogleLoading(false);
+      Alert.alert(
+        'Google girişi başarısız',
+        error?.response?.data?.message || error?.message || 'Sunucuya giriş yapılamadı.'
+      );
     }
   };
 
-  useEffect(() => {
-    const runGoogleLogin = async () => {
-      if (response?.type !== 'success') {
-        if (response?.type && response.type !== 'dismiss') {
-          setGoogleLoading(false);
-        }
-        return;
+  const handleAppleSuccess = async (identityToken, fullName) => {
+    try {
+      const apiResponse = await authApi.appleLogin(identityToken, fullName);
+      const payload = apiResponse?.data || {};
+      const token = payload?.token;
+      const user = payload?.user;
+
+      if (!token || !user) {
+        throw new Error('Apple giriş yanıtı eksik.');
       }
 
-      const idToken = response?.params?.id_token || response?.authentication?.idToken;
-      if (!idToken) {
-        setGoogleLoading(false);
-        Alert.alert('Google girişi başarısız', 'Google kimlik doğrulama belirteci alınamadı.');
-        return;
-      }
-
-      try {
-        const apiResponse = await authApi.googleLogin(idToken);
-        const payload = apiResponse?.data || {};
-        const token = payload?.token;
-        const user = payload?.user;
-
-        if (!token || !user) {
-          throw new Error('Google giriş yanıtı eksik.');
-        }
-
-        await login(user, token);
-      } catch (error) {
-        Alert.alert('Google girişi başarısız', error?.response?.data?.message || error?.message || 'Sunucuya giriş yapılamadı.');
-      } finally {
-        setGoogleLoading(false);
-      }
-    };
-
-    runGoogleLogin();
-  }, [response, login, navigation]);
+      await login(user, token);
+      await finalizeInvitationIfNeeded();
+      await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
+    } catch (error) {
+      Alert.alert(
+        'Apple girişi başarısız',
+        error?.response?.data?.message || error?.message || 'Sunucuya giriş yapılamadı.'
+      );
+    }
+  };
 
   return (
-    <KeyboardAvoidingView
-      style={[CommonStyles.container, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      <ScrollView
+    <View style={[CommonStyles.container, { backgroundColor: theme.colors.background }]}>
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        extraScrollHeight={20}
+        keyboardOpeningTime={0}
       >
-        <View style={[CommonStyles.content, styles.content, { backgroundColor: theme.colors.background }]}>
+        <View
+          style={[
+            CommonStyles.content,
+            styles.content,
+            { backgroundColor: theme.colors.background, paddingTop: insets.top + 12 },
+          ]}
+        >
           <View style={styles.hero}>
-            <View style={[styles.logoWrap, { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[200] }]}>
-              <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+            <View style={[styles.logoTile, shadow(3, 'rgba(23,40,57,0.28)')]}>
+              <Image source={require('../assets/mark-navy.png')} style={{ width: 192, height: 192 }} resizeMode="contain" />
             </View>
-            <Text style={[styles.heading, { color: theme.colors.text.primary }]}>Ev Arkadaşım</Text>
+            <Text style={[styles.heading, { color: theme.colors.text.primary }]}>
+              Roomora
+            </Text>
             <Text style={[styles.subheading, { color: theme.colors.text.secondary }]}>
               Harcamaları paylaş, borçları gör, ödemeleri tek yerden yönet.
             </Text>
+            {!!invitationEmail && (
+              <Text style={[styles.inviteNote, { color: theme.colors.success[700], backgroundColor: theme.colors.success[50] }]}>
+                Davet: {invitationEmail}
+              </Text>
+            )}
           </View>
 
-          <View style={[CommonStyles.card, styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}>
+          <View
+            style={[
+              CommonStyles.card,
+              styles.card,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.neutral[200],
+              },
+            ]}
+          >
             <ThemedTextInput
               style={{ marginBottom: 12 }}
               placeholder="E-posta"
@@ -263,41 +489,24 @@ const GirisYap = ({ navigation }) => {
 
             <ThemedButton title="Giriş Yap" onPress={handleLogin} loading={loading} />
 
-            <TouchableOpacity
-              style={[styles.googleButton, { borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.background }]}
-              onPress={handleGoogleLogin}
-              disabled={!request || googleLoading}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.googleIcon, { color: theme.colors.primary[600] }]}>G</Text>
-              <Text style={[styles.googleText, { color: theme.colors.text.primary }]}>
-                {googleLoading ? 'Google ile bağlanılıyor...' : 'Google ile giriş yap'}
-              </Text>
-            </TouchableOpacity>
-
-            {!googleConfigured && (
-              <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
-                Google client ID bilgileri tanımlanınca bu buton aktif şekilde çalışacak.
-              </Text>
-            )}
-
-            {googleConfigured && isExpoGo && (
-              <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
-                Expo Go ile denemek için ayrıca `GOOGLE_EXPO_CLIENT_ID` tanımlanmalı.
-              </Text>
-            )}
+            <GoogleLoginButton onSuccess={handleGoogleSuccess} theme={theme} styles={styles} />
+            <AppleSignInButton onSuccess={handleAppleSuccess} />
 
             <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')}>
-              <Text style={[styles.link, { color: theme.colors.text.secondary }]}>Şifremi unuttum</Text>
+              <Text style={[styles.link, { color: theme.colors.text.secondary }]}>
+                Şifremi unuttum
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('SignupScreen')}>
-              <Text style={[styles.link, { color: theme.colors.primary[600] }]}>Hesabın yok mu? Kayıt ol</Text>
+              <Text style={[styles.link, { color: theme.colors.primary[600] }]}>
+                Hesabın yok mu? Kayıt ol
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 
@@ -307,29 +516,24 @@ const styles = StyleSheet.create({
   },
   content: {
     justifyContent: 'center',
-    paddingVertical: 24,
+    paddingVertical: 18,
   },
   hero: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 18,
   },
-  logoWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    borderWidth: 1,
+  logoTile: {
+    width: 192,
+    height: 192,
+    borderRadius: 96,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  logo: {
-    width: 72,
-    height: 72,
-  },
   heading: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
+    fontSize: 30,
+    fontWeight: '900',
+    marginBottom: 6,
   },
   subheading: {
     fontSize: 15,
@@ -337,9 +541,19 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     maxWidth: 320,
   },
+  inviteNote: {
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 14,
+    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   card: {
     width: '100%',
     borderWidth: 1,
+    borderRadius: 22,
   },
   googleButton: {
     marginTop: 12,

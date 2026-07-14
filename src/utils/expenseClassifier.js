@@ -1,13 +1,14 @@
 import { getCategoryDisplayName } from '../constants/ExpenseEnums';
 
+// Backend Domain.Enums.ExpenseCategory: Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Other=99.
+// "Gas" has no backend id — it's only ever inferred from free-text (see textToKey below).
 export const CATEGORY_ID_TO_KEY = {
   0: 'Rent',
   1: 'Internet',
   2: 'Electricity',
   3: 'Water',
-  4: 'Gas',
+  4: 'Market',
   5: 'Food',
-  6: 'Market',
   99: 'Other',
 };
 
@@ -40,12 +41,14 @@ export const normalizeExpense = (raw) => {
   const installmentCount = raw?.installmentCount ?? raw?.InstallmentCount ?? null;
 
   const dateStr =
+    raw?.postDate ??
+    raw?.PostDate ??
+    raw?.dueDate ??
+    raw?.DueDate ??
     raw?.kayitTarihi ??
     raw?.KayitTarihi ??
     raw?.createdDate ??
-    raw?.CreatedDate ??
-    raw?.postDate ??
-    raw?.PostDate;
+    raw?.CreatedDate;
 
   let key;
   const categoryIdCandidate =

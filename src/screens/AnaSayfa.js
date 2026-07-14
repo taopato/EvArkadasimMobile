@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 import { HeroHeader } from '../shared/ui/premium/HeroHeader';
 import { WeekStrip } from '../shared/ui/premium/WeekStrip';
-import { expensesApi, houseApi, paymentsApi } from '../services/api';
+import { expensesApi, houseApi, houseNotesApi, paymentsApi } from '../services/api';
 import { normalizeExpense } from '../utils/expenseClassifier';
+import BrandMark from '../components/BrandMark';
 import {
   deduplicateMonthlyPlans,
   getExpenseDisplayTitle,
@@ -16,21 +18,74 @@ import {
 } from '../utils/expenseHelpers';
 
 const HomeScreen = ({ navigation }) => {
-  const { user, logout } = useAuth();
+  const { user, setDefaultHouseId, updateUser } = useAuth();
   const { theme } = useTheme();
   const [billModalVisible, setBillModalVisible] = useState(false);
   const [weeklyTotal, setWeeklyTotal] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState(() => new Date().toISOString().slice(0, 10));
   const [loadingWeekly, setLoadingWeekly] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({ payable: 0, receivable: 0, pendingCount: 0, debtPeople: 0 });
-  const [recentExpenses, setRecentExpenses] = useState([]);
+  const [allExpenses, setAllExpenses] = useState([]);
+  const [notePreview, setNotePreview] = useState([]);
+
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const isTodaySelected = selectedDayKey === todayKey;
+  const selectedDayLabel = useMemo(() => {
+    if (isTodaySelected) return 'Son hareketler';
+    const d = new Date(`${selectedDayKey}T00:00:00Z`);
+    return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', timeZone: 'UTC' })} hareketleri`;
+  }, [selectedDayKey, isTodaySelected]);
+
+  const visibleExpenses = useMemo(() => {
+    const dayItems = allExpenses.filter((item) => getItemDate(item).toISOString().slice(0, 10) === selectedDayKey);
+    if (dayItems.length > 0) return dayItems.slice(0, 8);
+    return isTodaySelected ? allExpenses.slice(0, 5) : [];
+  }, [allExpenses, selectedDayKey, isTodaySelected]);
 
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const activeHouseId = user?.defaultHouseId ? Number(user.defaultHouseId) : null;
   const activeHouseName = user?.defaultHouseName || 'Aktif Ev';
   const hasDefaultHouse = Boolean(activeHouseId);
 
-  const pastelKeys = ['blue', 'green', 'purple', 'orange', 'pink'];
+  useEffect(() => {
+    const ensureDefaultHouse = async () => {
+      if (!user?.id) {
+        return;
+      }
+
+      try {
+        const response = await houseApi.getUserHouses(Number(user.id));
+        const houses = Array.isArray(response?.data) ? response.data : [];
+        if (houses.length === 0) {
+          if (user?.defaultHouseId) {
+            await updateUser((prev) => ({
+              ...(prev || {}),
+              defaultHouseId: null,
+              defaultHouseName: null,
+            }));
+          }
+          return;
+        }
+
+        const currentDefaultId = Number(user?.defaultHouseId || 0);
+        const matchedDefault = houses.find((house) => Number(house.id) === currentDefaultId);
+
+        if (!currentDefaultId || !matchedDefault) {
+          await setDefaultHouseId(houses[0].id, houses[0].name);
+          return;
+        }
+
+        if (matchedDefault.name && matchedDefault.name !== user?.defaultHouseName) {
+          await setDefaultHouseId(matchedDefault.id, matchedDefault.name);
+        }
+      } catch {
+        // Ana sayfayi bloklamamak icin burada sessiz kaliyoruz.
+      }
+    };
+
+    ensureDefaultHouse();
+  }, [user?.id, user?.defaultHouseId, user?.defaultHouseName, setDefaultHouseId, updateUser]);
+
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('tr-TR', {
       style: 'currency',
@@ -39,35 +94,22 @@ const HomeScreen = ({ navigation }) => {
       maximumFractionDigits: 2,
     }).format(Number(amount || 0));
 
-  const NavButton = ({ title, subtitle, onPress, emoji, idx = 0, wide = false }) => (
+  const QuickAction = ({ title, onPress, icon, accent = false }) => (
     <TouchableOpacity
-      style={[
-        styles.btnCard,
-        wide ? styles.gridItemFull : styles.gridItem,
-        { backgroundColor: theme.colors.pastel[pastelKeys[idx % pastelKeys.length]].bg },
-      ]}
+      style={styles.quickActionItem}
       onPress={onPress}
-      activeOpacity={0.88}
+      activeOpacity={0.85}
     >
-      <View style={styles.btnCardInner}>
-        <Text style={styles.btnIcon}>{emoji}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.btnText, { color: theme.colors.pastel[pastelKeys[idx % pastelKeys.length]].fg }]} numberOfLines={1}>
-            {title}
-          </Text>
-          {!!subtitle && (
-            <Text
-              style={[
-                styles.btnSubSmall,
-                { color: theme.colors.pastel[pastelKeys[idx % pastelKeys.length]].fg, opacity: 0.88 },
-              ]}
-              numberOfLines={2}
-            >
-              {subtitle}
-            </Text>
-          )}
-        </View>
+      <View style={[styles.quickActionCircle, accent && styles.quickActionCircleAccent]}>
+        <Ionicons
+          name={icon}
+          size={26}
+          color={accent ? theme.colors.success[700] : theme.colors.primary[700]}
+        />
       </View>
+      <Text style={styles.quickActionLabel} numberOfLines={1}>
+        {title}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -93,7 +135,7 @@ const HomeScreen = ({ navigation }) => {
     const loadWeekly = async () => {
       if (!user?.defaultHouseId) {
         setWeeklyTotal(0);
-        setRecentExpenses([]);
+        setAllExpenses([]);
         return;
       }
 
@@ -119,10 +161,10 @@ const HomeScreen = ({ navigation }) => {
         setWeeklyTotal(sum);
         const positiveItems = list.filter((item) => Number(item.amount || 0) > 0);
         const nonFutureItems = positiveItems.filter((item) => !isFutureExpense(item));
-        setRecentExpenses((nonFutureItems.length > 0 ? nonFutureItems : positiveItems).slice(0, 5));
+        setAllExpenses((nonFutureItems.length > 0 ? nonFutureItems : positiveItems).slice(0, 60));
       } catch {
         setWeeklyTotal(0);
-        setRecentExpenses([]);
+        setAllExpenses([]);
       } finally {
         setLoadingWeekly(false);
       }
@@ -165,9 +207,55 @@ const HomeScreen = ({ navigation }) => {
     loadDashboard();
   }, [activeHouseId, user?.id]);
 
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (!activeHouseId) {
+        setNotePreview([]);
+        return;
+      }
+
+      try {
+        const response = await houseNotesApi.getBoard(activeHouseId);
+        const sections = Array.isArray(response?.data?.sections) ? response.data.sections : [];
+        const nextPreview = sections
+          .flatMap((section) =>
+            (Array.isArray(section?.items) ? section.items : []).map((item) => ({
+              ...item,
+              sectionTitle: section.title,
+            }))
+          )
+          .slice(0, 5);
+        setNotePreview(nextPreview);
+      } catch {
+        setNotePreview([]);
+      }
+    };
+
+    loadNotes();
+  }, [activeHouseId]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {dashboardStats.pendingCount > 0 && (
+          <TouchableOpacity
+            style={styles.notificationCard}
+            activeOpacity={0.88}
+            onPress={() => navigation.navigate('BekleyenOdemeler', { userId: user?.id })}
+          >
+            <View style={styles.notificationIconWrap}>
+              <Ionicons name="time-outline" size={22} color={theme.colors.warning[700]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.notificationTitle}>Onay Bekleyen Ödemeniz Var</Text>
+              <Text style={styles.notificationDesc}>
+                {dashboardStats.pendingCount} adet ödeme işlemini onaylamanız veya reddetmeniz gerekiyor.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.warning[400]} />
+          </TouchableOpacity>
+        )}
+
         <HeroHeader
           title="Haftalık ev harcaması"
           subtitle={`Merhaba, ${user?.fullName || 'Kullanıcı'}`}
@@ -179,40 +267,64 @@ const HomeScreen = ({ navigation }) => {
         <WeekStrip selectedKey={selectedDayKey || undefined} onSelect={(key) => setSelectedDayKey(key)} />
 
         {hasDefaultHouse && (
-          <View style={styles.todayCard}>
-            <Text style={styles.todayEyebrow}>Bugün için özet</Text>
-            <Text style={styles.todayTitle}>{activeHouseName}</Text>
-            <View style={styles.todayGrid}>
-              <View style={styles.todayBox}>
-                <Text style={styles.todayLabel}>Borç</Text>
-                <Text style={styles.todayValue}>{formatCurrency(dashboardStats.payable)}</Text>
-              </View>
-              <View style={styles.todayBox}>
-                <Text style={styles.todayLabel}>Alacak</Text>
-                <Text style={styles.todayValue}>{formatCurrency(dashboardStats.receivable)}</Text>
-              </View>
-              <View style={styles.todayBox}>
-                <Text style={styles.todayLabel}>Bekleyen ödeme</Text>
-                <Text style={styles.todayValue}>{dashboardStats.pendingCount}</Text>
-              </View>
-              <View style={styles.todayBox}>
-                <Text style={styles.todayLabel}>Borçlu olduğun kişi</Text>
-                <Text style={styles.todayValue}>{dashboardStats.debtPeople}</Text>
+          <View style={styles.summarySection}>
+            <View style={styles.brandStrip}>
+              <BrandMark variant="logo" size={62} subtle />
+              <Text style={styles.brandStripText}>Roomora özeti</Text>
+            </View>
+            <View style={styles.todayCard}>
+              <Text style={styles.todayEyebrow}>BUGÜN İÇİN ÖZET</Text>
+              <Text style={styles.todayTitle}>{activeHouseName}</Text>
+              <View style={styles.todayGrid}>
+                <View style={[styles.todayBox, styles.todayBoxDebt]}>
+                  <Text style={styles.todayLabelDebt}>Borç</Text>
+                  <Text style={styles.todayValueDebt}>{formatCurrency(dashboardStats.payable)}</Text>
+                </View>
+                <View style={[styles.todayBox, styles.todayBoxReceivable]}>
+                  <Text style={styles.todayLabelReceivable}>Alacak</Text>
+                  <Text style={styles.todayValueReceivable}>{formatCurrency(dashboardStats.receivable)}</Text>
+                </View>
+                <View style={styles.todayBox}>
+                  <Text style={styles.todayLabel}>Bekleyen Ödeme</Text>
+                  <Text style={styles.todayValue}>{dashboardStats.pendingCount}</Text>
+                </View>
+                <View style={styles.todayBox}>
+                  <Text style={styles.todayLabel}>Borçlu olduğun kişi</Text>
+                  <Text style={styles.todayValue}>{dashboardStats.debtPeople}</Text>
+                </View>
               </View>
             </View>
           </View>
         )}
 
-        {hasDefaultHouse && recentExpenses.length > 0 && (
+        {hasDefaultHouse && (
           <View style={styles.recentCard}>
             <View style={styles.recentHeader}>
-              <Text style={styles.recentTitle}>Son hareketler</Text>
+              <Text style={styles.recentTitle}>{selectedDayLabel}</Text>
               <TouchableOpacity activeOpacity={0.88} onPress={() => navigateToHouseScreen('TumHarcamalar', {}, { redirectTo: 'TumHarcamalar' })}>
                 <Text style={styles.recentLink}>Tümünü gör</Text>
               </TouchableOpacity>
             </View>
-            {recentExpenses.map((item, index) => (
-              <View key={`${item.id || index}`} style={styles.recentRow}>
+            {visibleExpenses.length === 0 && (
+              <Text style={styles.recentEmptyText}>Bu gün için hareket bulunmuyor.</Text>
+            )}
+            {visibleExpenses.map((item, index) => (
+              <TouchableOpacity
+                key={`${item.id || index}`}
+                style={styles.recentRow}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (item?.id) {
+                    navigateToHouseScreen(
+                      'HarcamaDetayi',
+                      { expenseId: item.id },
+                      { redirectTo: 'TumHarcamalar' }
+                    );
+                    return;
+                  }
+                  navigateToHouseScreen('TumHarcamalar', {}, { redirectTo: 'TumHarcamalar' });
+                }}
+              >
                 <View style={styles.recentMain}>
                   <Text style={styles.recentItemTitle} numberOfLines={1}>
                     {getExpenseDisplayTitle(item) || 'Harcama'}
@@ -222,7 +334,7 @@ const HomeScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.recentAmount}>{formatCurrency(item.amount)}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -249,82 +361,30 @@ const HomeScreen = ({ navigation }) => {
             {loadingWeekly && <ActivityIndicator size="small" color={theme.colors.primary[600]} />}
           </View>
 
-          <View style={styles.grid}>
-            <NavButton
+          <View style={styles.quickActionsRow}>
+            <QuickAction
               title="Evlerim"
-              subtitle="Üye olduğum ev grupları"
-              emoji="🏘️"
+              icon="home-outline"
               onPress={() => navigation.navigate('GrupListesi')}
-              wide
             />
-            <NavButton
-              title="Faturalar"
-              subtitle="Kira, internet, abonelikler"
-              emoji="🧾"
-              idx={0}
-              onPress={() => navigateToHouseScreen('BillsOverviewScreen', {}, { redirectTo: 'BillsOverviewScreen' })}
+            <QuickAction
+              title="Ev Notları"
+              icon="clipboard-outline"
+              onPress={() => navigateToHouseScreen('EvNotlari', {}, { redirectTo: 'EvNotlari' })}
             />
-            <NavButton
-              title="Harcamalar"
-              subtitle="Serbest gider hareketleri"
-              emoji="📋"
-              idx={1}
-              onPress={() => navigateToHouseScreen('TumHarcamalar', {}, { redirectTo: 'TumHarcamalar' })}
-            />
-            <NavButton
-              title="Analitik"
-              subtitle="Özetler ve dağılımlar"
-              emoji="📊"
-              idx={2}
-              onPress={() => navigateToHouseScreen('HarcamaOzeti', {}, { redirectTo: 'HarcamaOzeti' })}
-            />
-            <NavButton
-              title="Ödemeler"
-              subtitle="Gönderilen ve alınanlar"
-              emoji="💳"
-              idx={3}
-              onPress={() => navigation.navigate('Odemeler')}
-            />
-            <NavButton
+            <QuickAction
               title="Borç Özeti"
-              subtitle="Net bakiyeleri gör"
-              emoji="💰"
-              idx={4}
+              icon="swap-vertical-outline"
               onPress={() => navigateToHouseScreen('DebtSummaryScreen', {}, { redirectTo: 'DebtSummaryScreen' })}
             />
-            <NavButton
-              title="Bekleyenler"
-              subtitle="Onay bekleyen işlemler"
-              emoji="⏳"
-              idx={5}
-              onPress={() => navigation.navigate('BekleyenOdemeler', { userId: user?.id })}
-            />
-            <NavButton
-              title="Ayarlar"
-              subtitle="Tema ve hesap seçenekleri"
-              emoji="⚙️"
-              idx={6}
-              onPress={() => navigation.navigate('Ayarlar')}
-            />
-            <NavButton
-              title="Davet Et"
-              subtitle="Yeni ev arkadaşı çağır"
-              emoji="📨"
-              idx={7}
+            <QuickAction
+              title="Yeni Kişi"
+              icon="person-add-outline"
+              accent
               onPress={() => navigateToHouseScreen('DavetEt')}
             />
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={async () => {
-            await logout();
-          }}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
-        </TouchableOpacity>
 
         <Modal visible={billModalVisible} transparent animationType="slide" onRequestClose={() => setBillModalVisible(false)}>
           <View style={styles.sheetBackdrop}>
@@ -371,28 +431,46 @@ const makeStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     scrollContent: { paddingBottom: 24 },
+    notificationCard: {
+      marginHorizontal: 16,
+      marginTop: 16,
+      backgroundColor: theme.colors.warning[50],
+      borderWidth: 1,
+      borderColor: theme.colors.warning[200],
+      borderRadius: 20,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    notificationIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: theme.colors.warning[100],
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    notificationTitle: { color: theme.colors.warning[800], fontWeight: '800', fontSize: 15, marginBottom: 2 },
+    notificationDesc: { color: theme.colors.warning[700], fontSize: 13, lineHeight: 18, opacity: 0.9 },
     section: { paddingHorizontal: 16, paddingTop: 14 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { color: theme.colors.text.secondary, fontSize: 14, fontWeight: '700' },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    gridItem: { width: '48%', marginBottom: 12 },
-    gridItemFull: { width: '100%', marginBottom: 12 },
-    btnCard: {
-      borderRadius: 18,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: theme.colors.neutral[200],
-    },
-    btnCardInner: {
-      minHeight: 96,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-      flexDirection: 'row',
+    quickActionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    quickActionItem: { alignItems: 'center', width: 72 },
+    quickActionCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 22,
+      backgroundColor: theme.colors.neutral[100],
       alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
     },
-    btnIcon: { fontSize: 24, marginRight: 10 },
-    btnText: { fontWeight: '800', fontSize: 15 },
-    btnSubSmall: { marginTop: 4, fontSize: 12, lineHeight: 16 },
+    quickActionCircleAccent: {
+      backgroundColor: theme.colors.success[100],
+    },
+    quickActionLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text.primary, textAlign: 'center' },
     noticeCard: {
       marginHorizontal: 16,
       marginTop: 16,
@@ -413,9 +491,30 @@ const makeStyles = (theme) =>
       paddingVertical: 10,
     },
     noticeButtonText: { color: theme.colors.text.onPrimary, fontWeight: '700' },
-    todayCard: {
+    summarySection: {
       marginHorizontal: 16,
       marginTop: 16,
+    },
+    brandStrip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 16,
+      backgroundColor: theme.colors.primary[50],
+      borderWidth: 1,
+      borderColor: theme.colors.primary[100],
+      marginBottom: 10,
+    },
+    brandStripText: {
+      color: theme.colors.primary[700],
+      fontSize: 12,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+    },
+    todayCard: {
       borderRadius: 22,
       padding: 18,
       backgroundColor: theme.colors.surface,
@@ -440,8 +539,14 @@ const makeStyles = (theme) =>
       borderWidth: 1,
       borderColor: theme.colors.primary[100],
     },
+    todayBoxDebt: { backgroundColor: theme.colors.error[50], borderColor: theme.colors.error[200] },
+    todayBoxReceivable: { backgroundColor: theme.colors.success[50], borderColor: theme.colors.success[200] },
     todayLabel: { color: theme.colors.text.secondary, fontSize: 12, marginBottom: 6, lineHeight: 16 },
     todayValue: { color: theme.colors.text.primary, fontWeight: '800', fontSize: 15 },
+    todayLabelDebt: { color: theme.colors.error[700], fontSize: 12, marginBottom: 6, lineHeight: 16, fontWeight: '700' },
+    todayValueDebt: { color: theme.colors.error[700], fontWeight: '800', fontSize: 15 },
+    todayLabelReceivable: { color: theme.colors.success[700], fontSize: 12, marginBottom: 6, lineHeight: 16, fontWeight: '700' },
+    todayValueReceivable: { color: theme.colors.success[700], fontWeight: '800', fontSize: 15 },
     recentCard: {
       marginHorizontal: 16,
       marginTop: 16,
@@ -471,15 +576,7 @@ const makeStyles = (theme) =>
     recentItemTitle: { color: theme.colors.text.primary, fontWeight: '700', marginBottom: 3 },
     recentItemSub: { color: theme.colors.text.secondary, fontSize: 12 },
     recentAmount: { color: theme.colors.text.primary, fontWeight: '800' },
-    logoutBtn: {
-      marginHorizontal: 16,
-      marginTop: 8,
-      borderRadius: 16,
-      paddingVertical: 14,
-      alignItems: 'center',
-      backgroundColor: theme.colors.error[600],
-    },
-    logoutText: { color: theme.colors.text.onPrimary, fontSize: 15, fontWeight: '800' },
+    recentEmptyText: { color: theme.colors.text.secondary, fontSize: 13, paddingVertical: 14, textAlign: 'center' },
     sheetBackdrop: { flex: 1, backgroundColor: 'rgba(3, 7, 18, 0.45)', justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: theme.colors.surface,

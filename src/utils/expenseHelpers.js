@@ -1,5 +1,5 @@
 import { NON_BILL_KEYS } from './expenseClassifier';
-import { getCategoryDisplayName, getCategoryIcon, getCategoryColor } from '../constants/ExpenseEnums';
+import { getCategoryDisplayName, getCategoryIconName, getCategoryColor } from '../constants/ExpenseEnums';
 
 export const getUTCMonthWindow = (date = new Date()) => {
   const year = date.getUTCFullYear();
@@ -301,4 +301,4 @@ export const getUserLedgerStatus = () => ({
   status: 'neutral',
 });
 
-export { getCategoryDisplayName, getCategoryIcon, getCategoryColor };
+export { getCategoryDisplayName, getCategoryIconName, getCategoryColor };

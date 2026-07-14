@@ -13,12 +13,14 @@ import {
   Modal,
   Dimensions
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { expensesApi, houseApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { normalizeExpense } from '../utils/expenseClassifier';
-import { getCategoryDisplayName, getCategoryIcon, getCategoryColor } from '../constants/ExpenseEnums';
+import { getCategoryDisplayName, getCategoryIconName, getCategoryColor } from '../constants/ExpenseEnums';
 import {
   getUTCMonthWindow,
   formatCurrency,
@@ -41,7 +43,8 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
   const houseId = routeHouseId || user?.defaultHouseId;
   const CommonStyles = useCommonStyles();
   const { theme } = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,14 +69,14 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
 
   // Kategori seçenekleri
   const categoryOptions = [
-    { key: 'Rent', label: 'Kira', icon: '🏠' },
-    { key: 'Internet', label: 'İnternet', icon: '🌐' },
-    { key: 'Electricity', label: 'Elektrik', icon: '⚡' },
-    { key: 'Water', label: 'Su', icon: '💧' },
-    { key: 'Gas', label: 'Doğalgaz', icon: '🔥' },
-    { key: 'Market', label: 'Market', icon: '🛒' },
-    { key: 'Food', label: 'Yemek', icon: '🍽️' },
-    { key: 'Other', label: 'Diğer', icon: '📄' }
+    { key: 'Rent', label: 'Kira', icon: 'home-outline' },
+    { key: 'Internet', label: 'İnternet', icon: 'wifi-outline' },
+    { key: 'Electricity', label: 'Elektrik', icon: 'flash-outline' },
+    { key: 'Water', label: 'Su', icon: 'water-outline' },
+    { key: 'Gas', label: 'Doğalgaz', icon: 'flame-outline' },
+    { key: 'Market', label: 'Market', icon: 'cart-outline' },
+    { key: 'Food', label: 'Yemek', icon: 'restaurant-outline' },
+    { key: 'Other', label: 'Diğer', icon: 'document-text-outline' }
   ];
 
   // Veri yükleme
@@ -225,7 +228,7 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
       .map(([key, data]) => ({
         key,
         label: getCategoryDisplayName(key),
-        icon: getCategoryIcon(key),
+        icon: getCategoryIconName(key),
         color: getCategoryColor(key),
         ...data
       }))
@@ -304,7 +307,7 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
           <View key={category.key} style={styles.categoryItem}>
             <View style={styles.categoryHeader}>
               <View style={styles.categoryInfo}>
-                <Text style={styles.categoryIcon}>{category.icon}</Text>
+                <Ionicons name={category.icon} size={18} color={category.color} style={{ marginRight: 8 }} />
                 <Text style={styles.categoryLabel}>{category.label}</Text>
               </View>
               <Text style={styles.categoryAmount}>{formatCurrency(category.total)}</Text>
@@ -407,12 +410,19 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
                   }
                 }}
               >
-                <Text style={[
-                  styles.filterOptionText,
-                  selectedCategories.includes(option.key) && styles.filterOptionTextActive
-                ]}>
-                  {option.icon} {option.label}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons
+                    name={option.icon}
+                    size={16}
+                    color={selectedCategories.includes(option.key) ? theme.colors.primary[700] : theme.colors.text.secondary}
+                  />
+                  <Text style={[
+                    styles.filterOptionText,
+                    selectedCategories.includes(option.key) && styles.filterOptionTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -444,7 +454,7 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={theme.colors.primary?.[500]} />
         <Text style={styles.loadingText}>Harcama özeti yükleniyor...</Text>
       </View>
@@ -455,11 +465,15 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.8}>
+          <Ionicons name="chevron-back" size={26} color={theme.colors.text.primary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Harcama Özeti</Text>
         <TouchableOpacity
           style={styles.filterButton}
           onPress={() => setShowFilters(true)}
         >
+          <Ionicons name="options-outline" size={16} color={theme.colors.text.onPrimary} />
           <Text style={styles.filterButtonText}>Filtre</Text>
         </TouchableOpacity>
       </View>
@@ -483,19 +497,21 @@ const HarcamaOzetiScreen = ({ navigation, route }) => {
 
 export default HarcamaOzetiScreen;
 
-function makeStyles(theme) {
+function makeStyles(theme, insets) {
   const { width } = Dimensions.get('window');
   return StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     loadingText: { marginTop: 16, fontSize: 16 },
     header: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16,
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 16, paddingTop: (insets?.top || 0) + 12, paddingBottom: 12,
       backgroundColor: theme.colors.background, borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[200]
     },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.text.primary },
-    filterButton: { backgroundColor: theme.colors.primary[500], paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-    filterButtonText: { color: theme.colors.text.onPrimary, fontWeight: '600' },
+    backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+    headerTitle: { flex: 1, fontSize: 18, fontWeight: '900', color: theme.colors.text.primary },
+    filterButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.colors.primary[600], paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
+    filterButtonText: { color: theme.colors.text.onPrimary, fontWeight: '700', fontSize: 13 },
     content: { flex: 1 },
     kpiContainer: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 12 },
     kpiCard: {

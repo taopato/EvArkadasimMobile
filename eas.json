@@ -13,6 +13,9 @@
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.evarkadasim.co"
+      },
       "android": {
         "buildType": "app-bundle"
       }

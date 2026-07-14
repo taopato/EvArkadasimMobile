@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, Alert,
-  ActivityIndicator, Platform, ScrollView, Image, KeyboardAvoidingView,
+  ActivityIndicator, Platform, Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi, houseApi } from '../services/api';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
@@ -241,8 +243,15 @@ export default function CreatePaymentScreen({ navigation, route }) {
   };
 
   return (
-    <KeyboardAvoidingView style={CommonStyles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView style={CommonStyles.content} contentInsetAdjustmentBehavior="always" keyboardShouldPersistTaps="handled">
+    <View style={CommonStyles.container}>
+      <KeyboardAwareScrollView
+        style={CommonStyles.content}
+        contentInsetAdjustmentBehavior="always"
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={20}
+        keyboardOpeningTime={0}
+      >
         <View style={CommonStyles.header}>
           <Text style={CommonStyles.title}>Ödeme Yap</Text>
           <Text style={CommonStyles.subtitle}>
@@ -418,13 +427,15 @@ export default function CreatePaymentScreen({ navigation, route }) {
               ) : (
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TouchableOpacity onPress={pickImage} style={CommonStyles.menuButton} activeOpacity={0.8}>
-                    <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
-                      <Text style={CommonStyles.buttonText}>📎 Galeriden Yükle</Text>
+                    <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                      <Ionicons name="image-outline" size={18} color={theme.colors.text.primary} />
+                      <Text style={CommonStyles.buttonText}>Galeriden Yükle</Text>
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={takePhoto} style={CommonStyles.menuButton} activeOpacity={0.8}>
-                    <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.warning.background }]}>
-                      <Text style={CommonStyles.buttonText}>📷 Fotoğraf Çek</Text>
+                    <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.warning.background, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                      <Ionicons name="camera-outline" size={18} color={theme.colors.text.primary} />
+                      <Text style={CommonStyles.buttonText}>Fotoğraf Çek</Text>
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -443,7 +454,7 @@ export default function CreatePaymentScreen({ navigation, route }) {
           activeOpacity={0.8}
         >
           <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.success.background }]}>
-            <Text style={CommonStyles.buttonIcon}>💳</Text>
+            <Ionicons name="card-outline" size={24} color={ColorThemes.success.foreground} style={{ marginBottom: 6 }} />
             <Text style={CommonStyles.buttonText}>
               {loading ? 'Ödeme Oluşturuluyor...' : 'Ödeme Yap'}
             </Text>
@@ -462,10 +473,10 @@ export default function CreatePaymentScreen({ navigation, route }) {
             <Text style={{ color: theme.colors.error[600] }}>{formError}</Text>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

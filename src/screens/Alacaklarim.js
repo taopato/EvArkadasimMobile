@@ -1,6 +1,7 @@
 // src/screens/MyReceivablesScreen.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { houseApi } from '../services/api';
 import { formatAmount } from '../constants/ExpenseEnums';
@@ -39,7 +40,6 @@ const MyReceivablesScreen = ({ navigation, route }) => {
       const res = await houseApi.getUserDebts(me, Number(houseId));
       const body = res?.data || {};
       const pairs = Array.isArray(body.pairs) ? body.pairs : [];
-      const totals = Array.isArray(body.totals) ? body.totals : [];
 
       const hasNames = pairs.some(p =>
         pick(p, ['fromUserName', 'fromFullName', 'fromName']) ||
@@ -72,10 +72,7 @@ const MyReceivablesScreen = ({ navigation, route }) => {
         });
 
       setReceivables(rows);
-
-      const meTotal = totals.find(t => Number(t.userId) === me);
-      const net = Number(meTotal?.net ?? rows.reduce((s, r) => s + r.amount, 0));
-      setNetBalance(net);
+      setNetBalance(rows.reduce((s, r) => s + r.amount, 0));
     } catch {
       setReceivables([]);
       setNetBalance(0);
@@ -104,7 +101,7 @@ const MyReceivablesScreen = ({ navigation, route }) => {
         </View>
 
         <View style={CommonStyles.card}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>💰 Toplam Alacak</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Toplam Alacak</Text>
           <View style={styles.netStatusContainer}>
             <Text style={[styles.netAmount, { color: theme.colors.success?.[600] }]}>{formatAmount(netBalance)}</Text>
             <Text style={[styles.netLabel, { color: theme.colors.text.secondary }]}>Toplam Alacağınız</Text>
@@ -113,7 +110,7 @@ const MyReceivablesScreen = ({ navigation, route }) => {
 
         {receivables.length > 0 ? (
           <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>👥 Ev Arkadaşları</Text>
+            <Text style={styles.sectionTitle}>Ev Arkadaşları</Text>
             <TextInput
               style={styles.searchInput}
               value={searchText}
@@ -128,7 +125,7 @@ const MyReceivablesScreen = ({ navigation, route }) => {
                   style={CommonStyles.listItem}
                   activeOpacity={0.8}
                   onPress={() =>
-                    navigation.navigate('TwoPersonDebtDetail', {
+                    navigation.navigate('KisiDetayi', {
                       houseId,
                       currentUserId: Number(user.id),
                       selectedUserId: item.counterpartyUserId,
@@ -155,7 +152,7 @@ const MyReceivablesScreen = ({ navigation, route }) => {
           </View>
         ) : (
           <View style={CommonStyles.emptyContainer}>
-            <Text style={CommonStyles.emptyIcon}>📭</Text>
+            <Ionicons name="mail-open-outline" size={40} color={theme.colors.text.secondary} style={{ marginBottom: 8 }} />
             <Text style={CommonStyles.emptyText}>Bekleyen alacak yok</Text>
           </View>
         )}

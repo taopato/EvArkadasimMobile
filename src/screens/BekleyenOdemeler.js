@@ -48,7 +48,7 @@ const PendingPaymentsScreen = ({ route }) => {
     const amount = Number(item.tutar ?? item.amount ?? 0);
     const date = item.odemeTarihi || item.date || item.createdAt;
     const fromName = item.borcluUserName || item.payerName || item.borcluKullaniciAdi || '-';
-    const toName = item.alacakliUserName || item.toUserName || item.alacakliKullaniciAdi || '-';
+    const toName = item.alacakliUserName || item.toUserName || item.alacakliKullaniciAdi || user?.fullName || 'Siz';
     const id = item.id ?? item.paymentId;
 
     const isBusy = actionId === id;

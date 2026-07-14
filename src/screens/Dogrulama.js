@@ -1,23 +1,30 @@
-// src/screens/VerificationScreen.js
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useAuth } from '../context/AuthContext';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { authApi } from '../services/api';
+import { isSixDigitCode } from '../shared/validation/authValidation';
 
 const VerificationScreen = ({ navigation, route }) => {
   const { email, fullName, password } = route.params || {};
   const { login } = useAuth();
-  const CommonStyles = useCommonStyles();
+  const commonStyles = useCommonStyles();
   const { theme } = useTheme();
-  const ColorThemes = makeColorThemes(theme);
+  const colorThemes = makeColorThemes(theme);
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
 
-  // 60 sn geri sayım
   useEffect(() => {
     if (secondsLeft <= 0) return;
     const id = setInterval(() => {
@@ -27,21 +34,30 @@ const VerificationScreen = ({ navigation, route }) => {
   }, [secondsLeft]);
 
   const handleVerification = async () => {
-    if (!verificationCode.trim()) {
-      Alert.alert('Hata', 'Lütfen doğrulama kodunu girin.');
+    if (!isSixDigitCode(verificationCode)) {
+      Alert.alert('Hata', 'Lütfen 6 haneli doğrulama kodunu girin.');
       return;
     }
+
     setLoading(true);
     try {
-      const response = await authApi.verifyCodeAndRegister(email, verificationCode.trim(), fullName, password);
-      const payload = response?.data?.data;
+      const response = await authApi.verifyCodeAndRegister(
+        email,
+        verificationCode.trim(),
+        fullName,
+        password
+      );
+      const payload = response?.data;
+
       if (payload?.token && payload?.user) {
         await login(payload.user, payload.token);
-        Alert.alert('Başarılı', 'Hesabınız oluşturuldu!', [
-          { text: 'Tamam' },
-        ]);
+        Alert.alert('Başarılı', 'Hesabınız oluşturuldu!', [{ text: 'Tamam' }]);
       } else {
-        Alert.alert('Hata', 'Beklenmeyen yanıt alındı.');
+        Alert.alert(
+          'Başarılı',
+          payload?.raw?.message || 'Kayıt tamamlandı. Şimdi giriş yapabilirsiniz.',
+          [{ text: 'Tamam', onPress: () => navigation.navigate('Login') }]
+        );
       }
     } catch (error) {
       const status = error?.response?.status;
@@ -49,10 +65,12 @@ const VerificationScreen = ({ navigation, route }) => {
       const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
       const lower = text.toLowerCase();
       let message = 'Doğrulama başarısız';
-      if (lower.includes('zaten kayıtlı') || lower.includes('already') || status === 500) {
+      if (lower.includes('zaten kay') || lower.includes('already')) {
         message = 'Bu e-posta zaten kayıtlı. Lütfen giriş yapmayı deneyin.';
-      } else if (lower.includes('expired') || lower.includes('süre') || lower.includes('geçersiz')) {
+      } else if (lower.includes('expired') || lower.includes('sure') || lower.includes('gecersiz')) {
         message = 'Kod geçersiz veya süresi dolmuş. Lütfen yeni kod isteyin.';
+      } else if (status === 400 && text) {
+        message = text;
       } else if (text) {
         message = text;
       }
@@ -77,37 +95,36 @@ const VerificationScreen = ({ navigation, route }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={CommonStyles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      <ScrollView 
-        style={CommonStyles.content}
+    <View style={commonStyles.container}>
+      <KeyboardAwareScrollView
+        style={commonStyles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        extraScrollHeight={20}
+        keyboardOpeningTime={0}
       >
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Email Doğrulama</Text>
-          <Text style={CommonStyles.subtitle}>{email} adresine gönderilen kodu girin</Text>
+        <View style={commonStyles.header}>
+          <Text style={commonStyles.title}>E-posta Doğrulama</Text>
+          <Text style={commonStyles.subtitle}>{email} adresine gönderilen kodu girin</Text>
         </View>
 
-        <View style={CommonStyles.card}>
-          <View style={CommonStyles.inputContainer}>
-            <Text style={CommonStyles.label}>Doğrulama Kodu</Text>
+        <View style={commonStyles.card}>
+          <View style={commonStyles.inputContainer}>
+            <Text style={commonStyles.label}>Doğrulama Kodu</Text>
             <TextInput
               style={styles.codeInput}
               placeholder="000000"
               placeholderTextColor={theme.colors.text.secondary}
               value={verificationCode}
               onChangeText={setVerificationCode}
-              keyboardType="numeric"
+              keyboardType="number-pad"
               maxLength={6}
             />
           </View>
 
           <Text style={styles.infoText}>
-            📧 {email} adresine 6 haneli doğrulama kodu gönderildi.
+            {email} adresine 6 haneli doğrulama kodu gönderildi.
           </Text>
           <Text style={[styles.countdownText, { color: theme.colors.text.secondary }]}>
             {secondsLeft > 0 ? `Yeniden gönderim: ${secondsLeft} sn` : 'Yeniden gönderime hazır'}
@@ -115,50 +132,73 @@ const VerificationScreen = ({ navigation, route }) => {
         </View>
 
         <TouchableOpacity
-          style={[CommonStyles.menuButton, (!verificationCode.trim() || loading) && { opacity: 0.5 }]}
+          style={[commonStyles.menuButton, (!verificationCode.trim() || loading) && { opacity: 0.5 }]}
           onPress={handleVerification}
           disabled={!verificationCode.trim() || loading}
           activeOpacity={0.8}
         >
-          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.success.background }]}>
-            <Text style={CommonStyles.buttonIcon}>✅</Text>
-            <Text style={CommonStyles.buttonText}>{loading ? 'Doğrulanıyor...' : 'Hesabı Doğrula'}</Text>
-            <Text style={CommonStyles.buttonSubtext}>Hesabınızı aktifleştirin</Text>
+          <View style={[commonStyles.buttonContent, { backgroundColor: colorThemes.success.background }]}>
+            <Text style={commonStyles.buttonText}>{loading ? 'Doğrulanıyor...' : 'Hesabı Doğrula'}</Text>
+            <Text style={commonStyles.buttonSubtext}>Hesabinizi aktifestirin</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[CommonStyles.menuButton, (loading || secondsLeft > 0) && { opacity: 0.5 }]} onPress={handleResendCode} disabled={loading || secondsLeft > 0} activeOpacity={0.8}>
-          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.warning.background }]}>
-            <Text style={CommonStyles.buttonIcon}>📧</Text>
-            <Text style={CommonStyles.buttonText}>
-              {loading ? 'Gönderiliyor...' : (secondsLeft > 0 ? `Kodu Tekrar Gönder (${secondsLeft})` : 'Kodu Tekrar Gönder')}
+        <TouchableOpacity
+          style={[commonStyles.menuButton, (loading || secondsLeft > 0) && { opacity: 0.5 }]}
+          onPress={handleResendCode}
+          disabled={loading || secondsLeft > 0}
+          activeOpacity={0.8}
+        >
+          <View style={[commonStyles.buttonContent, { backgroundColor: colorThemes.warning.background }]}>
+            <Text style={commonStyles.buttonText}>
+              {loading ? 'Gönderiliyor...' : secondsLeft > 0 ? `Kodu Tekrar Gönder (${secondsLeft})` : 'Kodu Tekrar Gönder'}
             </Text>
-            <Text style={CommonStyles.buttonSubtext}>Yeni kod talep edin</Text>
+            <Text style={commonStyles.buttonSubtext}>Yeni kod talep edin</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={CommonStyles.menuButton} onPress={() => navigation.navigate('SignupScreen')} activeOpacity={0.8}>
-          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.neutral.background }]}>
-            <Text style={CommonStyles.buttonIcon}>🔙</Text>
-            <Text style={CommonStyles.buttonText}>Geri Dön</Text>
-            <Text style={CommonStyles.buttonSubtext}>Kayıt sayfasına dön</Text>
+        <TouchableOpacity
+          style={commonStyles.menuButton}
+          onPress={() => navigation.navigate('SignupScreen')}
+          activeOpacity={0.8}
+        >
+          <View style={[commonStyles.buttonContent, { backgroundColor: colorThemes.neutral.background }]}>
+            <Text style={commonStyles.buttonText}>Geri Dön</Text>
+            <Text style={commonStyles.buttonSubtext}>Kayıt sayfasına dön</Text>
           </View>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 
 function makeStyles(theme) {
   return StyleSheet.create({
     codeInput: {
-      borderWidth: 1, borderColor: theme.colors.neutral?.[300], borderRadius: 8, padding: 12,
-      backgroundColor: theme.colors.background, fontSize: 20, color: theme.colors.text.primary,
-      textAlign: 'center', letterSpacing: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.neutral?.[300],
+      borderRadius: 8,
+      padding: 12,
+      backgroundColor: theme.colors.background,
+      fontSize: 20,
+      color: theme.colors.text.primary,
+      textAlign: 'center',
+      letterSpacing: 8,
     },
     infoText: {
-      fontSize: 14, color: theme.colors.text.secondary, lineHeight: 20, marginTop: 16,
-      padding: 12, backgroundColor: theme.colors.neutral[50], borderRadius: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.warning[600],
+      fontSize: 14,
+      color: theme.colors.text.secondary,
+      lineHeight: 20,
+      marginTop: 16,
+      padding: 12,
+      backgroundColor: theme.colors.neutral[50],
+      borderRadius: 8,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.colors.warning[600],
+    },
+    countdownText: {
+      marginTop: 12,
+      fontSize: 12,
     },
   });
 }

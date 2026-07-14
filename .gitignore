@@ -23,15 +23,21 @@ web-build/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+expo-tunnel.err.log
+expo-tunnel.out.log
 
 # macOS
 .DS_Store
 *.pem
 
 # local env files
+.env
+.env.*
+!.env.example
 .env*.local
 
 # typescript
 *.tsbuildinfo
 
 app-example
+YEDEK_DOSYALAR/

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Ev Arkadasim",
-    "slug": "ev-arkadasim",
+    "name": "Roomora",
+    "slug": "roomora",
     "owner": "takopato4",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,27 +9,32 @@
     "splash": {
       "image": "./src/assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f6f3ed"
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.taopato.roomora",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "NSCameraUsageDescription": "Fiş taramak ve harcama/ödeme kanıtı eklemek için kameraya erişim gerekir.",
+        "NSPhotoLibraryUsageDescription": "Fiş veya dekont fotoğrafı seçebilmek için galeriye erişim gerekir.",
+        "NSPhotoLibraryAddUsageDescription": "Taranan fiş görsellerini kaydedebilmek için galeriye erişim gerekir."
       }
     },
     "android": {
-      "package": "com.taopato.evarkadasim",
+      "package": "com.taopato.roomora",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#f6f3ed"
       }
     },
-    "scheme": "evarkadasim",
+    "scheme": "roomora",
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://192.168.1.150:5118",
+      "EXPO_PUBLIC_API_URL": "http://192.168.1.106:5118",
       "GOOGLE_WEB_CLIENT_ID": "253722443834-1rium4sbtslb0de4ct9v6k2suetgnpad.apps.googleusercontent.com",
       "GOOGLE_IOS_CLIENT_ID": "",
       "GOOGLE_ANDROID_CLIENT_ID": "",

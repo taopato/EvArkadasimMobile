@@ -12,9 +12,10 @@ import Constants from 'expo-constants';
  * Not: Production/EAS build için EXPO_PUBLIC_API_URL ile override edebilirsin.
  */
 
-// ==== ❶ BURAYI KENDİ MAKİNENİN IP'Sİ İLE DOLDUR ====
-// (NGROK kullansak da dursun; LAN testinde işine yarar.)
-const HOST_REAL_DEVICE = '192.168.1.33';
+// Expo'nun kendi LAN host tespiti (getExpoLanHost) genelde yeterli; bu sadece
+// tespit başarısız olursa kullanılan bir fallback. Farklı bir makinede/ağda
+// çalışırken kaynağı değiştirmeye gerek kalmasın diye env değişkeninden okunur.
+const HOST_REAL_DEVICE = (process.env.EXPO_PUBLIC_LAN_HOST as string) || '192.168.1.106';
 
 // Emülatör hostları
 const HOST_DEV_ANDROID = '10.0.2.2';
@@ -29,9 +30,27 @@ const DEFAULT_WEB_PROD_API = 'https://api.evarkadasim.co';
 const USE_HTTPS = false;
 const DEV_PROTOCOL = USE_HTTPS ? 'https' : 'http';
 const DEV_WEB_PROTOCOL = USE_HTTPS ? 'https' : 'http';
+const DEV_SELECTED_PORT = USE_HTTPS ? DEV_PORT : DEV_HTTP_PORT;
+
+const getExpoLanHost = (): string | undefined => {
+  const candidates = [
+    (Constants?.expoConfig as any)?.hostUri,
+    (Constants as any)?.manifest?.debuggerHost,
+    (Constants as any)?.manifest2?.extra?.expoClient?.hostUri,
+  ].filter(Boolean);
+
+  const raw = candidates.find((value) => typeof value === 'string' && value.includes(':'));
+  if (!raw) return undefined;
+  const host = String(raw).split(':')[0];
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ? host : undefined;
+};
 
 // Emülatörlerde farklı host, gerçek cihazda LAN IP kullan
 const getDevHost = (): string => {
+  const expoLanHost = getExpoLanHost();
+  if (Constants.isDevice && expoLanHost) {
+    return expoLanHost;
+  }
   if (Platform.OS === 'android') {
     return Constants.isDevice ? HOST_REAL_DEVICE : HOST_DEV_ANDROID;
   }
@@ -42,7 +61,7 @@ const getDevHost = (): string => {
 };
 
 // Development taban URL (LAN testi)
-const DEV_BASE = `${DEV_PROTOCOL}://${getDevHost()}:${DEV_PORT}`;
+const DEV_BASE = `${DEV_PROTOCOL}://${getDevHost()}:${DEV_SELECTED_PORT}`;
 
 const getWebRuntimeBase = (): string | undefined => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') {

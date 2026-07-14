@@ -2,12 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { houseApi, paymentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import eventBus from '../shared/events/bus';
 import { useTheme } from '../shared/theme/ThemeProvider';
+import { shadow } from '../shared/ui/shadow';
+import BrandMark from '../components/BrandMark';
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 8;
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -18,10 +22,14 @@ const normalizeStatus = (raw) => {
   return 'Pending';
 };
 
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
+
 export default function Odemeler({ route, navigation }) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const houseId = route?.params?.houseId || user?.defaultHouseId;
 
   const [loading, setLoading] = useState(false);
@@ -107,27 +115,57 @@ export default function Odemeler({ route, navigation }) {
 
   const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
 
-  const statusText = {
-    Approved: 'Onaylandi',
-    Rejected: 'Reddedildi',
-    Pending: 'Bekliyor',
+  const monthTotals = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let sent = 0;
+    let received = 0;
+    allItems.forEach((item) => {
+      const d = item.date ? new Date(item.date) : null;
+      if (!d || d < monthStart) return;
+      if (Number(item.payerId) === Number(user?.id)) sent += item.amount;
+      if (Number(item.toId) === Number(user?.id)) received += item.amount;
+    });
+    return { sent, received };
+  }, [allItems, user?.id]);
+
+  const STATUS_META = {
+    Approved: { label: 'Onaylandı', color: theme.colors.success[700], bg: theme.colors.success[50], icon: 'checkmark-circle' },
+    Rejected: { label: 'Reddedildi', color: theme.colors.error[700], bg: theme.colors.error[50], icon: 'close-circle' },
+    Pending: { label: 'Bekliyor', color: theme.colors.warning[700], bg: theme.colors.warning[50], icon: 'time' },
   };
 
   const renderItem = ({ item }) => {
-    const statusColor =
-      item.status === 'Approved' ? theme.colors.success[600]
-        : item.status === 'Rejected' ? theme.colors.error[600]
-          : theme.colors.warning[600];
+    const isSent = Number(item.payerId) === Number(user?.id);
+    const statusMeta = STATUS_META[item.status];
 
     return (
-      <View style={[styles.card, { borderLeftColor: statusColor }]}>
-        <Text style={styles.title}>{item.payerName} {'->'} {item.toName}</Text>
-        <Text style={styles.sub}>{item.date ? new Date(item.date).toLocaleString('tr-TR') : '-'}</Text>
-        {item.note ? <Text style={styles.note}>{item.note}</Text> : null}
-        <Text style={styles.meta}>{item.paymentMethod}</Text>
-        <Text style={[styles.amount, { color: statusColor }]}>
-          {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.amount)} - {statusText[item.status]}
-        </Text>
+      <View style={styles.card}>
+        <View style={[styles.cardIconWrap, { backgroundColor: isSent ? theme.colors.error[50] : theme.colors.success[50] }]}>
+          <Ionicons
+            name={isSent ? 'arrow-up-circle' : 'arrow-down-circle'}
+            size={24}
+            color={isSent ? theme.colors.error[600] : theme.colors.success[600]}
+          />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {isSent ? `${item.toName} kişisine` : `${item.payerName} kişisinden`}
+          </Text>
+          <Text style={styles.cardSub}>
+            {item.date ? new Date(item.date).toLocaleDateString('tr-TR') : '-'}
+            {item.note ? ` • ${item.note}` : ''}
+          </Text>
+        </View>
+        <View style={styles.cardRight}>
+          <Text style={[styles.cardAmount, { color: isSent ? theme.colors.error[700] : theme.colors.success[700] }]}>
+            {isSent ? '-' : '+'}{formatCurrency(item.amount)}
+          </Text>
+          <View style={[styles.statusChip, { backgroundColor: statusMeta.bg }]}>
+            <Ionicons name={statusMeta.icon} size={12} color={statusMeta.color} />
+            <Text style={[styles.statusChipText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -148,7 +186,7 @@ export default function Odemeler({ route, navigation }) {
         data={visibleItems}
         keyExtractor={(item, index) => String(item.id ?? index)}
         renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme.colors.primary[500]} />}
         contentContainerStyle={styles.content}
         onEndReached={() => {
           if (visibleCount < filteredItems.length) {
@@ -158,7 +196,25 @@ export default function Odemeler({ route, navigation }) {
         onEndReachedThreshold={0.35}
         ListHeaderComponent={(
           <View>
-            <Text style={styles.header}>Odemeler</Text>
+            <Text style={styles.header}>Ödemeler</Text>
+            <Text style={styles.subtitle}>Gönderilen, alınan ve onay bekleyen ödemeler</Text>
+
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>BU AY</Text>
+              <View style={styles.heroRow}>
+                <View style={styles.heroCol}>
+                  <Text style={styles.heroLabel}>Gönderdiğin</Text>
+                  <Text style={styles.heroValue}>{formatCurrency(monthTotals.sent)}</Text>
+                </View>
+                <View style={styles.heroDivider} />
+                <View style={styles.heroCol}>
+                  <Text style={styles.heroLabel}>Aldığın</Text>
+                  <Text style={styles.heroValue}>{formatCurrency(monthTotals.received)}</Text>
+                </View>
+              </View>
+              <BrandMark variant="logo" size={110} subtle style={styles.heroWatermark} />
+            </View>
+
             <TouchableOpacity
               style={styles.primaryCta}
               activeOpacity={0.9}
@@ -170,75 +226,155 @@ export default function Odemeler({ route, navigation }) {
                 }
               }}
             >
-              <View>
-                <Text style={styles.primaryCtaTitle}>Yeni Odeme Ekle</Text>
-                <Text style={styles.primaryCtaSubtitle}>Borcu kapat veya odeme istegi gonder</Text>
+              <View style={styles.primaryCtaIconWrap}>
+                <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
               </View>
-              <Text style={styles.primaryCtaArrow}>›</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.primaryCtaTitle}>Yeni Ödeme Ekle</Text>
+                <Text style={styles.primaryCtaSubtitle}>Borcu kapat veya ödeme isteği gönder</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.onPrimary} />
             </TouchableOpacity>
 
             <View style={styles.filterRow}>
-              <Chip title="Tumu" active={filterMode === 'all'} onPress={() => setFilterMode('all')} />
-              <Chip title="Ben odedim" active={filterMode === 'sent'} onPress={() => setFilterMode('sent')} />
-              <Chip title="Bana odendi" active={filterMode === 'received'} onPress={() => setFilterMode('received')} />
+              <Chip title="Tümü" active={filterMode === 'all'} onPress={() => setFilterMode('all')} />
+              <Chip title="Ben ödedim" active={filterMode === 'sent'} onPress={() => setFilterMode('sent')} />
+              <Chip title="Bana ödendi" active={filterMode === 'received'} onPress={() => setFilterMode('received')} />
             </View>
             <View style={styles.filterRow}>
               <Chip title="Hepsi" active={statusFilter === 'all'} onPress={() => setStatusFilter('all')} />
               <Chip title="Bekleyen" active={statusFilter === 'Pending'} onPress={() => setStatusFilter('Pending')} />
-              <Chip title="Onayli" active={statusFilter === 'Approved'} onPress={() => setStatusFilter('Approved')} />
+              <Chip title="Onaylı" active={statusFilter === 'Approved'} onPress={() => setStatusFilter('Approved')} />
             </View>
           </View>
         )}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>Odeme kaydi yok.</Text> : null}
-        ListFooterComponent={visibleCount < filteredItems.length ? <Text style={styles.more}>Daha fazla yuklemek icin asagi kaydir</Text> : <View style={{ height: 12 }} />}
+        ListEmptyComponent={!loading ? (
+          <View style={styles.emptyWrap}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="card-outline" size={30} color={theme.colors.primary[600]} />
+            </View>
+            <Text style={styles.emptyTitle}>Henüz ödeme kaydı yok</Text>
+            <Text style={styles.emptyDesc}>Bir ödeme gönderdiğinde ya da aldığında burada listelenir.</Text>
+          </View>
+        ) : null}
+        ListFooterComponent={visibleCount < filteredItems.length ? <Text style={styles.more}>Daha fazla yüklemek için aşağı kaydır</Text> : <View style={{ height: 12 }} />}
       />
     </View>
   );
 }
 
-const makeStyles = (theme) => StyleSheet.create({
+const makeStyles = (theme, insets) => StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 14, paddingBottom: 20 },
-  header: { fontSize: 22, fontWeight: '900', color: theme.colors.text.primary, marginBottom: 12 },
+  content: { padding: 18, paddingTop: insets.top + 16, paddingBottom: 32 },
+  header: { fontSize: 26, fontWeight: '900', color: theme.colors.text.primary, marginBottom: 4 },
+  subtitle: { color: theme.colors.text.secondary, fontSize: 14, marginBottom: 18 },
+  heroCard: {
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 14,
+    backgroundColor: theme.colors.primary[900],
+    overflow: 'hidden',
+    ...shadow(3, 'rgba(23,40,57,0.22)'),
+  },
+  heroEyebrow: {
+    color: theme.colors.primary[200],
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  heroRow: { flexDirection: 'row', alignItems: 'center' },
+  heroCol: { flex: 1 },
+  heroDivider: { width: 1, height: 40, backgroundColor: 'rgba(255,255,255,0.18)', marginHorizontal: 16 },
+  heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 6, fontWeight: '700' },
+  heroValue: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  heroWatermark: { position: 'absolute', right: -20, bottom: -20, opacity: 0.12 },
   primaryCta: {
     backgroundColor: theme.colors.primary[600],
     borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 16,
+    gap: 12,
+    ...shadow(2, 'rgba(23,40,57,0.18)'),
   },
-  primaryCtaTitle: { color: theme.colors.text.onPrimary, fontSize: 18, fontWeight: '900' },
-  primaryCtaSubtitle: { marginTop: 4, color: theme.colors.text.onPrimary, opacity: 0.9 },
-  primaryCtaArrow: { color: theme.colors.text.onPrimary, fontSize: 28, fontWeight: '900' },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
+  primaryCtaIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryCtaTitle: { color: theme.colors.text.onPrimary, fontSize: 16, fontWeight: '800' },
+  primaryCtaSubtitle: { marginTop: 2, color: theme.colors.text.onPrimary, opacity: 0.9, fontSize: 12 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
   chip: {
     paddingVertical: 9,
     paddingHorizontal: 14,
     borderRadius: 999,
     marginRight: 8,
     marginBottom: 8,
-    backgroundColor: theme.colors.neutral[100],
-  },
-  chipActive: { backgroundColor: theme.colors.primary[600] },
-  chipText: { color: theme.colors.text.primary, fontWeight: '700' },
-  chipTextActive: { color: theme.colors.text.onPrimary },
-  card: {
-    borderLeftWidth: 4,
     backgroundColor: theme.colors.surface,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
   },
-  title: { fontWeight: '900', color: theme.colors.text.primary },
-  sub: { color: theme.colors.text.secondary, marginTop: 4 },
-  note: { color: theme.colors.text.primary, marginTop: 8 },
-  meta: { color: theme.colors.text.secondary, marginTop: 6 },
-  amount: { fontWeight: '900', marginTop: 8 },
-  empty: { textAlign: 'center', padding: 24, color: theme.colors.text.secondary },
+  chipActive: { backgroundColor: theme.colors.primary[600], borderColor: theme.colors.primary[600] },
+  chipText: { color: theme.colors.text.primary, fontWeight: '700', fontSize: 13 },
+  chipTextActive: { color: theme.colors.text.onPrimary },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+  },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardBody: { flex: 1, paddingRight: 8 },
+  cardTitle: { fontWeight: '800', color: theme.colors.text.primary, fontSize: 14 },
+  cardSub: { color: theme.colors.text.secondary, marginTop: 3, fontSize: 12 },
+  cardRight: { alignItems: 'flex-end' },
+  cardAmount: { fontWeight: '900', fontSize: 15, marginBottom: 6 },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  statusChipText: { fontSize: 11, fontWeight: '800' },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+  },
+  emptyIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text.primary, marginBottom: 6 },
+  emptyDesc: { fontSize: 13, color: theme.colors.text.secondary, textAlign: 'center', lineHeight: 19 },
   more: { textAlign: 'center', paddingVertical: 12, color: theme.colors.text.secondary },
 });

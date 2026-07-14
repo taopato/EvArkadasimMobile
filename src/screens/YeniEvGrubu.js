@@ -1,6 +1,7 @@
 // src/screens/NewGroupScreen.js
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
@@ -56,12 +57,12 @@ const NewGroupScreen = ({ navigation }) => {
             disabled={!houseName.trim() || loading}
             activeOpacity={0.8}
           >
-            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.success.background }]}>
+            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
               {loading ? (
                 <ActivityIndicator color={theme.colors.text.onPrimary} />
               ) : (
                 <>
-                  <Text style={CommonStyles.buttonIcon}>🏠</Text>
+                  <Ionicons name="home-outline" size={24} color={ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
                   <Text style={CommonStyles.buttonText}>Oluştur</Text>
                   <Text style={CommonStyles.buttonSubtext}>Yeni ev grubunu kaydet</Text>
                 </>
@@ -71,7 +72,7 @@ const NewGroupScreen = ({ navigation }) => {
 
           <TouchableOpacity style={CommonStyles.menuButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
             <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.neutral.background }]}>
-              <Text style={CommonStyles.buttonIcon}>🔙</Text>
+              <Ionicons name="arrow-back-outline" size={24} color={ColorThemes.neutral.foreground} style={{ marginBottom: 6 }} />
               <Text style={CommonStyles.buttonText}>Geri Dön</Text>
               <Text style={CommonStyles.buttonSubtext}>Önceki sayfa</Text>
             </View>

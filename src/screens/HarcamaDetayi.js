@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { expensesApi, ledgerApi } from '../services/api';
@@ -346,7 +347,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
 
         {/* Harcama Bilgileri */}
         <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>💰 Harcama Bilgileri</Text>
+          <Text style={styles.sectionTitle}>Harcama Bilgileri</Text>
 
           {!isEditing ? (
             <>
@@ -449,7 +450,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
         {(planStats?.totalMonths || 0) > 0 && (
           <View style={CommonStyles.card}>
             <Text style={styles.sectionTitle}>
-              📅 {planStats.type === 'installment' ? 'Taksit Planı Özeti' : 'Düzenli Gider Özeti'}
+              {planStats.type === 'installment' ? 'Taksit Planı Özeti' : 'Düzenli Gider Özeti'}
             </Text>
 
             <View style={styles.detailRow}>
@@ -486,7 +487,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
         {/* Kişisel Harcamalar (varsa) */}
         {expense?.sahsiHarcamalar && expense.sahsiHarcamalar.length > 0 && (
           <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>👥 Kişisel Harcamalar</Text>
+            <Text style={styles.sectionTitle}>Kişisel Harcamalar</Text>
             {(!isEditing ? expense.sahsiHarcamalar : expense.sahsiHarcamalar).map((item, index) => {
               const uid = String(item?.userId ?? item?.UserId);
               const name = item?.kullaniciAdi || `Kullanıcı ${uid}`;
@@ -513,7 +514,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
 
         {/* Ledger Satırları (Bu kalem için kişi başı paylar) */}
         <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>📊 Bu Kalem İçin Paylaşım</Text>
+          <Text style={styles.sectionTitle}>Bu Kalem İçin Paylaşım</Text>
 
           {userShares.length > 0 ? (
             userShares.map((u) => (
@@ -528,7 +529,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>📝 Ledger kaydı yok</Text>
+              <Text style={styles.emptyText}>Ledger kaydı yok</Text>
               <Text style={styles.emptySubtext}>Bu kalem için tahakkuk/borç satırı oluşmamış ya da gizli.</Text>
             </View>
           )}
@@ -544,7 +545,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <View style={CommonStyles.buttonContent}>
-                  <Text style={CommonStyles.buttonIcon}>✏️</Text>
+                  <Ionicons name="create-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
                   <Text style={CommonStyles.buttonText}>Düzenle</Text>
                 </View>
               </TouchableOpacity>
@@ -555,7 +556,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <View style={CommonStyles.buttonContent}>
-                  <Text style={CommonStyles.buttonIcon}>🗑️</Text>
+                  <Ionicons name="trash-outline" size={22} color={ColorThemes.error.foreground} style={{ marginBottom: 4 }} />
                   <Text style={CommonStyles.buttonText}>Harcamayı Sil</Text>
                 </View>
               </TouchableOpacity>
@@ -563,23 +564,23 @@ const HarcamaDetayi = ({ navigation, route }) => {
           ) : (
             <>
               <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.success.background }]}
+                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.primary.background }]}
                 onPress={handleSaveEdit}
                 activeOpacity={0.8}
               >
                 <View style={CommonStyles.buttonContent}>
-                  <Text style={CommonStyles.buttonIcon}>💾</Text>
+                  <Ionicons name="checkmark-circle-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
                   <Text style={CommonStyles.buttonText}>Kaydet</Text>
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.warning.background }]}
+                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.neutral.background }]}
                 onPress={handleCancelEdit}
                 activeOpacity={0.8}
               >
                 <View style={CommonStyles.buttonContent}>
-                  <Text style={CommonStyles.buttonIcon}>↩️</Text>
+                  <Ionicons name="close-outline" size={22} color={ColorThemes.neutral.foreground} style={{ marginBottom: 4 }} />
                   <Text style={CommonStyles.buttonText}>İptal</Text>
                 </View>
               </TouchableOpacity>

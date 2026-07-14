@@ -2,17 +2,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  ScrollView, Animated, Platform, TextInput, Keyboard
+  Animated, Platform, TextInput, Keyboard
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { KeyboardAvoidingView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../shared/theme/ThemeProvider';
 
 import { useAuth } from '../context/AuthContext';
 import { houseApi, expensesApi } from '../services/api';
 import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
+import DateField from '../shared/ui/DateField';
 
 const getCategoryDisplayName = (category) => {
   const categoryMap = {
@@ -24,12 +25,12 @@ const getCategoryDisplayName = (category) => {
 };
 
 const BILL_TYPES = [
-  { key: 'Water', label: '💧 Su', isFixed: false, description: 'Değişken harcama - Aylık değişir' },
-  { key: 'Electricity', label: '⚡ Elektrik', isFixed: false, description: 'Değişken harcama - Aylık değişir' },
-  { key: 'Rent', label: '🏠 Kira', isFixed: true, description: 'Sabit harcama - Her ay aynı' },
-  { key: 'Gas', label: '🔥 Doğalgaz', isFixed: false, description: 'Değişken harcama - Aylık değişir' },
-  { key: 'Other', label: '📄 Diğer', isFixed: null, description: 'Seçim yapın - Düzenli/Düzensiz' },
-  { key: 'Internet', label: '🌐 İnternet', isFixed: true, description: 'Sabit harcama - Her ay aynı' },
+  { key: 'Water', icon: 'water-outline', label: 'Su', isFixed: false, description: 'Değişken - aylık değişir' },
+  { key: 'Electricity', icon: 'flash-outline', label: 'Elektrik', isFixed: false, description: 'Değişken - aylık değişir' },
+  { key: 'Rent', icon: 'home-outline', label: 'Kira', isFixed: true, description: 'Sabit - her ay aynı' },
+  { key: 'Gas', icon: 'flame-outline', label: 'Doğalgaz', isFixed: false, description: 'Değişken - aylık değişir' },
+  { key: 'Other', icon: 'document-text-outline', label: 'Diğer', isFixed: null, description: 'Listede olmayan giderler' },
+  { key: 'Internet', icon: 'wifi-outline', label: 'İnternet', isFixed: true, description: 'Sabit - her ay aynı' },
 ];
 
 const AddBillScreen = ({ route, navigation }) => {
@@ -119,7 +120,7 @@ const AddBillScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
       const response = await expensesApi.getById(billId);
-      const bill = response?.data;
+      const bill = response?.data?.data ?? response?.data;
       if (!bill) return;
 
       setAmount(String(bill.amount ?? bill.tutar ?? 0));
@@ -210,7 +211,7 @@ const AddBillScreen = ({ route, navigation }) => {
 
       showToast('Kayıt oluşturuldu', 'success');
       if (navigation?.canGoBack?.()) navigation.goBack();
-      else navigation.navigate('Expenses', { houseId });
+      else navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params: { houseId } });
     } catch (e) {
       const serverText = String(e?.response?.data ?? e?.message ?? '');
       showToast(serverText || 'Oluşturma hatası', 'error');
@@ -221,117 +222,125 @@ const AddBillScreen = ({ route, navigation }) => {
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
-      <LinearGradient colors={[theme.colors.primary[600], theme.colors.primary[500]]} style={{ flex: 1 }}>
-        <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{isEditing ? 'Düzenle' : 'Yeni'} Fatura Oluştur</Text>
-            <Text style={styles.subtitle}>{houseName} - {getCategoryDisplayName(billType)}</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{isEditing ? 'Faturayı Düzenle' : 'Yeni Fatura Oluştur'}</Text>
+          <Text style={styles.subtitle}>{houseName} • {getCategoryDisplayName(billType)}</Text>
+        </View>
+
+        <KeyboardAwareScrollView
+          style={styles.formContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          enableOnAndroid
+          extraScrollHeight={20}
+          keyboardOpeningTime={0}
+        >
+          <View style={styles.card}>
+            <Text style={styles.label}>Tutar (₺)</Text>
+            <TextInput style={styles.textInput} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Örn: 100.00" placeholderTextColor={theme.colors.text.disabled} />
           </View>
 
-          <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>💰 Tutar (₺)</Text>
-              <TextInput style={styles.textInput} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Örn: 100.00" />
+          <View style={styles.card}>
+            <Text style={styles.label}>Tarih</Text>
+            <DateField value={billDate} onChange={setBillDate} placeholder="Tarih seç" />
+            <Text style={styles.hint}>Dönem: {month || '-'}</Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Fatura Türü</Text>
+            <View style={styles.pickerContainer}>
+              {BILL_TYPES.map((type) => {
+                const selected = billType === type.key;
+                return (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[styles.billTypeButton, selected && styles.selectedBillTypeButton]}
+                    onPress={() => setBillType(type.key)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name={type.icon} size={22} color={selected ? theme.colors.primary[700] : theme.colors.text.secondary} style={{ marginBottom: 6 }} />
+                    <Text style={[styles.billTypeButtonText, selected && styles.selectedBillTypeButtonText]}>
+                      {type.label}
+                    </Text>
+                    <Text style={[styles.billTypeDescription, selected && { color: theme.colors.primary[700] }]}>{type.description}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>📅 Tarih (YYYY-MM-DD)</Text>
-              <TextInput style={styles.textInput} value={billDate} onChangeText={setBillDate} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" />
-              <Text style={styles.hint}>Dönem: {month || '-'}</Text>
+          <View style={styles.card}>
+            <Text style={styles.label}>Not (opsiyonel)</Text>
+            <TextInput style={[styles.textInput, styles.textArea]} value={note} onChangeText={setNote} multiline placeholder="İstersen not gir" placeholderTextColor={theme.colors.text.disabled} />
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Ödeyen Kişi</Text>
+            <View style={styles.pickerContainer}>
+              {members.map((member) => {
+                const selected = Number(member.userId) === Number(responsibleUserId);
+                return (
+                  <TouchableOpacity
+                    key={member.userId}
+                    style={[styles.memberButton, selected && styles.selectedMemberButton]}
+                    onPress={() => setResponsibleUserId(member.userId)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.memberButtonText, selected && styles.selectedMemberButtonText]}>
+                      {member.fullName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>📄 Fatura Türü</Text>
-              <View style={styles.pickerContainer}>
-                {BILL_TYPES.map((type) => {
-                  const selected = billType === type.key;
-                  return (
-                    <TouchableOpacity
-                      key={type.key}
-                      style={[styles.billTypeButton, selected && styles.selectedBillTypeButton, type.isFixed === true && styles.fixedBillTypeButton, type.isFixed === false && styles.variableBillTypeButton]}
-                      onPress={() => setBillType(type.key)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.billTypeButtonText, selected && styles.selectedBillTypeButtonText, type.isFixed === true && styles.fixedBillTypeButtonText, type.isFixed === false && styles.variableBillTypeButtonText]}>
-                        {type.label}
-                      </Text>
-                      <Text style={styles.billTypeDescription}>{type.description}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+          <TouchableOpacity style={[styles.createButton, loading && styles.createButtonDisabled]} onPress={handleCreateBill} disabled={loading} activeOpacity={0.88}>
+            {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} size="small" /> : <Text style={styles.createButtonText}>{isEditing ? 'Faturayı Güncelle' : 'Faturayı Kaydet'}</Text>}
+          </TouchableOpacity>
+        </KeyboardAwareScrollView>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>📝 Not (opsiyonel)</Text>
-              <TextInput style={[styles.textInput, styles.textArea]} value={note} onChangeText={setNote} multiline placeholder="İstersen not gir" />
-              <Text style={styles.hint}>Not versek bile Description ayrıca gönderiliyor.</Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>👤 Ödeyen Kişi</Text>
-              <View style={styles.pickerContainer}>
-                {members.map((member) => {
-                  const selected = Number(member.userId) === Number(responsibleUserId);
-                  return (
-                    <TouchableOpacity
-                      key={member.userId}
-                      style={[styles.memberButton, selected && styles.selectedMemberButton]}
-                      onPress={() => setResponsibleUserId(member.userId)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.memberButtonText, selected && styles.selectedMemberButtonText]}>
-                        {member.fullName}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <TouchableOpacity style={[styles.createButton, loading && styles.createButtonDisabled]} onPress={handleCreateBill} disabled={loading} activeOpacity={0.8}>
-              {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} size="small" /> : <Text style={styles.createButtonText}>{isEditing ? 'Faturayı Güncelle' : 'Fatura Oluştur'}</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-
-          <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
-        </Animated.View>
-      </LinearGradient>
-    </KeyboardAvoidingView>
+        <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
+      </Animated.View>
+    </View>
   );
 };
 
 function makeStyles(theme) {
   return StyleSheet.create({
     container: { flex: 1 },
-    content: { flex: 1, padding: 20 },
-    header: { alignItems: 'center', marginBottom: 30 },
-    title: { fontSize: 28, fontWeight: 'bold', color: theme.colors.text.onPrimary, textAlign: 'center', marginBottom: 10 },
-    subtitle: { fontSize: 16, color: theme.colors.text.onPrimary, textAlign: 'center', opacity: 0.9 },
+    content: { flex: 1, padding: 18 },
+    header: { marginBottom: 18 },
+    title: { fontSize: 22, fontWeight: '900', color: theme.colors.text.primary, marginBottom: 4 },
+    subtitle: { fontSize: 14, color: theme.colors.text.secondary },
     formContainer: { flex: 1 },
-    inputGroup: { marginBottom: 22 },
-    label: { fontSize: 16, fontWeight: '600', color: theme.colors.text.onPrimary, marginBottom: 10 },
-    textInput: { backgroundColor: theme.colors.background, opacity: 0.95, borderRadius: 12, padding: 14, fontSize: 16, color: theme.colors.text.primary, borderWidth: 1, borderColor: theme.colors.background },
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.colors.neutral[200],
+      padding: 16,
+      marginBottom: 14,
+    },
+    label: { fontSize: 14, fontWeight: '800', color: theme.colors.text.primary, marginBottom: 10 },
+    textInput: { backgroundColor: theme.colors.background, borderRadius: 12, padding: 14, fontSize: 16, color: theme.colors.text.primary, borderWidth: 1, borderColor: theme.colors.neutral[200] },
     textArea: { height: 90, textAlignVertical: 'top' },
-    hint: { marginTop: 6, color: theme.colors.text.onPrimary, opacity: 0.85, fontSize: 12 },
+    hint: { marginTop: 8, color: theme.colors.text.secondary, fontSize: 12 },
     pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    billTypeButton: { backgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: 12, padding: 14, minWidth: 120, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.35)' },
-    selectedBillTypeButton: { backgroundColor: theme.colors.background, opacity: 0.95, borderColor: theme.colors.success?.[500] },
-    fixedBillTypeButton: { borderColor: theme.colors.warning?.[500] },
-    variableBillTypeButton: { borderColor: theme.colors.primary?.[500] },
-    billTypeButtonText: { fontSize: 16, fontWeight: '600', color: theme.colors.text.onPrimary, textAlign: 'center' },
-    selectedBillTypeButtonText: { color: theme.colors.text.primary },
-    fixedBillTypeButtonText: { color: theme.colors.warning?.[500] },
-    variableBillTypeButtonText: { color: theme.colors.primary?.[500] },
-    billTypeDescription: { fontSize: 12, color: theme.colors.text.onPrimary, opacity: 0.8, textAlign: 'center', marginTop: 4 },
-    memberButton: { backgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: 12, padding: 14, minWidth: 110, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.35)' },
-    selectedMemberButton: { backgroundColor: theme.colors.background, opacity: 0.95, borderColor: theme.colors.success?.[500] },
-    memberButtonText: { fontSize: 16, fontWeight: '600', color: theme.colors.text.onPrimary, textAlign: 'center' },
-    selectedMemberButtonText: { color: theme.colors.text.primary },
-    createButton: { backgroundColor: theme.colors.success?.[600] || '#16a34a', borderRadius: 12, padding: 18, alignItems: 'center', marginTop: 8, marginBottom: 30 },
-    createButtonDisabled: { backgroundColor: theme.colors.success?.[500] || '#22c55e' },
-    createButtonText: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text.onPrimary },
+    billTypeButton: { backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, minWidth: 104, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.neutral[200] },
+    selectedBillTypeButton: { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[600] },
+    billTypeButtonText: { fontSize: 14, fontWeight: '700', color: theme.colors.text.primary, textAlign: 'center' },
+    selectedBillTypeButtonText: { color: theme.colors.primary[700] },
+    billTypeDescription: { fontSize: 11, color: theme.colors.text.secondary, textAlign: 'center', marginTop: 4 },
+    memberButton: { backgroundColor: theme.colors.background, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, minWidth: 100, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.neutral[200] },
+    selectedMemberButton: { backgroundColor: theme.colors.primary[600], borderColor: theme.colors.primary[600] },
+    memberButtonText: { fontSize: 14, fontWeight: '700', color: theme.colors.text.primary, textAlign: 'center' },
+    selectedMemberButtonText: { color: theme.colors.text.onPrimary },
+    createButton: { backgroundColor: theme.colors.primary[600], borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 4, marginBottom: 30 },
+    createButtonDisabled: { opacity: 0.7 },
+    createButtonText: { fontSize: 16, fontWeight: '900', color: theme.colors.text.onPrimary },
   });
 }
 

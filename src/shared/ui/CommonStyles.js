@@ -18,14 +18,14 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: 18,
   },
   header: {
     marginBottom: 16,
   },
   title: {
-    fontSize: (theme.typography?.title?.size ?? 20) + 2,
-    fontWeight: theme.typography?.title?.weight ?? '800',
+    fontSize: (theme.typography?.title?.size ?? 22) + 4,
+    fontWeight: theme.typography?.title?.weight ?? '900',
     color: theme.colors.text.primary,
     marginBottom: 6,
   },
@@ -37,14 +37,16 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
   // Cards
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius?.lg ?? 16,
+    borderRadius: 20,
     padding: theme.spacing?.lg ?? 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral?.[200],
   },
 
   // Inputs
@@ -60,13 +62,13 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
 
   // Buttons (menu style)
   menuButton: {
-    borderRadius: theme.radius?.lg ?? 12,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 12,
   },
   buttonContent: {
     padding: theme.spacing?.md ?? 14,
-    borderRadius: theme.radius?.lg ?? 12,
+    borderRadius: 16,
     alignItems: 'flex-start',
   },
   buttonIcon: {
@@ -93,9 +95,13 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.neutral?.[200],
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    marginBottom: 10,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral?.[200],
   },
   listItemContent: {
     flex: 1,

@@ -15,10 +15,10 @@ import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { BASE_URL } from '../shared/config/env';
 
 const STATUS_LABELS = {
-  Uploaded: 'Yuklendi',
-  Parsed: 'Kalemler cikarildi',
-  Reviewed: 'Duzenlendi',
-  Converted: 'Harcamaya donustu',
+  Uploaded: 'Yüklendi',
+  Parsed: 'Kalemler çıkarıldı',
+  Reviewed: 'Düzenlendi',
+  Converted: 'Harcamaya dönüştü',
 };
 
 export default function FisGecmisi({ navigation, route }) {
@@ -62,7 +62,7 @@ export default function FisGecmisi({ navigation, route }) {
       >
         <Image source={{ uri: imageUri }} style={styles.thumb} />
         <View style={styles.meta}>
-          <Text style={styles.title} numberOfLines={1}>{item.storeName || 'Fis'}</Text>
+          <Text style={styles.title} numberOfLines={1}>{item.storeName || 'Fiş'}</Text>
           <Text style={styles.sub}>
             {item.receiptDate ? new Date(item.receiptDate).toLocaleDateString('tr-TR') : 'Tarih yok'}
           </Text>
@@ -88,10 +88,10 @@ export default function FisGecmisi({ navigation, route }) {
         contentContainerStyle={styles.content}
         ListHeaderComponent={(
           <Text style={styles.headerNote}>
-            Buradan eski fisleri acip kalemleri tekrar duzenleyebilir veya harcamaya donusturebilirsin.
+            Buradan eski fişleri açıp kalemleri tekrar düzenleyebilir veya harcamaya dönüştürebilirsin.
           </Text>
         )}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>Henuz kaydedilmis fis yok.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>Henüz kaydedilmiş fiş yok.</Text> : null}
       />
     </View>
   );

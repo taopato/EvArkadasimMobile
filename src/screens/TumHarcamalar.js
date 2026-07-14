@@ -13,17 +13,22 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  useWindowDimensions
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { expensesApi, houseApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { BILL_KEYS, normalizeExpense } from '../utils/expenseClassifier';
 import { HeroHeader } from '../shared/ui/premium/HeroHeader';
+import { useFocusEffect } from '@react-navigation/native';
+import eventBus from '../shared/events/bus';
+import { shadow } from '../shared/ui/shadow';
+import BrandMark from '../components/BrandMark';
 import {
   compareByRecentDate,
-  getUTCMonthWindow,
   formatCurrency,
   formatDate,
   getExpenseDisplayTitle,
@@ -31,23 +36,32 @@ import {
   getItemNote,
   getPlanType,
   getSortDate,
-  isChildExpense,
-  isParentExpense,
   deduplicateMonthlyPlans,
   sortByDateDesc,
-  getCategoryDisplayName,
-  getCategoryIcon,
-  getCategoryColor,
+  getCategoryIconName,
   calculateTotals
 } from '../utils/expenseHelpers';
+
+const categoryOptions = [
+  { key: 'Rent', label: 'Kira', icon: 'home-outline' },
+  { key: 'Internet', label: 'İnternet', icon: 'wifi-outline' },
+  { key: 'Electricity', label: 'Elektrik', icon: 'flash-outline' },
+  { key: 'Water', label: 'Su', icon: 'water-outline' },
+  { key: 'Gas', label: 'Doğalgaz', icon: 'flame-outline' },
+  { key: 'Market', label: 'Market', icon: 'cart-outline' },
+  { key: 'Food', label: 'Yemek', icon: 'restaurant-outline' },
+  { key: 'Other', label: 'Diğer', icon: 'document-text-outline' }
+];
 
 const TumHarcamalarScreen = ({ navigation, route }) => {
   const { user } = useAuth();
   const { houseId: routeHouseId, houseName } = route.params || {};
   const houseId = routeHouseId || user?.defaultHouseId;
-  const CommonStyles = useCommonStyles();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 520;
+  useCommonStyles();
   const { theme } = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useMemo(() => makeStyles(theme, isCompact), [theme, isCompact]);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +70,7 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
   const [membersMap, setMembersMap] = useState({});
 
   // Filtreler
-  const [selectedPeriod, setSelectedPeriod] = useState('current');
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [selectedPlanTypes, setSelectedPlanTypes] = useState(['all']);
@@ -66,28 +80,14 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
   const [sortOrder, setSortOrder] = useState('desc');
   const listRef = useRef(null);
 
-  // Dönem seçenekleri
   const periodOptions = [
-    { key: 'current', label: 'Bu Ay' },
+    { key: 'current', label: 'Bu Ay (30 Gün)' },
     { key: 'last3', label: 'Son 3 Ay' },
     { key: 'last6', label: 'Son 6 Ay' },
     { key: 'year', label: 'Bu Yıl' },
     { key: 'all', label: 'Tümü' }
   ];
 
-  // Kategori seçenekleri
-  const categoryOptions = [
-    { key: 'Rent', label: 'Kira', icon: '🏠' },
-    { key: 'Internet', label: 'İnternet', icon: '🌐' },
-    { key: 'Electricity', label: 'Elektrik', icon: '⚡' },
-    { key: 'Water', label: 'Su', icon: '💧' },
-    { key: 'Gas', label: 'Doğalgaz', icon: '🔥' },
-    { key: 'Market', label: 'Market', icon: '🛒' },
-    { key: 'Food', label: 'Yemek', icon: '🍽️' },
-    { key: 'Other', label: 'Diğer', icon: '📄' }
-  ];
-
-  // Plan türü seçenekleri
   const planTypeOptions = [
     { key: 'all', label: 'Hepsi' },
     { key: 'recurring', label: 'Düzenli' },
@@ -95,7 +95,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
     { key: 'irregular', label: 'Düzensiz' }
   ];
 
-  // Sıralama seçenekleri
   const sortOptions = [
     { key: 'date', label: 'Tarih' },
     { key: 'amount', label: 'Tutar' },
@@ -116,33 +115,26 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
   const hasMarketQuickFilter = selectedCategories.length === 1 && selectedCategories.includes('Market');
   const hasMineQuickFilter = selectedMembers.length === 1 && selectedMembers.includes(String(user?.id));
 
-  // Veri yükleme
   const loadData = async () => {
     if (!houseId) return;
-    
+
     setLoading(true);
     try {
-      // Harcamalar
       const res = await expensesApi.getByHouse(houseId);
       const data = res?.data?.data ?? res?.data ?? [];
       const list = Array.isArray(data) ? data.map(normalizeExpense) : [];
 
-      // Deduplikasyon: Ayda plan başına tek çocuk
       const deduplicated = deduplicateMonthlyPlans(list);
-
-      // Sıralama
       const sorted = sortByDateDesc(deduplicated);
 
       setItems(sorted);
 
-      // Üyeler
       const membersRes = await houseApi.getMembers(houseId);
       const membersData = membersRes?.data?.data ?? membersRes?.data ?? [];
       const membersList = Array.isArray(membersData) ? membersData : [];
-      
+
       setMembers(membersList);
-      
-      // Üye map'i oluştur
+
       const map = {};
       membersList.forEach(member => {
         map[member.userId ?? member.UserId] = member.fullName ?? member.FullName ?? 'Bilinmeyen';
@@ -150,7 +142,7 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       setMembersMap(map);
 
     } catch (error) {
-      console.error('❌ Harcamalar yükleme hatası:', error);
+      console.error('Harcamalar yükleme hatası:', error);
       Alert.alert('Hata', 'Veriler yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
@@ -162,33 +154,56 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
     loadData();
   }, [houseId]);
 
-  // Dönem filtresi
+  useEffect(() => {
+    const onUpdated = ({ houseId: changedId }) => {
+      if (Number(changedId) === Number(houseId)) {
+        loadData();
+      }
+    };
+
+    eventBus.on('expenses:updated', onUpdated);
+    return () => {
+      eventBus.off('expenses:updated', onUpdated);
+    };
+  }, [houseId]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [houseId])
+  );
+
   const getDateRange = () => {
     const now = new Date();
-    
+
     switch (selectedPeriod) {
-      case 'current':
-        return getUTCMonthWindow(now);
-      case 'last3':
+      case 'current': {
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const start = new Date(end);
+        start.setDate(start.getDate() - 30);
+        return { monthStart: start, monthEnd: end };
+      }
+      case 'last3': {
         const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
         return { monthStart: threeMonthsAgo, monthEnd: now };
-      case 'last6':
+      }
+      case 'last6': {
         const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
         return { monthStart: sixMonthsAgo, monthEnd: now };
-      case 'year':
+      }
+      case 'year': {
         const yearStart = new Date(now.getFullYear(), 0, 1);
         const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
         return { monthStart: yearStart, monthEnd: yearEnd };
+      }
       default:
         return null; // Tümü
     }
   };
 
-  // Filtrelenmiş ve sıralanmış veriler
   const filteredItems = useMemo(() => {
     let filtered = [...items];
 
-    // Dönem filtresi
     const dateRange = getDateRange();
     if (dateRange) {
       filtered = filtered.filter(item => {
@@ -197,12 +212,10 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       });
     }
 
-    // Kategori filtresi
     if (selectedCategories.length > 0) {
       filtered = filtered.filter(item => selectedCategories.includes(item.key));
     }
 
-    // Üye filtresi
     if (selectedMembers.length > 0) {
       filtered = filtered.filter(item => {
         const raw = item._raw || {};
@@ -211,7 +224,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       });
     }
 
-    // Plan türü filtresi
     if (!selectedPlanTypes.includes('all')) {
       filtered = filtered.filter(item => {
         const planType = getPlanType(item);
@@ -219,7 +231,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       });
     }
 
-    // Arama filtresi
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase();
       filtered = filtered.filter(item => {
@@ -229,10 +240,9 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       });
     }
 
-    // Sıralama
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case 'date':
           comparison = compareByRecentDate(a, b);
@@ -243,35 +253,33 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
         case 'category':
           comparison = a.key.localeCompare(b.key);
           break;
-        case 'payer':
+        case 'payer': {
           const payerA = membersMap[a._raw?.odeyenUserId ?? a._raw?.OdeyenUserId] || '';
           const payerB = membersMap[b._raw?.odeyenUserId ?? b._raw?.OdeyenUserId] || '';
           comparison = payerA.localeCompare(payerB);
           break;
+        }
         default:
           comparison = 0;
       }
-      
+
       if (sortOrder === 'asc') comparison = -comparison;
-      
-      // Eşitlik durumunda ID'ye göre sırala
+
       if (comparison === 0) {
         comparison = (b.id ?? 0) - (a.id ?? 0);
       }
-      
+
       return comparison;
     });
 
     return filtered;
   }, [items, selectedPeriod, selectedCategories, selectedMembers, selectedPlanTypes, searchText, sortBy, sortOrder, membersMap]);
 
-  // Özet hesaplamaları
   const summary = useMemo(() => {
     const { total, count } = calculateTotals(filteredItems);
     return { total, count };
   }, [filteredItems]);
 
-  // Kart render
   const renderItem = ({ item }) => {
     const raw = item._raw || {};
     const payerId = raw.odeyenUserId ?? raw.OdeyenUserId;
@@ -283,50 +291,44 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate('HarcamaDetayi', { 
-          expenseId: item.id, 
-          houseId 
+        onPress={() => navigation.navigate('HarcamaDetayi', {
+          expenseId: item.id,
+          houseId
         })}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
         <View style={styles.cardHeader}>
+          <View style={styles.cardIconWrap}>
+            <Ionicons name={getCategoryIconName(item.key)} size={20} color={theme.colors.primary[600]} />
+          </View>
           <View style={styles.cardTitle}>
-            <Text style={styles.cardIcon}>{getCategoryIcon(item.key)}</Text>
-            <Text style={styles.cardTitleText}>{getExpenseDisplayTitle(item)}</Text>
+            <Text style={styles.cardTitleText} numberOfLines={1}>{getExpenseDisplayTitle(item)}</Text>
+            <Text style={styles.cardSubtitle}>
+              {formatDate(date)} • Ödeyen: {payerName}
+            </Text>
           </View>
           <Text style={styles.cardAmount}>{formatCurrency(item.amount)}</Text>
         </View>
 
-        <View style={styles.cardDetails}>
-          <Text style={styles.cardSubtitle}>
-            {formatDate(date)} • Ödeyen: {payerName}
+        {note !== '—' && (
+          <Text style={styles.cardNote} numberOfLines={1}>
+            {note}
           </Text>
-          {note !== '—' && (
-            <Text style={styles.cardNote} numberOfLines={1}>
-              {note}
-            </Text>
-          )}
-        </View>
+        )}
 
-        <View style={styles.cardFooter}>
-          <View style={styles.badgesContainer}>
-            {planType !== 'irregular' && (
-              <View style={[
-                styles.badge,
-                { backgroundColor: (theme.colors.primary?.[100] ?? theme.colors.neutral?.[100]) }
-              ]}>
-                <Text style={styles.badgeText}>
-                  {planType === 'recurring' ? 'Düzenli' : 'Taksitli'}
-                </Text>
-              </View>
-            )}
+        {planType !== 'irregular' && (
+          <View style={styles.cardFooter}>
+            <View style={[styles.badge, { backgroundColor: theme.colors.primary?.[50] ?? theme.colors.neutral?.[100] }]}>
+              <Text style={[styles.badgeText, { color: theme.colors.primary[700] }]}>
+                {planType === 'recurring' ? 'Düzenli' : 'Taksitli'}
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
       </TouchableOpacity>
     );
   };
 
-  // Filtre Modal Render
   const renderFilterModal = () => (
     <Modal
       visible={showFilters}
@@ -342,18 +344,17 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
         </View>
 
         <ScrollView style={styles.modalContent}>
-          {/* Arama */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>Arama</Text>
             <TextInput
               style={styles.searchInput}
               placeholder="Başlık veya açıklamada ara..."
+              placeholderTextColor={theme.colors.text.secondary}
               value={searchText}
               onChangeText={setSearchText}
             />
           </View>
 
-          {/* Dönem */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>Dönem</Text>
             {periodOptions.map(option => (
@@ -375,7 +376,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
             ))}
           </View>
 
-          {/* Kategoriler */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>Kategoriler</Text>
             <TouchableOpacity
@@ -399,17 +399,23 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
                   }
                 }}
               >
-                <Text style={[
-                  styles.filterOptionText,
-                  selectedCategories.includes(option.key) && styles.filterOptionTextActive
-                ]}>
-                  {option.icon} {option.label}
-                </Text>
+                <View style={styles.filterOptionRow}>
+                  <Ionicons
+                    name={option.icon}
+                    size={16}
+                    color={selectedCategories.includes(option.key) ? theme.colors.primary[700] : theme.colors.text.secondary}
+                  />
+                  <Text style={[
+                    styles.filterOptionText,
+                    selectedCategories.includes(option.key) && styles.filterOptionTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Plan Türü */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>Plan Türü</Text>
             {planTypeOptions.map(option => (
@@ -440,7 +446,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
             ))}
           </View>
 
-          {/* Sıralama */}
           <View style={styles.filterSection}>
             <Text style={styles.filterSectionTitle}>Sıralama</Text>
             {sortOptions.map(option => (
@@ -488,8 +493,6 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
         title="Harcamalar"
         subtitle={`${houseName || ''} • ${summary.count} harcama`}
         amount={formatCurrency(summary.total)}
-        primaryLabel="Harcama Ekle"
-        onPrimaryAction={() => navigation.navigate('HarcamaEkle', { houseId, houseName })}
       />
 
       <View style={styles.actionRow}>
@@ -505,77 +508,77 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
           onPress={() => setShowFilters(true)}
           activeOpacity={0.85}
         >
+          <Ionicons name="options-outline" size={16} color={theme.colors.text.primary} />
           <Text style={styles.secondaryActionText}>Filtreler</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.quickFiltersWrap}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickFilters}
-      >
-        <TouchableOpacity
-          style={[styles.quickChip, selectedPeriod === 'current' && styles.quickChipActive]}
-          onPress={() => setSelectedPeriod('current')}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickFilters}
         >
-          <Text style={[styles.quickChipText, selectedPeriod === 'current' && styles.quickChipTextActive]}>Bu ay</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasIrregularQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedPlanTypes(hasIrregularQuickFilter ? ['all'] : ['irregular'])}
-        >
-          <Text style={[styles.quickChipText, hasIrregularQuickFilter && styles.quickChipTextActive]}>Düzensiz</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasRecurringQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedPlanTypes(hasRecurringQuickFilter ? ['all'] : ['recurring'])}
-        >
-          <Text style={[styles.quickChipText, hasRecurringQuickFilter && styles.quickChipTextActive]}>Düzenli</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasBillQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedCategories(hasBillQuickFilter ? [] : billCategoryKeys)}
-        >
-          <Text style={[styles.quickChipText, hasBillQuickFilter && styles.quickChipTextActive]}>Faturalar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasRentQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedCategories(hasRentQuickFilter ? [] : ['Rent'])}
-        >
-          <Text style={[styles.quickChipText, hasRentQuickFilter && styles.quickChipTextActive]}>Kira</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasMarketQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedCategories(hasMarketQuickFilter ? [] : ['Market'])}
-        >
-          <Text style={[styles.quickChipText, hasMarketQuickFilter && styles.quickChipTextActive]}>Market</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.quickChip, hasMineQuickFilter && styles.quickChipActive]}
-          onPress={() => setSelectedMembers(hasMineQuickFilter ? [] : [String(user?.id)])}
-        >
-          <Text style={[styles.quickChipText, hasMineQuickFilter && styles.quickChipTextActive]}>Ben ödedim</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickChip}
-          onPress={() => {
-            setSelectedPeriod('all');
-            setSelectedCategories([]);
-            setSelectedMembers([]);
-            setSelectedPlanTypes(['all']);
-            setSearchText('');
-            requestAnimationFrame(() => {
-              listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-            });
-          }}
-        >
-          <Text style={styles.quickChipText}>Temizle</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity
+            style={[styles.quickChip, selectedPeriod === 'current' && styles.quickChipActive]}
+            onPress={() => setSelectedPeriod('current')}
+          >
+            <Text style={[styles.quickChipText, selectedPeriod === 'current' && styles.quickChipTextActive]}>Bu ay</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasIrregularQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedPlanTypes(hasIrregularQuickFilter ? ['all'] : ['irregular'])}
+          >
+            <Text style={[styles.quickChipText, hasIrregularQuickFilter && styles.quickChipTextActive]}>Düzensiz</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasRecurringQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedPlanTypes(hasRecurringQuickFilter ? ['all'] : ['recurring'])}
+          >
+            <Text style={[styles.quickChipText, hasRecurringQuickFilter && styles.quickChipTextActive]}>Düzenli</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasBillQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedCategories(hasBillQuickFilter ? [] : billCategoryKeys)}
+          >
+            <Text style={[styles.quickChipText, hasBillQuickFilter && styles.quickChipTextActive]}>Faturalar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasRentQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedCategories(hasRentQuickFilter ? [] : ['Rent'])}
+          >
+            <Text style={[styles.quickChipText, hasRentQuickFilter && styles.quickChipTextActive]}>Kira</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasMarketQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedCategories(hasMarketQuickFilter ? [] : ['Market'])}
+          >
+            <Text style={[styles.quickChipText, hasMarketQuickFilter && styles.quickChipTextActive]}>Market</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickChip, hasMineQuickFilter && styles.quickChipActive]}
+            onPress={() => setSelectedMembers(hasMineQuickFilter ? [] : [String(user?.id)])}
+          >
+            <Text style={[styles.quickChipText, hasMineQuickFilter && styles.quickChipTextActive]}>Ben ödedim</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickChip}
+            onPress={() => {
+              setSelectedPeriod('all');
+              setSelectedCategories([]);
+              setSelectedMembers([]);
+              setSelectedPlanTypes(['all']);
+              setSearchText('');
+              requestAnimationFrame(() => {
+                listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+              });
+            }}
+          >
+            <Text style={styles.quickChipText}>Temizle</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
-      {/* Liste */}
       <FlatList
         ref={listRef}
         data={filteredItems}
@@ -593,8 +596,8 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
         }
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🧾</Text>
+          <View style={[styles.emptyContainer, styles.emptyState]}>
+            <BrandMark variant="logo" size={180} subtle style={styles.emptyWatermark} />
             <Text style={styles.emptyTitle}>Harcama bulunamadı</Text>
             <Text style={styles.emptySubtitle}>
               Filtreleri değiştirerek daha fazla sonuç görebilirsiniz
@@ -604,24 +607,23 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Filtre Modal */}
       {renderFilterModal()}
     </View>
   );
 };
 
-function makeStyles(theme) {
+function makeStyles(theme, isCompact) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.surface },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.surface },
+    container: { flex: 1, backgroundColor: theme.colors.background },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
     loadingText: { marginTop: 16, fontSize: 16, color: theme.colors.text.secondary },
     actionRow: {
-      flexDirection: 'row',
+      flexDirection: isCompact ? 'column' : 'row',
       gap: 10,
       paddingHorizontal: 16,
       paddingTop: 14,
       paddingBottom: 10,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.background,
     },
     primaryActionButton: {
       flex: 1,
@@ -631,11 +633,7 @@ function makeStyles(theme) {
       paddingHorizontal: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: theme.colors.primary[700],
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 3,
+      ...shadow(2, 'rgba(29, 78, 216, 0.22)'),
     },
     primaryActionText: {
       color: theme.colors.text.onPrimary,
@@ -643,37 +641,31 @@ function makeStyles(theme) {
       fontWeight: '800',
     },
     secondaryActionButton: {
-      minWidth: 108,
+      minWidth: isCompact ? 0 : 108,
       paddingHorizontal: 16,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.colors.neutral[300],
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 6,
     },
     secondaryActionText: {
       color: theme.colors.text.primary,
       fontSize: 14,
       fontWeight: '700',
     },
-    
-    // Header
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: theme.colors.background, borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[200] },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.text.primary },
-    headerSubtitle: { fontSize: 14, color: theme.colors.text.secondary, marginTop: 2 },
-    filterButton: { backgroundColor: theme.colors.primary[500], paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-    filterButtonText: { color: theme.colors.text.onPrimary, fontWeight: '600' },
     quickFiltersWrap: {
       backgroundColor: theme.colors.background,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.neutral[200],
       paddingTop: 6,
     },
-
-    // Liste
     listContainer: {
-      padding: 16
+      padding: 16,
+      paddingBottom: 100,
     },
     quickFilters: {
       paddingHorizontal: 16,
@@ -684,10 +676,11 @@ function makeStyles(theme) {
       paddingVertical: 10,
       paddingHorizontal: 14,
       borderRadius: 999,
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
       alignSelf: 'flex-start',
+      marginRight: 8,
     },
     quickChipActive: {
       backgroundColor: theme.colors.primary[600],
@@ -700,61 +693,58 @@ function makeStyles(theme) {
     quickChipTextActive: {
       color: theme.colors.text.onPrimary,
     },
-    card: { backgroundColor: theme.colors.background, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.neutral[200] },
+    card: { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.neutral[200] },
     cardHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 8
+    },
+    cardIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: theme.colors.primary[50],
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
     },
     cardTitle: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1
+      flex: 1,
     },
-    cardIcon: {
-      fontSize: 20,
-      marginRight: 8
-    },
-    cardTitleText: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.primary, flex: 1 },
-    cardAmount: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.primary },
-    cardDetails: {
-      marginBottom: 8
-    },
-    cardSubtitle: { fontSize: 14, color: theme.colors.text.secondary, marginBottom: 4 },
-    cardNote: { fontSize: 13, color: theme.colors.text.secondary, fontStyle: 'italic' },
+    cardTitleText: { fontSize: 15, fontWeight: '800', color: theme.colors.text.primary },
+    cardAmount: { fontSize: 15, fontWeight: '800', color: theme.colors.text.primary, marginLeft: 8 },
+    cardSubtitle: { fontSize: 12, color: theme.colors.text.secondary, marginTop: 2 },
+    cardNote: { fontSize: 13, color: theme.colors.text.secondary, fontStyle: 'italic', marginTop: 8 },
     cardFooter: {
-      marginTop: 8
-    },
-    badgesContainer: {
+      marginTop: 10,
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6
     },
     badge: {
-      paddingHorizontal: 8,
+      paddingHorizontal: 10,
       paddingVertical: 4,
-      borderRadius: 12
+      borderRadius: 999,
     },
-    badgeText: { fontSize: 11, fontWeight: '600', color: theme.colors.text.primary },
+    badgeText: { fontSize: 11, fontWeight: '700' },
 
-    // Boş Durum
     emptyContainer: {
       alignItems: 'center',
       paddingVertical: 48
     },
-    emptyIcon: {
-      fontSize: 48,
-      marginBottom: 16
+    emptyState: { position: 'relative', overflow: 'hidden', minHeight: 190 },
+    emptyWatermark: {
+      position: 'absolute',
+      opacity: 0.08,
+      right: -18,
+      bottom: -16,
+      borderWidth: 0,
+      backgroundColor: 'transparent',
     },
     emptyTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text.primary, marginBottom: 8 },
     emptySubtitle: { fontSize: 14, color: theme.colors.text.secondary, textAlign: 'center', lineHeight: 20 },
 
-    // Modal
     modalContainer: { flex: 1, backgroundColor: theme.colors.surface },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[200] },
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text.primary },
-    modalClose: { fontSize: 16, color: theme.colors.primary[500], fontWeight: '600' },
+    modalClose: { fontSize: 16, color: theme.colors.primary[600], fontWeight: '600' },
     modalContent: {
       flex: 1,
       padding: 16
@@ -763,9 +753,10 @@ function makeStyles(theme) {
       marginBottom: 24
     },
     filterSectionTitle: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary, marginBottom: 12 },
-    searchInput: { borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: theme.colors.background },
-    filterOption: { padding: 12, borderRadius: 8, marginBottom: 8, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.neutral[200] },
-    filterOptionActive: { backgroundColor: theme.colors.primary[100], borderColor: theme.colors.primary[500] },
+    searchInput: { borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 14, padding: 12, fontSize: 16, backgroundColor: theme.colors.background, color: theme.colors.text.primary },
+    filterOption: { padding: 12, borderRadius: 14, marginBottom: 8, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.neutral[200] },
+    filterOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    filterOptionActive: { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[500] },
     filterOptionText: { fontSize: 14, color: theme.colors.text.primary },
     filterOptionTextActive: { color: theme.colors.primary[700], fontWeight: '600' }
   });

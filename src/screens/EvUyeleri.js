@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import useScrollRestore from '../hooks/useScrollRestore';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, expensesApi } from '../services/api';
@@ -208,15 +209,6 @@ const HouseMembersScreen = ({ route, navigation }) => {
     return theme.colors.neutral?.[600];
   };
 
-  const handleCategoryPress = (utilityType, categoryName) => {
-    navigation.navigate('FaturaListesi', {
-      houseId: houseId,
-      houseName: houseName,
-      utilityType: utilityType,
-      categoryName: categoryName
-    });
-  };
-
   const handleAddExpense = () => {
     navigation.navigate('HarcamaEkle', {
       houseId: houseId,
@@ -276,7 +268,7 @@ const HouseMembersScreen = ({ route, navigation }) => {
 
         {/* Ev Arkadaşları Listesi */}
         <View style={[CommonStyles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral?.[200] }]}>
-          <Text style={[styles.sectionTitle, { marginBottom: 10, color: theme.colors.text.primary }]}>👥 Ev Arkadaşları</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 10, color: theme.colors.text.primary }]}>Ev Arkadaşları</Text>
           <View style={CommonStyles.listContainer}>
             {friends.map((item) => {
               const isCurrentUser = user && user.id === item.id;
@@ -319,26 +311,26 @@ const HouseMembersScreen = ({ route, navigation }) => {
 
         {/* Ev Detayı Grid */}
         <View style={[CommonStyles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral?.[200] }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>🏠 Ev Detayı</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Ev Detayı</Text>
           <View style={[styles.categoriesGrid, { gap: 10 }]}>
             <TouchableOpacity 
               style={[CommonStyles.menuButton, { flex: 1, minWidth: '48%' }]}
-              onPress={() => navigation.navigate('BillsOverviewScreen', { houseId, houseName })}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId, houseName } })}
               activeOpacity={0.8}
             >
               <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.pastel?.blue?.bg || theme.colors.surface, borderWidth: 1, borderColor: 'transparent', padding: 12 }]}>
-                <Text style={CommonStyles.buttonIcon}>📄</Text>
+                <Ionicons name="receipt-outline" size={24} color={theme.colors.pastel?.blue?.fg || theme.colors.text.primary} style={{ marginBottom: 6 }} />
                 <Text style={[CommonStyles.buttonText, { fontSize: 14, color: theme.colors.pastel?.blue?.fg || theme.colors.text.primary }]}>Faturalar (Planlı)</Text>
                 <Text style={[CommonStyles.buttonSubtext, { fontSize: 11, color: theme.colors.pastel?.blue?.fg || theme.colors.text.secondary, opacity: 0.85 }]}>Bu ay ödenecekler</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[CommonStyles.menuButton, { flex: 1, minWidth: '48%' }]}
-              onPress={() => navigation.navigate('TumHarcamalar', { houseId, houseName })}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params: { houseId, houseName } })}
               activeOpacity={0.8}
             >
               <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.pastel?.green?.bg || theme.colors.surface, borderWidth: 1, borderColor: 'transparent', padding: 12 }]}>
-                <Text style={CommonStyles.buttonIcon}>📋</Text>
+                <Ionicons name="wallet-outline" size={24} color={theme.colors.pastel?.green?.fg || theme.colors.text.primary} style={{ marginBottom: 6 }} />
                 <Text style={[CommonStyles.buttonText, { fontSize: 14, color: theme.colors.pastel?.green?.fg || theme.colors.text.primary }]}>Harcamalar (Serbest)</Text>
                 <Text style={[CommonStyles.buttonSubtext, { fontSize: 11, color: theme.colors.pastel?.green?.fg || theme.colors.text.secondary, opacity: 0.85 }]}>Tam hareket dökümü</Text>
               </View>
@@ -349,7 +341,7 @@ const HouseMembersScreen = ({ route, navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.pastel?.orange?.bg || theme.colors.surface, borderWidth: 1, borderColor: 'transparent', padding: 12 }]}>
-                <Text style={CommonStyles.buttonIcon}>⏳</Text>
+                <Ionicons name="time-outline" size={24} color={theme.colors.pastel?.orange?.fg || theme.colors.text.primary} style={{ marginBottom: 6 }} />
                 <Text style={[CommonStyles.buttonText, { fontSize: 14, color: theme.colors.pastel?.orange?.fg || theme.colors.text.primary }]}>Bekleyen İşlemler</Text>
                 <Text style={[CommonStyles.buttonSubtext, { fontSize: 11, color: theme.colors.pastel?.orange?.fg || theme.colors.text.secondary, opacity: 0.85 }]}>Onay bekleyenler</Text>
               </View>
@@ -360,7 +352,7 @@ const HouseMembersScreen = ({ route, navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.pastel?.pink?.bg || theme.colors.surface, borderWidth: 1, borderColor: 'transparent', padding: 12 }]}>
-                <Text style={CommonStyles.buttonIcon}>💰</Text>
+                <Ionicons name="swap-vertical-outline" size={24} color={theme.colors.pastel?.pink?.fg || theme.colors.text.primary} style={{ marginBottom: 6 }} />
                 <Text style={[CommonStyles.buttonText, { fontSize: 14, color: theme.colors.pastel?.pink?.fg || theme.colors.text.primary }]}>Borç–Alacak</Text>
                 <Text style={[CommonStyles.buttonSubtext, { fontSize: 11, color: theme.colors.pastel?.pink?.fg || theme.colors.text.secondary, opacity: 0.85 }]}>Net bakiyeler</Text>
               </View>
@@ -371,7 +363,7 @@ const HouseMembersScreen = ({ route, navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.pastel?.purple?.bg || theme.colors.surface, borderWidth: 1, borderColor: 'transparent', padding: 12 }]}>
-                <Text style={CommonStyles.buttonIcon}>📊</Text>
+                <Ionicons name="bar-chart-outline" size={24} color={theme.colors.pastel?.purple?.fg || theme.colors.text.primary} style={{ marginBottom: 6 }} />
                 <Text style={[CommonStyles.buttonText, { fontSize: 14, color: theme.colors.pastel?.purple?.fg || theme.colors.text.primary }]}>Analitik</Text>
                 <Text style={[CommonStyles.buttonSubtext, { fontSize: 11, color: theme.colors.pastel?.purple?.fg || theme.colors.text.secondary, opacity: 0.85 }]}>Grafikler & özetler</Text>
               </View>
@@ -383,11 +375,11 @@ const HouseMembersScreen = ({ route, navigation }) => {
         <View style={styles.footerButtons}>
           <TouchableOpacity 
             style={CommonStyles.menuButton}
-            onPress={() => navigation.navigate('UtilityBillCreate', { houseId, houseName })}
+            onPress={() => navigation.navigate('DuzenliGiderEkle', { houseId, houseName })}
             activeOpacity={0.8}
           >
             <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral?.[200] }]}> 
-              <Text style={[CommonStyles.buttonIcon, { color: theme.colors.text.primary }]}>➕</Text>
+              <Ionicons name="add-circle-outline" size={24} color={theme.colors.text.primary} style={{ marginBottom: 6 }} />
               <Text style={[CommonStyles.buttonText, { color: theme.colors.text.primary }]}>Düzenli Gider Ekle</Text>
               <Text style={[CommonStyles.buttonSubtext, { color: theme.colors.text.secondary }]}>Kira/abonelik ekle</Text>
             </View>
@@ -399,7 +391,7 @@ const HouseMembersScreen = ({ route, navigation }) => {
             activeOpacity={0.8}
           >
             <View style={[CommonStyles.buttonContent, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral?.[200] }]}> 
-              <Text style={[CommonStyles.buttonIcon, { color: theme.colors.text.primary }]}>🧾</Text>
+              <Ionicons name="cart-outline" size={24} color={theme.colors.text.primary} style={{ marginBottom: 6 }} />
               <Text style={[CommonStyles.buttonText, { color: theme.colors.text.primary }]}>Harcama Ekle</Text>
               <Text style={[CommonStyles.buttonSubtext, { color: theme.colors.text.secondary }]}>Market/Yemek vb.</Text>
             </View>

@@ -10,6 +10,7 @@ import {
   ScrollView,
   Platform
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { expensesApi } from '../services/api';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
@@ -57,15 +58,15 @@ const getUtilityTypeName = (key) => ({
 }[key] || 'Diğer');
 
 const getUtilityIcon = (key) => ({
-  'Rent': '🏠',
-  'Electricity': '⚡',
-  'Water': '💧',
-  'Gas': '🔥',
-  'Internet': '🌐',
-  'Market': '🛒',
-  'Food': '🍽️',
-  'Other': '📄'
-}[key] || '📄');
+  'Rent': 'home-outline',
+  'Electricity': 'flash-outline',
+  'Water': 'water-outline',
+  'Gas': 'flame-outline',
+  'Internet': 'wifi-outline',
+  'Market': 'cart-outline',
+  'Food': 'restaurant-outline',
+  'Other': 'document-text-outline'
+}[key] || 'document-text-outline');
 
 const BillDetailScreen = ({ route, navigation }) => {
   const { billId, houseId, houseName } = route.params || {};
@@ -160,7 +161,7 @@ const BillDetailScreen = ({ route, navigation }) => {
     return (
       <View style={CommonStyles.container}>
         <View style={CommonStyles.emptyContainer}>
-          <Text style={CommonStyles.emptyIcon}>❌</Text>
+          <Ionicons name="alert-circle-outline" size={40} color={theme.colors.text.secondary} style={{ marginBottom: 8 }} />
           <Text style={CommonStyles.emptyText}>Fatura bulunamadı</Text>
         </View>
       </View>
@@ -181,7 +182,7 @@ const BillDetailScreen = ({ route, navigation }) => {
         <View style={styles.billInfoContainer}>
           <View style={styles.billHeader}>
             <View style={styles.billIconContainer}>
-              <Text style={styles.billIcon}>{icon}</Text>
+              <Ionicons name={icon} size={28} color={theme.colors.primary[600]} />
             </View>
             <View style={styles.billTitleContainer}>
               <Text style={styles.billTitle}>
@@ -257,7 +258,7 @@ const BillDetailScreen = ({ route, navigation }) => {
             activeOpacity={0.8}
           >
             <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
-              <Text style={CommonStyles.buttonIcon}>✏️</Text>
+              <Ionicons name="create-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
               <Text style={CommonStyles.buttonText}>Düzenle</Text>
             </View>
           </TouchableOpacity>
@@ -268,7 +269,7 @@ const BillDetailScreen = ({ route, navigation }) => {
             activeOpacity={0.8}
           >
             <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.error.background }]}>
-              <Text style={CommonStyles.buttonIcon}>🗑️</Text>
+              <Ionicons name="trash-outline" size={22} color={ColorThemes.error.foreground} style={{ marginBottom: 4 }} />
               <Text style={CommonStyles.buttonText}>Sil</Text>
             </View>
           </TouchableOpacity>

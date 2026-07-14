@@ -1,78 +1,75 @@
-// src/screens/BillsOverviewScreen.js
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+// src/screens/Faturalar.js
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   FlatList,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useAuth } from "../context/AuthContext";
-import { expensesApi } from "../services/api";
-import { useTheme } from "../shared/theme/ThemeProvider";
-import { getCategoryDisplayName as getCatName, getCategoryIcon as getCatIcon } from "../constants/ExpenseEnums";
-import { useCommonStyles } from "../shared/ui/CommonStyles";
-import Toast from "../components/Toast";
-import eventBus from "../shared/events/bus";
-import { PremiumCard } from "../shared/ui/premium/Card";
-import { PremiumButton } from "../shared/ui/premium/Button";
-import { TouchableScale } from "../shared/ui/premium/TouchableScale";
+  useWindowDimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
+import { expensesApi } from '../services/api';
+import { useTheme } from '../shared/theme/ThemeProvider';
+import { getCategoryDisplayName as getCatName, getCategoryIconName as getCatIconName } from '../constants/ExpenseEnums';
+import { useCommonStyles } from '../shared/ui/CommonStyles';
+import Toast from '../components/Toast';
+import eventBus from '../shared/events/bus';
+import { PremiumCard } from '../shared/ui/premium/Card';
+import { PremiumButton } from '../shared/ui/premium/Button';
+import { TouchableScale } from '../shared/ui/premium/TouchableScale';
 import {
   normalizeExpense,
   NON_BILL_KEYS,
   CATEGORY_ID_TO_KEY,
-} from "../utils/expenseClassifier";
-import { getParentCategoryHint } from "../shared/state/categoryHints";
-import { useFocusEffect } from "@react-navigation/native";
-import useScrollRestore from "../hooks/useScrollRestore";
+} from '../utils/expenseClassifier';
+import { getParentCategoryHint } from '../shared/state/categoryHints';
+import { useFocusEffect } from '@react-navigation/native';
+import useScrollRestore from '../hooks/useScrollRestore';
+import BrandMark from '../components/BrandMark';
 
-// ₺ format
 const formatAmount = (amount) =>
-  new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
+  new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(amount || 0));
 
 const UTILITY_META = {
-  Electricity: { label: "Elektrik", icon: "⚡" },
-  Water: { label: "Su", icon: "💧" },
-  Gas: { label: "Doğalgaz", icon: "🔥" },
-  Internet: { label: "İnternet", icon: "🌐" },
-  Rent: { label: "Kira", icon: "🏠" },
-  Other: { label: "Diğer", icon: "📄" },
+  Electricity: { label: 'Elektrik' },
+  Water: { label: 'Su' },
+  Gas: { label: 'Doğalgaz' },
+  Internet: { label: 'İnternet' },
+  Rent: { label: 'Kira' },
+  Other: { label: 'Diğer' },
 };
 
-// Günlük harcama anahtarları utils/expenseClassifier içindeki NON_BILL_KEYS’te.
-// Fatura sayılanlar = NON_BILL_KEYS dışında kalanlar
 const isUtilityKey = (k) => !NON_BILL_KEYS.includes(k);
-const toUtilityKey = (k) => (UTILITY_META[k] ? k : "Other");
+const toUtilityKey = (k) => (UTILITY_META[k] ? k : 'Other');
 
-// Türkçe/aksan temizleme (fallback tahmin için)
-const normalizeText = (s = "") => {
+const normalizeText = (s = '') => {
   try {
     return String(s)
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/ı/g, "i")
-      .replace(/ş/g, "s")
-      .replace(/ç/g, "c")
-      .replace(/ğ/g, "g")
-      .replace(/ö/g, "o")
-      .replace(/ü/g, "u");
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/ı/g, 'i')
+      .replace(/ş/g, 's')
+      .replace(/ç/g, 'c')
+      .replace(/ğ/g, 'g')
+      .replace(/ö/g, 'o')
+      .replace(/ü/g, 'u');
   } catch {
     return String(s).toLowerCase();
   }
 };
 
-// Kategoriyi güvenle seç: explicit field -> tahmin -> Other
 const pickUtilityKey = (it) => {
   const raw = it?._raw || {};
 
-  // Aday explicit değerler (sırasıyla)
   const candidates = [
     it?.key,
     raw.category,
@@ -83,7 +80,6 @@ const pickUtilityKey = (it) => {
     raw.UtilityType,
   ];
 
-  // 1) Sayısal kategori → enum map
   for (const c of candidates) {
     if (c === null || c === undefined) continue;
     const n = Number(c);
@@ -92,9 +88,8 @@ const pickUtilityKey = (it) => {
     }
   }
 
-  // 2) Metin olarak gelen anahtarlar (case-insensitive eşleşme)
   for (const c of candidates) {
-    if (!c || typeof c !== "string") continue;
+    if (!c || typeof c !== 'string') continue;
     const lower = c.toLowerCase();
     const match = Object.keys(UTILITY_META).find(
       (k) => k.toLowerCase() === lower
@@ -102,18 +97,16 @@ const pickUtilityKey = (it) => {
     if (match) return match;
   }
 
-  // 3) explicit yoksa Tur metninden tahmin et (kök + _raw + title)
-  const t = normalizeText(it?.tur || it?.Tur || raw.tur || raw.Tur || it?.title || "");
-  if (/elektrik|electric|electricity/.test(t)) return "Electricity";
-  if (/(^|\s)(su|water)($|\s)/.test(t)) return "Water";
-  if (/(dogalgaz|doğalgaz|gaz|gas|naturalgas)/.test(t)) return "Gas";
-  if (/internet/.test(t)) return "Internet";
-  if (/(kira|rent)/.test(t)) return "Rent";
+  const t = normalizeText(it?.tur || it?.Tur || raw.tur || raw.Tur || it?.title || '');
+  if (/elektrik|electric|electricity/.test(t)) return 'Electricity';
+  if (/(^|\s)(su|water)($|\s)/.test(t)) return 'Water';
+  if (/(dogalgaz|doğalgaz|gaz|gas|naturalgas)/.test(t)) return 'Gas';
+  if (/internet/.test(t)) return 'Internet';
+  if (/(kira|rent)/.test(t)) return 'Rent';
 
-  return "Other";
+  return 'Other';
 };
 
-// UTC bazlı: bu ay [start, end)
 const getMonthWindow = (base = new Date()) => {
   const y = base.getUTCFullYear();
   const m = base.getUTCMonth();
@@ -122,7 +115,6 @@ const getMonthWindow = (base = new Date()) => {
   return { start, end };
 };
 
-// normalizeExpense → tek kaynaktan oku, yoksa güvenli fallback
 const getItemDate = (it) => {
   const v =
     it?.date ||
@@ -135,7 +127,6 @@ const getItemDate = (it) => {
   return new Date(v || 0);
 };
 
-// “tarih DESC, eşitlikte id DESC”
 const cmpByDateThenIdDesc = (a, b) => {
   const db = getItemDate(b).getTime();
   const da = getItemDate(a).getTime();
@@ -146,28 +137,32 @@ const cmpByDateThenIdDesc = (a, b) => {
 };
 
 export default function BillsOverviewScreen({ navigation, route }) {
-  const { houseId, houseName } = route.params || {};
-  const { theme } = useTheme();
   const { user } = useAuth();
+  const routeParams = route.params || {};
+  const houseId = routeParams.houseId || user?.defaultHouseId;
+  const houseName = routeParams.houseName || user?.defaultHouseName || 'Aktif Ev';
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 520;
   const [loading, setLoading] = React.useState(false);
-  const CommonStyles = useCommonStyles();
+  useCommonStyles();
   const [toast, setToast] = React.useState({
     visible: false,
-    message: "",
-    type: "success",
+    message: '',
+    type: 'success',
   });
   const [items, setItems] = React.useState([]);
   const lastFetchedAtRef = useRef(0);
   const debounceRef = useRef(null);
   const { listRef, handleScroll } = useScrollRestore(
-    `BillsOverviewScreen:${houseId ?? "all"}`
+    `BillsOverviewScreen:${houseId ?? 'all'}`
   );
 
-  // (opsiyonel) üst filtre state’leri
   const [category, setCategory] = React.useState(null);
-  const [paidFilter, setPaidFilter] = React.useState("all"); // all | paid | unpaid
+  const [paidFilter, setPaidFilter] = React.useState('all');
 
-  const showToast = (message, type = "success") =>
+  const showToast = (message, type = 'success') =>
     setToast({ visible: true, message, type });
   const hideToast = () => setToast((p) => ({ ...p, visible: false }));
 
@@ -182,12 +177,9 @@ export default function BillsOverviewScreen({ navigation, route }) {
 
       const normalized = arrExp.map(normalizeExpense);
 
-      // BE alanlarından (categoryId/category/utilityType) kesin anahtar çıkar; yoksa parent'tan devral
       const getKeyFromRaw = (r = {}) => {
-        // sayısal id → enum
         const idCand = r.categoryId ?? r.CategoryId ?? (typeof r.category === 'number' ? r.category : undefined) ?? (typeof r.Category === 'number' ? r.Category : undefined);
         if (idCand != null && CATEGORY_ID_TO_KEY[Number(idCand)]) return CATEGORY_ID_TO_KEY[Number(idCand)];
-        // metin anahtar
         const nameCand = (typeof r.category === 'string' && r.category) || (typeof r.Category === 'string' && r.Category) || (typeof r.utilityType === 'string' && r.utilityType) || (typeof r.UtilityType === 'string' && r.UtilityType) || '';
         if (nameCand) {
           const lower = String(nameCand).toLowerCase();
@@ -211,23 +203,21 @@ export default function BillsOverviewScreen({ navigation, route }) {
         if (k && UTILITY_META[k]) idToKey.set(rid, k);
       }
 
-      // Eksik kalan parent kategorilerini BE'den tamamla
-      const missingParentIds = new Set();
       for (const x of normalized) {
         const raw = x._raw || {};
-        const pid = raw.parentExpenseId ?? raw.ParentExpenseId;
-        if (pid != null && !idToKey.has(Number(pid))) missingParentIds.add(Number(pid));
-      }
-      if (missingParentIds.size > 0) {
-        const parentIdArr = Array.from(missingParentIds);
-        await Promise.all(parentIdArr.map(async (pid) => {
-          try {
-            const res = await expensesApi.getById(pid);
-            const pr = res?.data?.data ?? res?.data ?? {};
-            const k = getKeyFromRaw(pr);
-            if (k && UTILITY_META[k]) idToKey.set(Number(pid), k);
-          } catch {}
-        }));
+        const pid = Number(raw.parentExpenseId ?? raw.ParentExpenseId);
+        if (!Number.isFinite(pid) || idToKey.has(pid)) continue;
+
+        const inferredKey = pickUtilityKey(x);
+        if (inferredKey && UTILITY_META[inferredKey]) {
+          idToKey.set(pid, inferredKey);
+          continue;
+        }
+
+        const hintedKey = getParentCategoryHint(pid);
+        if (hintedKey && UTILITY_META[hintedKey]) {
+          idToKey.set(pid, hintedKey);
+        }
       }
 
       const normalizedWithKeys = normalized.map(x => {
@@ -257,8 +247,8 @@ export default function BillsOverviewScreen({ navigation, route }) {
         const raw = x._raw || {};
         const parentId = raw.parentExpenseId ?? raw.ParentExpenseId ?? null;
 
-        // plan sinyal/çocuk
         const isChild = parentId != null;
+        const isParent = parentId == null;
         const installmentCount = Number(
           raw.installmentCount ?? raw.InstallmentCount ?? 0
         );
@@ -271,28 +261,23 @@ export default function BillsOverviewScreen({ navigation, route }) {
             raw.StartMonth ??
             null) != null;
 
-        // Utility değişken faturaları (Elektrik/Su/Doğalgaz) plan sinyali olmasa da göster
-        const keyKForFilter = toUtilityKey(pickUtilityKey(x));
+        const keyKForFilter = toUtilityKey(x.key || pickUtilityKey(x));
         const isVariableUtility = keyKForFilter === 'Water' || keyKForFilter === 'Electricity' || keyKForFilter === 'Gas';
 
-        // Yalnız planlı kayıtlar (child veya plan sinyali taşıyanlar)
-        if (!(isChild || hasPlanSignals || isVariableUtility)) return false;
+        if (isVariableUtility) {
+          const d = getItemDate(x);
+          if (!(d >= monthStart && d < monthEnd)) return false;
+          if (d > now) return false;
+          return true;
+        }
 
-        // Parent asla gösterilmez
-        if (!isChild && hasPlanSignals) return false;
+        if (isParent && hasPlanSignals) return true;
 
-        // Child değilse (single), utility olmayanları çıkar
-        if (!isChild && !isUtilityKey(keyKForFilter)) return false;
+        if (isChild) return false;
 
-        // Bu ay ve bugün/öncesi
-        const d = getItemDate(x);
-        if (!(d >= monthStart && d < monthEnd)) return false;
-        if (d > now) return false;
-
-        return true;
+        return false;
       });
 
-      // parentId+YYYY-MM bazında ‘ayda tek çocuk’
       const pickMap = new Map();
       for (const it of candidates) {
         const raw = it._raw || {};
@@ -300,7 +285,7 @@ export default function BillsOverviewScreen({ navigation, route }) {
         const d = getItemDate(it);
         const ym = `${d.getUTCFullYear()}-${String(
           d.getUTCMonth() + 1
-        ).padStart(2, "0")}`;
+        ).padStart(2, '0')}`;
 
         const key =
           parentId != null ? `p-${parentId}-${ym}` : `s-${it.id || raw.id || `${it.title}-${ym}`}`;
@@ -320,8 +305,8 @@ export default function BillsOverviewScreen({ navigation, route }) {
       setItems(onlyThisMonth);
       lastFetchedAtRef.current = Date.now();
     } catch (e) {
-      console.error("BillsOverviewScreen fetch error:", e);
-      showToast("Planlı gider verileri yüklenemedi", "error");
+      console.error('BillsOverviewScreen fetch error:', e);
+      showToast('Fatura verileri yüklenemedi', 'error');
       setItems([]);
     } finally {
       if (!opts?.silent) setLoading(false);
@@ -340,11 +325,11 @@ export default function BillsOverviewScreen({ navigation, route }) {
       if (Number(changedId) !== Number(houseId)) return;
       fetchData({ silent: true });
     };
-    eventBus.on("expenses:updated", onUpdated);
-    eventBus.on("expenses:created:recurring", onCreatedRecurring);
+    eventBus.on('expenses:updated', onUpdated);
+    eventBus.on('expenses:created:recurring', onCreatedRecurring);
     return () => {
-      eventBus.off("expenses:updated", onUpdated);
-      eventBus.off("expenses:created:recurring", onCreatedRecurring);
+      eventBus.off('expenses:updated', onUpdated);
+      eventBus.off('expenses:created:recurring', onCreatedRecurring);
     };
   }, [houseId]);
 
@@ -358,17 +343,16 @@ export default function BillsOverviewScreen({ navigation, route }) {
     }, [houseId])
   );
 
-  // (opsiyonel) üst filtreler
   const filtered = useMemo(() => {
     return items.filter((b) => {
       if (category && toUtilityKey(b.key) !== category) return false;
-      if (paidFilter !== "all") {
+      if (paidFilter !== 'all') {
         const paid =
-          typeof b.isPaid === "boolean"
+          typeof b.isPaid === 'boolean'
             ? b.isPaid
-            : String(b.status || "").toLowerCase() === "paid";
-        if (paidFilter === "paid" && !paid) return false;
-        if (paidFilter === "unpaid" && paid) return false;
+            : String(b.status || '').toLowerCase() === 'paid';
+        if (paidFilter === 'paid' && !paid) return false;
+        if (paidFilter === 'unpaid' && paid) return false;
       }
       return true;
     });
@@ -379,58 +363,104 @@ export default function BillsOverviewScreen({ navigation, route }) {
       (s, b) => s + (Number(b.amount ?? b.tutar) || 0),
       0
     );
-    return { all };
+    const isPaidOf = (b) => (typeof b.isPaid === 'boolean' ? b.isPaid : String(b.status || '').toLowerCase() === 'paid');
+    const pending = filtered.filter((b) => !isPaidOf(b));
+    const pendingTotal = pending.reduce((s, b) => s + (Number(b.amount ?? b.tutar) || 0), 0);
+    return { all, pendingCount: pending.length, pendingTotal };
+  }, [filtered]);
+
+  const getDueBadge = (raw) => {
+    const dueDay = raw.dueDay ?? raw.DueDay ?? null;
+    if (dueDay == null) return null;
+    const now = new Date();
+    const due = new Date(now.getFullYear(), now.getMonth(), Number(dueDay));
+    const diffDays = Math.round((due.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
+    if (diffDays < 0) return { label: 'Gecikti', tone: 'error' };
+    if (diffDays === 0) return { label: 'Bugün son gün', tone: 'error' };
+    if (diffDays === 1) return { label: 'Yarın son gün', tone: 'warning' };
+    if (diffDays <= 5) return { label: `${diffDays} gün kaldı`, tone: 'warning' };
+    return null;
+  };
+
+  const sectioned = useMemo(() => {
+    const isPaidOf = (b) => (typeof b.isPaid === 'boolean' ? b.isPaid : String(b.status || '').toLowerCase() === 'paid');
+    const unpaid = filtered.filter((b) => !isPaidOf(b));
+    const paid = filtered.filter(isPaidOf);
+    const rows = [];
+    if (unpaid.length) {
+      rows.push({ __header: true, id: 'h-unpaid', title: 'Ödenecekler', count: unpaid.length });
+      rows.push(...unpaid);
+    }
+    if (paid.length) {
+      rows.push({ __header: true, id: 'h-paid', title: 'Ödendi', count: paid.length });
+      rows.push(...paid);
+    }
+    return rows;
   }, [filtered]);
 
   const handleAddBill = () => {
-    navigation.navigate("DuzenliGiderEkle", {
+    navigation.navigate('DuzenliGiderEkle', {
       houseId,
       houseName,
-      defaultMode: "recurring",
+      defaultMode: 'recurring',
     });
   };
 
   const categories = [
-    { key: null, label: "Tümü" },
-    { key: "Electricity", label: "Elektrik" },
-    { key: "Water", label: "Su" },
-    { key: "Gas", label: "Doğalgaz" },
-    { key: "Internet", label: "İnternet" },
-    { key: "Rent", label: "Kira" },
-    { key: "Other", label: "Diğer" },
+    { key: null, label: 'Tümü' },
+    { key: 'Electricity', label: 'Elektrik' },
+    { key: 'Water', label: 'Su' },
+    { key: 'Gas', label: 'Doğalgaz' },
+    { key: 'Internet', label: 'İnternet' },
+    { key: 'Rent', label: 'Kira' },
+    { key: 'Other', label: 'Diğer' },
   ];
 
   const ListHeader = useCallback(() => (
     <View>
-      <LinearGradient
-        colors={[theme.colors.primary?.[700], theme.colors.primary?.[500]]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ paddingTop: 18, paddingBottom: 18, paddingHorizontal: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}
-      >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: theme.colors.text.onPrimary, fontSize: 20, fontWeight: '800' }}>Planlı Giderler</Text>
+      <View style={{ paddingTop: insets.top + 12, paddingBottom: 4, paddingHorizontal: 16, backgroundColor: theme.colors.background }}>
+        <View style={{ flexDirection: isCompact ? 'column' : 'row', justifyContent: 'space-between', alignItems: isCompact ? 'flex-start' : 'center', gap: isCompact ? 12 : 0 }}>
+          <View>
+            <Text style={{ color: theme.colors.text.primary, fontSize: 26, fontWeight: '900' }}>Faturalar</Text>
+            <Text style={{ color: theme.colors.text.secondary, marginTop: 2, fontSize: 14 }}>{houseName}</Text>
+          </View>
           <PremiumButton title="Plan Ekle" size="small" onPress={handleAddBill} />
         </View>
-        <Text style={{ color: theme.colors.text.onPrimary, opacity: 0.9, marginTop: 6 }}>{houseName}</Text>
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: theme.colors.text.onPrimary, opacity: 0.85, fontSize: 12 }}>Toplam</Text>
-            <Text style={{ color: theme.colors.text.onPrimary, fontSize: 22, fontWeight: '800' }}>{formatAmount(totals.all)}</Text>
-          </View>
-          <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: theme.colors.text.onPrimary, opacity: 0.85, fontSize: 12 }}>Fatura Sayısı</Text>
-            <Text style={{ color: theme.colors.text.onPrimary, fontSize: 22, fontWeight: '800' }}>{filtered.length}</Text>
-          </View>
-        </View>
-      </LinearGradient>
 
-      {/* Kategori Chip'leri */}
+        <View style={{
+          marginTop: 16,
+          borderRadius: 20,
+          padding: 16,
+          backgroundColor: theme.colors.surface,
+          borderWidth: 1,
+          borderColor: theme.colors.neutral[200],
+        }}>
+          <View style={{ flexDirection: isCompact ? 'column' : 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.text.secondary, fontSize: 12, fontWeight: '700' }}>Bu ay toplam</Text>
+              <Text style={{ color: theme.colors.text.primary, fontSize: 22, fontWeight: '900', marginTop: 2 }}>{formatAmount(totals.all)}</Text>
+            </View>
+            {!isCompact && <View style={{ width: 1, backgroundColor: theme.colors.neutral[200] }} />}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.text.secondary, fontSize: 12, fontWeight: '700' }}>Ödenecek</Text>
+              <Text style={{ color: theme.colors.warning[700], fontSize: 22, fontWeight: '900', marginTop: 2 }}>{formatAmount(totals.pendingTotal)}</Text>
+            </View>
+          </View>
+          {totals.pendingCount > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, backgroundColor: theme.colors.warning[50], alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+              <Ionicons name="time-outline" size={13} color={theme.colors.warning[700]} />
+              <Text style={{ color: theme.colors.warning[700], fontSize: 12, fontWeight: '700' }}>
+                {totals.pendingCount} fatura ödenmeyi bekliyor
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
       <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
         <FlatList
           data={categories}
-          keyExtractor={(it, idx) => String(it.key ?? 'all')}
+          keyExtractor={(it) => String(it.key ?? 'all')}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 4 }}
@@ -439,11 +469,16 @@ export default function BillsOverviewScreen({ navigation, route }) {
             return (
               <View style={{ marginRight: 8 }}>
                 <TouchableScale onPress={() => setCategory(item.key)}>
-                  <PremiumCard
-                    elevation={active ? "medium" : "small"}
-                    padding="small"
+                  <View
                     style={{
-                      backgroundColor: active ? theme.colors.pastel.blue.bg : theme.colors.surface,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 14,
+                      paddingVertical: 9,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      backgroundColor: active ? theme.colors.primary[50] : theme.colors.surface,
                       borderColor: active ? theme.colors.primary?.[600] : theme.colors.neutral?.[200],
                     }}
                   >
@@ -454,7 +489,7 @@ export default function BillsOverviewScreen({ navigation, route }) {
                     }}>
                       {item.label}
                     </Text>
-                  </PremiumCard>
+                  </View>
                 </TouchableScale>
               </View>
             );
@@ -462,26 +497,44 @@ export default function BillsOverviewScreen({ navigation, route }) {
         />
       </View>
     </View>
-  ), [theme, totals, filtered, houseName, category]);
+  ), [theme, totals, filtered, houseName, category, isCompact]);
 
-  const renderItem = useCallback(({ item: it, index: idx }) => {
+  const renderItem = useCallback(({ item: it }) => {
+    if (it.__header) {
+      return (
+        <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: theme.colors.text.primary }}>{it.title}</Text>
+          <View style={{ backgroundColor: theme.colors.neutral[100], borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: theme.colors.text.secondary }}>{it.count}</Text>
+          </View>
+        </View>
+      );
+    }
+
     const raw = it._raw || {};
-    const keyK = toUtilityKey(pickUtilityKey(it));
+    const isPaid = typeof it.isPaid === 'boolean' ? it.isPaid : String(it.status || '').toLowerCase() === 'paid';
+    const keyK = toUtilityKey(it.key || pickUtilityKey(it));
     const d = getItemDate(it);
     const catRaw = raw.category ?? raw.Category ?? raw.categoryId ?? raw.CategoryId ?? keyK;
-    const icon = getCatIcon(catRaw);
+    const iconName = getCatIconName(catRaw);
     const label = getCatName(catRaw);
     const idxNo = raw.installmentIndex || raw.InstallmentIndex || null;
     const cnt = raw.installmentCount || raw.InstallmentCount || null;
     const parentId = raw.parentExpenseId ?? raw.ParentExpenseId ?? null;
     const isChild = parentId != null;
-    const titleSuffix = keyK === "Other" && isChild && idxNo != null && cnt != null ? ` • Taksit ${idxNo}/${cnt}` : "";
+    const dueDay = raw.dueDay ?? raw.DueDay ?? null;
+    const isParentPlan = !isChild && ((raw.planStartMonth ?? raw.PlanStartMonth ?? null) != null || dueDay != null || Number(raw.installmentCount ?? raw.InstallmentCount ?? 0) > 1);
+    const titleSuffix = keyK === 'Other' && isChild && idxNo != null && cnt != null ? ` • Taksit ${idxNo}/${cnt}` : '';
+    const secondaryText = isParentPlan
+      ? `${cnt > 1 ? `${cnt} ay plan` : 'Aylık plan'}${dueDay ? ` • Her ay ${dueDay}. gün` : ''}`
+      : `Tarih: ${d.toLocaleDateString('tr-TR')}`;
+    const dueBadge = !isPaid ? getDueBadge(raw) : null;
 
     return (
       <View style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
         <TouchableScale
           onPress={() =>
-            navigation.navigate("BillDetail", {
+            navigation.navigate('BillDetail', {
               billId: it.id,
               houseId,
               houseName,
@@ -489,8 +542,8 @@ export default function BillsOverviewScreen({ navigation, route }) {
           }
         >
           <PremiumCard elevation="small" padding="medium" style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={styles.iconCircle}>
-              <Text style={{ fontSize: 22 }}>{icon}</Text>
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.primary[50] }]}>
+              <Ionicons name={iconName} size={22} color={theme.colors.primary[600]} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text.primary }}>
@@ -498,13 +551,45 @@ export default function BillsOverviewScreen({ navigation, route }) {
                 {titleSuffix}
               </Text>
               <Text style={{ fontSize: 12, color: theme.colors.text.secondary, marginTop: 2 }}>
-                Tarih: {d.toLocaleDateString("tr-TR")}
+                {secondaryText}
               </Text>
+              {dueBadge && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  alignSelf: 'flex-start',
+                  marginTop: 6,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors[dueBadge.tone][50],
+                }}>
+                  <Ionicons name="alarm-outline" size={11} color={theme.colors[dueBadge.tone][700]} />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: theme.colors[dueBadge.tone][700] }}>
+                    {dueBadge.label}
+                  </Text>
+                </View>
+              )}
             </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: theme.colors.text.primary }}>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text.primary, marginBottom: 6 }}>
                 {formatAmount(it.amount ?? it.tutar)}
               </Text>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 999,
+                backgroundColor: isPaid ? theme.colors.success[50] : theme.colors.warning[50],
+              }}>
+                <Ionicons name={isPaid ? 'checkmark-circle' : 'time'} size={11} color={isPaid ? theme.colors.success[700] : theme.colors.warning[700]} />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: isPaid ? theme.colors.success[700] : theme.colors.warning[700] }}>
+                  {isPaid ? 'ÖDENDİ' : 'BEKLİYOR'}
+                </Text>
+              </View>
             </View>
           </PremiumCard>
         </TouchableScale>
@@ -513,10 +598,10 @@ export default function BillsOverviewScreen({ navigation, route }) {
   }, [navigation, houseId, houseName, theme]);
 
   const ListEmpty = useCallback(() => (
-    <View style={[styles.empty, { paddingHorizontal: 16 }]}>
-      <Text style={styles.emptyIcon}>📄</Text>
+    <View style={[styles.empty, styles.emptyState, { paddingHorizontal: 16 }]}>
+      <BrandMark variant="logo" size={190} subtle style={styles.emptyWatermark} />
       <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
-        {loading ? "Veriler yükleniyor..." : "Bu ay için görünür planlı gider bulunmuyor."}
+        {loading ? 'Veriler yükleniyor...' : 'Bu ay için görünür fatura bulunmuyor.'}
       </Text>
       {!loading && <PremiumButton title="+ Düzenli Gider Ekle" size="small" onPress={handleAddBill} />}
     </View>
@@ -532,89 +617,56 @@ export default function BillsOverviewScreen({ navigation, route }) {
   }
 
   return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <FlatList
-          ref={listRef}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          data={filtered}
-          keyExtractor={(it, idx) => String(it?.id ?? idx)}
-          renderItem={renderItem}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={ListEmpty}
-          contentContainerStyle={{ paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={8}
-          removeClippedSubviews
-        />
-        <Toast
-          visible={toast.visible}
-          message={toast.message}
-          type={toast.type}
-          onHide={hideToast}
-        />
-      </View>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <FlatList
+        ref={listRef}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        data={sectioned}
+        keyExtractor={(it, idx) => String(it?.__header ? it.id : it?.id ?? idx)}
+        renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={8}
+        removeClippedSubviews
+      />
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-    paddingHorizontal: 12,
-  },
-  addBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  addBtnText: { fontWeight: "700" },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginVertical: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    marginHorizontal: 6,
-    backgroundColor: 'transparent',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    elevation: 2,
-  },
-  summaryLabel: { fontSize: 12 },
-  summaryAmount: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: 'inherit',
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#00000010',
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   empty: {
-    alignItems: "center",
+    alignItems: 'center',
     marginTop: 40,
     padding: 16,
   },
-  emptyIcon: { fontSize: 32, marginBottom: 8 },
-  emptyText: { fontSize: 14, marginBottom: 8 },
-  resetBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
+  emptyState: { position: 'relative', overflow: 'hidden', minHeight: 190 },
+  emptyWatermark: {
+    position: 'absolute',
+    opacity: 0.08,
+    right: -24,
+    bottom: -18,
+    borderWidth: 0,
     backgroundColor: 'transparent',
   },
+  emptyText: { fontSize: 14, marginBottom: 8 },
 });

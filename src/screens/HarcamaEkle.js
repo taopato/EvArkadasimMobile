@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -36,7 +36,7 @@ const parseIntFromTR = (value) => {
 const QUICK_EXPENSES = [
   { key: 'Market', label: 'Market' },
   { key: 'Food', label: 'Yemek' },
-  { key: 'Other', label: 'Diger' },
+  { key: 'Other', label: 'Diğer' },
 ];
 
 export default function AddExpenseScreen({ navigation, route }) {
@@ -45,6 +45,18 @@ export default function AddExpenseScreen({ navigation, route }) {
   const CommonStyles = useCommonStyles();
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const scrollRef = useRef(null);
+  const noteWrapRef = useRef(null);
+
+  const scrollToNoteField = () => {
+    requestAnimationFrame(() => {
+      noteWrapRef.current?.measureLayout(
+        scrollRef.current?.getInnerViewNode?.() ?? scrollRef.current,
+        (x, y) => scrollRef.current?.scrollTo({ y: y - 24, animated: true }),
+        () => {}
+      );
+    });
+  };
 
   const [amount, setAmount] = useState('');
   const [categoryKey, setCategoryKey] = useState('');
@@ -62,7 +74,7 @@ export default function AddExpenseScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!activeHouseId) {
-      Alert.alert('Hata', 'Aktif bir ev grubu bulunamadi.');
+      Alert.alert('Hata', 'Aktif bir ev grubu bulunamadı.');
       navigation.navigate('GrupListesi');
       return;
     }
@@ -91,7 +103,7 @@ export default function AddExpenseScreen({ navigation, route }) {
       });
       setPersonal(initialPersonal);
     } catch (error) {
-      console.error('Uyeler alinamadi:', error?.response?.data || error?.message);
+      console.error('Üyeler alınamadı:', error?.response?.data || error?.message);
       setMembers([]);
     } finally {
       setLoading(false);
@@ -102,15 +114,15 @@ export default function AddExpenseScreen({ navigation, route }) {
 
   const save = async () => {
     if (!amountNum || amountNum <= 0) {
-      Alert.alert('Hata', 'Gecerli bir tutar girin.');
+      Alert.alert('Hata', 'Geçerli bir tutar girin.');
       return;
     }
     if (!categoryKey) {
-      Alert.alert('Hata', 'Bir kategori secin.');
+      Alert.alert('Hata', 'Bir kategori seçin.');
       return;
     }
     if (!payerId) {
-      Alert.alert('Hata', 'Odemeyi yapan kisiyi secin.');
+      Alert.alert('Hata', 'Ödemeyi yapan kişiyi seçin.');
       return;
     }
 
@@ -126,7 +138,7 @@ export default function AddExpenseScreen({ navigation, route }) {
     });
 
     if (personalTotal > amountNum) {
-      Alert.alert('Hata', 'Kisisel toplam, genel toplamdan buyuk olamaz.');
+      Alert.alert('Hata', 'Kişisel toplam, genel toplamdan büyük olamaz.');
       return;
     }
 
@@ -165,7 +177,7 @@ export default function AddExpenseScreen({ navigation, route }) {
       setTimeout(() => navigation.goBack(), 800);
     } catch (error) {
       console.error('Harcama kaydi hatasi:', error?.response?.data || error?.message);
-      showToast('Kayit sirasinda bir hata olustu.', 'error');
+      showToast('Kayıt sırasında bir hata oluştu.', 'error');
     } finally {
       setLoading(false);
     }
@@ -176,11 +188,14 @@ export default function AddExpenseScreen({ navigation, route }) {
 
     try {
       setScanningReceipt(true);
-      const image = {
-        uri: asset.uri,
-        name: asset.fileName || asset.uri.split('/').pop() || `receipt-${Date.now()}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-      };
+      const fileName = asset.fileName || asset.uri.split('/').pop() || `receipt-${Date.now()}.jpg`;
+      const mimeType = asset.mimeType || 'image/jpeg';
+
+      // Web'de FormData gerçek bir File/Blob bekler; RN'in {uri,name,type}
+      // nesnesi native'de çalışır ama web'de görsel hiç gönderilmez.
+      const image = Platform.OS === 'web'
+        ? new File([await (await fetch(asset.uri)).blob()], fileName, { type: mimeType })
+        : { uri: asset.uri, name: fileName, type: mimeType };
 
       const response = await receiptsApi.scan({
         houseId: activeHouseId,
@@ -192,11 +207,11 @@ export default function AddExpenseScreen({ navigation, route }) {
       if (receipt?.id) {
         navigation.navigate('FisDetayi', { receiptId: receipt.id, houseId: activeHouseId });
       } else {
-        showToast('Fis yuklendi ama detay acilamadi.', 'error');
+        showToast('Fiş yüklendi ama detay açılamadı.', 'error');
       }
     } catch (error) {
       console.error('Fis yukleme hatasi:', error?.response?.data || error?.message);
-      showToast('Fis yuklenirken bir hata olustu.', 'error');
+      showToast('Fiş yüklenirken bir hata oluştu.', 'error');
     } finally {
       setScanningReceipt(false);
     }
@@ -205,7 +220,7 @@ export default function AddExpenseScreen({ navigation, route }) {
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Izin gerekli', 'Galeriden fis yuklemek icin izin vermelisin.');
+      Alert.alert('İzin gerekli', 'Galeriden fiş yüklemek için izin vermelisin.');
       return;
     }
 
@@ -223,7 +238,7 @@ export default function AddExpenseScreen({ navigation, route }) {
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Izin gerekli', 'Kamera ile fis cekmek icin izin vermelisin.');
+      Alert.alert('İzin gerekli', 'Kamera ile fiş çekmek için izin vermelisin.');
       return;
     }
 
@@ -244,28 +259,29 @@ export default function AddExpenseScreen({ navigation, route }) {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
     >
       <ScrollView
+        ref={scrollRef}
         style={CommonStyles.content}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="always"
       >
         <View style={CommonStyles.header}>
           <Text style={CommonStyles.title}>Harcama Ekle</Text>
-          <Text style={CommonStyles.subtitle}>Duzensiz harcamalar icin hizli kayit veya fis okutma.</Text>
+          <Text style={CommonStyles.subtitle}>Düzensiz harcamalar için hızlı kayıt veya fiş okutma.</Text>
         </View>
 
         <View style={styles.receiptCard}>
           <View style={styles.receiptHeader}>
-            <Text style={styles.receiptTitle}>Fis veya fatura okut</Text>
+            <Text style={styles.receiptTitle}>Fiş veya fatura okut</Text>
             <Text style={styles.receiptSubtitle}>
-              Fotografi yukle, kalemleri tek tek duzenle ve mevcut harcama sistemine donustur.
+              Fotoğrafı yükle, kalemleri tek tek düzenle ve mevcut harcama sistemine dönüştür.
             </Text>
           </View>
           <View style={styles.receiptActions}>
             <TouchableOpacity style={styles.receiptPrimaryButton} onPress={openCamera} disabled={scanningReceipt} activeOpacity={0.9}>
-              {scanningReceipt ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <Text style={styles.receiptPrimaryButtonText}>Kameradan cek</Text>}
+              {scanningReceipt ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <Text style={styles.receiptPrimaryButtonText}>Kameradan çek</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.receiptSecondaryButton} onPress={openGallery} disabled={scanningReceipt} activeOpacity={0.9}>
-              <Text style={styles.receiptSecondaryButtonText}>Galeriden sec</Text>
+              <Text style={styles.receiptSecondaryButtonText}>Galeriden seç</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -273,7 +289,7 @@ export default function AddExpenseScreen({ navigation, route }) {
             activeOpacity={0.85}
             onPress={() => navigation.navigate('FisGecmisi', { houseId: activeHouseId })}
           >
-            <Text style={styles.receiptGhostButtonText}>Kayitli fisleri gor</Text>
+            <Text style={styles.receiptGhostButtonText}>Kayıtlı fişleri gör</Text>
           </TouchableOpacity>
         </View>
 
@@ -286,7 +302,7 @@ export default function AddExpenseScreen({ navigation, route }) {
             value={amount}
             onChangeText={(text) => setAmount(formatThousandsTRInput(text))}
           />
-          <Text style={styles.hint}>Ornek: 1.000</Text>
+          <Text style={styles.hint}>Örnek: 1.000</Text>
         </View>
 
         <View style={styles.card}>
@@ -309,7 +325,7 @@ export default function AddExpenseScreen({ navigation, route }) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Odeyen</Text>
+          <Text style={styles.label}>Ödeyen</Text>
           <View style={styles.chips}>
             {members.map((member) => {
               const active = String(member.id) === String(payerId);
@@ -327,24 +343,25 @@ export default function AddExpenseScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Aciklama (opsiyonel)</Text>
+        <View style={styles.card} ref={noteWrapRef}>
+          <Text style={styles.label}>Açıklama (opsiyonel)</Text>
           <TextInput
             style={[styles.input, styles.noteInput]}
-            placeholder="Kisa bir not..."
+            placeholder="Kısa bir not..."
             value={note}
             onChangeText={setNote}
+            onFocus={scrollToNoteField}
             multiline
           />
         </View>
 
         <TouchableOpacity style={styles.toggle} onPress={() => setShowPersonal((prev) => !prev)} activeOpacity={0.8}>
-          <Text style={styles.toggleText}>{showPersonal ? 'Kisisel kalemleri gizle' : 'Kisisel kalem ekle'}</Text>
+          <Text style={styles.toggleText}>{showPersonal ? 'Kişisel kalemleri gizle' : 'Kişisel kalem ekle'}</Text>
         </TouchableOpacity>
 
         {showPersonal ? (
           <View style={styles.card}>
-            <Text style={styles.label}>Kisisel Kalemler</Text>
+            <Text style={styles.label}>Kişisel Kalemler</Text>
             {members.map((member) => (
               <View key={String(member.id)} style={styles.personalRow}>
                 <Text style={styles.personalName}>{member.fullName}</Text>
@@ -357,7 +374,7 @@ export default function AddExpenseScreen({ navigation, route }) {
                 />
               </View>
             ))}
-            <Text style={styles.info}>Kisisel kalemler toplamdan dusulur, kalan kisim ortak paylastirilir.</Text>
+            <Text style={styles.info}>Kişisel kalemler toplamdan düşülür, kalan kısım ortak paylaştırılır.</Text>
           </View>
         ) : null}
 

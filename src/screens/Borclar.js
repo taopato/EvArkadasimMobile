@@ -32,7 +32,6 @@ export default function Borclar({ navigation, route }) {
       const res = await houseApi.getUserDebts(me, Number(houseId));
       const body = res?.data?.data ?? res?.data ?? {};
       const pairs = Array.isArray(body.pairs) ? body.pairs : [];
-      const totals = Array.isArray(body.totals) ? body.totals : [];
 
       let nameById = new Map();
       const memRes = await houseApi.getMembers(Number(houseId));
@@ -40,7 +39,7 @@ export default function Borclar({ navigation, route }) {
       nameById = new Map(
         rawMembers.map((m) => ({
           id: Number(m.userId ?? m.id ?? m.user?.id),
-          name: m.fullName ?? m.name ?? m.user?.fullName ?? 'Kullanici',
+          name: m.fullName ?? m.name ?? m.user?.fullName ?? 'Kullanıcı',
         })).filter((x) => Number.isFinite(x.id)).map((x) => [x.id, x.name]),
       );
 
@@ -57,16 +56,14 @@ export default function Borclar({ navigation, route }) {
             ? pick(p, ['toUserName', 'toFullName', 'toName'])
             : pick(p, ['fromUserName', 'fromFullName', 'fromName'])) ||
           nameById.get(otherId) ||
-          `Kullanici #${otherId}`;
+          `Kullanıcı #${otherId}`;
 
         return { counterpartyUserId: otherId, counterpartyName: otherName, amount: mine };
       }).filter(Boolean);
 
       setRows(myPerspective);
 
-      const meTotals = totals.find((t) => Number(t.userId) === me) || {};
-      const payable = Number(meTotals.payable);
-      setTotalDebt(Number.isFinite(payable) && payable > 0 ? payable : sum(myPerspective, (d) => d.amount));
+      setTotalDebt(sum(myPerspective, (d) => d.amount));
     } catch {
       setRows([]);
       setTotalDebt(0);
@@ -96,7 +93,7 @@ export default function Borclar({ navigation, route }) {
       <View style={CommonStyles.container}>
         <View style={CommonStyles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary[500]} />
-          <Text style={CommonStyles.loadingText}>Borc bilgileri yukleniyor...</Text>
+          <Text style={CommonStyles.loadingText}>Borç bilgileri yükleniyor...</Text>
         </View>
       </View>
     );
@@ -106,30 +103,30 @@ export default function Borclar({ navigation, route }) {
     <View style={CommonStyles.container}>
       <ScrollView style={CommonStyles.content}>
         <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Borclarim</Text>
-          <Text style={CommonStyles.subtitle}>{houseName} icin toplam borcunuz</Text>
+          <Text style={CommonStyles.title}>Borçlarım</Text>
+          <Text style={CommonStyles.subtitle}>{houseName} için toplam borcunuz</Text>
         </View>
 
         <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>Toplam Borc</Text>
+          <Text style={styles.sectionTitle}>Toplam Borç</Text>
           <View style={styles.netStatusContainer}>
             <Text style={[styles.netAmount, { color: theme.colors.error[600] }]}>{formatAmount(totalDebt)}</Text>
-            <Text style={styles.netLabel}>Su anki toplam borcunuz</Text>
+            <Text style={styles.netLabel}>Şu anki toplam borcunuz</Text>
           </View>
         </View>
 
         <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>Borlu oldugunuz kisiler</Text>
+          <Text style={styles.sectionTitle}>Borçlu olduğunuz kişiler</Text>
           <TextInput
             style={styles.searchInput}
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="Kisi ara..."
+            placeholder="Kişi ara..."
             placeholderTextColor={theme.colors.text.secondary}
           />
 
           {filteredRows.length === 0 ? (
-            <Text style={styles.emptyText}>Bu ev icin aktif bir borcunuz gorunmuyor.</Text>
+            <Text style={styles.emptyText}>Bu ev için aktif bir borcunuz görünmüyor.</Text>
           ) : (
             filteredRows.map((item) => (
               <View key={String(item.counterpartyUserId)} style={styles.row}>
@@ -140,7 +137,7 @@ export default function Borclar({ navigation, route }) {
                     houseId,
                     userAId: Number(user.id),
                     userBId: item.counterpartyUserId,
-                    userAName: user.fullName || user.name || `Kullanici #${user.id}`,
+                    userAName: user.fullName || user.name || `Kullanıcı #${user.id}`,
                     userBName: item.counterpartyName,
                   })}
                 >
@@ -149,11 +146,11 @@ export default function Borclar({ navigation, route }) {
                   </View>
                   <View style={styles.rowText}>
                     <Text style={styles.name}>{item.counterpartyName}</Text>
-                    <Text style={styles.sub}>Bu kisiye borclusunuz</Text>
+                    <Text style={styles.sub}>Bu kişiye borçlusunuz</Text>
                   </View>
                   <View style={styles.amountWrap}>
                     <Text style={styles.amount}>{formatAmount(item.amount)}</Text>
-                    <Text style={styles.subError}>Borclu</Text>
+                    <Text style={styles.subError}>Borçlu</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -166,7 +163,7 @@ export default function Borclar({ navigation, route }) {
                     suggestedAmount: Number(item.amount),
                   })}
                 >
-                  <Text style={styles.payBtnText}>Ode</Text>
+                  <Text style={styles.payBtnText}>Öde</Text>
                 </TouchableOpacity>
               </View>
             ))

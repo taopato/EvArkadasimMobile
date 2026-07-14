@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, FlatList, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import useScrollRestore from '../hooks/useScrollRestore';
 import { useAuth } from '../context/AuthContext';
 import { houseApi } from '../services/api';
@@ -16,12 +17,12 @@ export default function GroupListScreen({ navigation, route }) {
   const ColorThemes = makeColorThemes(theme);
 
   useEffect(() => {
-    if (!user || !user.id) {
-      Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı. Lütfen tekrar giriş yapın.');
+    if (!user?.id) {
+      setLoading(false);
       return;
     }
     fetchHouses();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchHouses = async () => {
     setLoading(true);
@@ -53,17 +54,12 @@ export default function GroupListScreen({ navigation, route }) {
     await setDefaultHouseId(house.id, house.name);
     const redirectTo = route?.params?.redirectTo;
     
-    // Yeni harcama ekranları
-    if (redirectTo === 'PlanliOdemeler') {
-      navigation.navigate('PlanliOdemeler', { houseId: house.id, houseName: house.name });
-      return;
-    }
     if (redirectTo === 'BillsOverviewScreen') {
-      navigation.navigate('BillsOverviewScreen', { houseId: house.id, houseName: house.name });
+      navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId: house.id, houseName: house.name } });
       return;
     }
     if (redirectTo === 'TumHarcamalar') {
-      navigation.navigate('TumHarcamalar', { houseId: house.id, houseName: house.name });
+      navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params: { houseId: house.id, houseName: house.name } });
       return;
     }
     if (redirectTo === 'HarcamaOzeti') {
@@ -77,7 +73,7 @@ export default function GroupListScreen({ navigation, route }) {
       return;
     }
     if (redirectTo === 'BillsOverviewScreen' || redirectTo === 'Faturalar') {
-      navigation.replace('Faturalar', { houseId: house.id, houseName: house.name });
+      navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId: house.id, houseName: house.name } });
       return;
     }
     if (redirectTo === 'NewRecurringChargeScreen' || redirectTo === 'DuzenliGiderEkle') {
@@ -85,7 +81,7 @@ export default function GroupListScreen({ navigation, route }) {
       return;
     }
     if (redirectTo === 'UtilityBillCreate' || redirectTo === 'FaturaOlustur') {
-      navigation.replace('FaturaOlustur', { houseId: house.id, houseName: house.name, isEditing: false });
+      navigation.replace('DuzenliGiderEkle', { houseId: house.id, houseName: house.name });
       return;
     }
     if (redirectTo === 'CreatePaymentScreen' || redirectTo === 'OdemeEkle') {
@@ -126,7 +122,7 @@ export default function GroupListScreen({ navigation, route }) {
       activeOpacity={0.8}
     >
       <View style={[CommonStyles.buttonContent, { backgroundColor: Number(user?.defaultHouseId) === Number(item.id) ? ColorThemes.success.background : ColorThemes.primary.background }]}>
-        <Text style={CommonStyles.buttonIcon}>🏠</Text>
+        <Ionicons name="home-outline" size={24} color={Number(user?.defaultHouseId) === Number(item.id) ? ColorThemes.success.foreground : ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
         <Text style={CommonStyles.buttonText}>{item.name}</Text>
         <Text style={CommonStyles.buttonSubtext}>
           Oluşturulma: {safeFormatDate(item.createdAt || item.created_date || item.createdDate)}
@@ -161,8 +157,8 @@ export default function GroupListScreen({ navigation, route }) {
           onPress={handleCreateHouse}
           activeOpacity={0.8}
         >
-          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.success.background }]}>
-            <Text style={CommonStyles.buttonIcon}>➕</Text>
+          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
+            <Ionicons name="add-circle-outline" size={24} color={ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
             <Text style={CommonStyles.buttonText}>Yeni Ev Grubu Oluştur</Text>
             <Text style={CommonStyles.buttonSubtext}>Yeni bir ev grubu oluşturun</Text>
           </View>
@@ -183,7 +179,7 @@ export default function GroupListScreen({ navigation, route }) {
           </View>
         ) : (
           <View style={CommonStyles.emptyContainer}>
-            <Text style={CommonStyles.emptyIcon}>🏠</Text>
+            <Ionicons name="home-outline" size={40} color={theme.colors.primary[400] || theme.colors.primary[600]} style={{ marginBottom: 8 }} />
             <Text style={CommonStyles.emptyText}>Henüz bir ev grubunuz bulunmamaktadır.</Text>
             <Text style={CommonStyles.emptyText}>İlk ev grubunuzu oluşturmak için yukarıdaki butona tıklayın.</Text>
           </View>

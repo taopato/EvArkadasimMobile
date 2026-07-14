@@ -40,7 +40,7 @@ export const PremiumButton: React.FC<ButtonProps> = ({
       case 'error':
         return { bg: t.error[600], border: t.error[600], fg: t.text.onPrimary };
       default:
-        return { bg: t.primary[600], border: t.primary[600], fg: t.text.onPrimary };
+        return { bg: t.primary[900], border: t.primary[900], fg: t.text.onPrimary };
     }
   };
 

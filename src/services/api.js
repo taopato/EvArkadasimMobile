@@ -2,6 +2,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as ENV_BASE } from '../shared/config/env';
+import eventBus from '../shared/events/bus';
 
 /**
  * ENV_BASE örn: https://localhost:7118
@@ -73,9 +74,13 @@ api.interceptors.response.use(
     } catch {}
 
     if (error?.response?.status === 401) {
-      try {
-        console.error('401 alindi fakat oturum otomatik silinmedi. Gerekirse tekrar giris yapilabilir.');
-      } catch {}
+      const urlPath = typeof error?.config?.url === 'string' ? error.config.url : '';
+      const isAuthRequest = urlPath.startsWith('/Auth/') || urlPath.startsWith('Auth/');
+      if (!isAuthRequest) {
+        AsyncStorage.multiRemove(['authToken', 'user'])
+          .catch(() => {})
+          .finally(() => eventBus.emit('auth:unauthorized'));
+      }
     }
     return Promise.reject(error);
   }
@@ -130,16 +135,51 @@ export const authApi = {
     const authHeader = res?.headers?.authorization || res?.headers?.Authorization;
     const tokenFromHeader = typeof authHeader === 'string' ? authHeader.replace(/^[Bb]earer\s+/,'') : undefined;
     const token = tokenFromBody || tokenFromHeader;
-    const user = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
+    const nestedUser = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
+    // Backend LoginResponseDto düz alanlar döner (id/email/fullName), iç içe user objesi yok — yoksa buradan kur.
+    const user = nestedUser || (token ? {
+      id: data?.id ?? raw?.id ?? 0,
+      email: data?.email ?? raw?.email,
+      fullName: data?.fullName ?? raw?.fullName,
+    } : undefined);
 
     return { data: { token, user, raw } };
   },
-  sendVerificationCode: (email) => api.post('/Auth/SendVerificationCode', { email }),
-  verifyCodeAndRegister: (email, code, fullName, password) =>
-    api.post('/Auth/VerifyCodeAndRegister', { email, code, fullName, password }),
+  appleLogin: async (identityToken, fullName) => {
+    const res = await api.post('/Auth/AppleLogin', { identityToken, fullName });
+    const raw = res?.data || {};
+    const data = raw?.data ?? raw ?? {};
+
+    const pickFirst = (obj, keys) => keys.map(k => obj?.[k]).find(v => v != null);
+    const token = pickFirst(data, ['token', 'accessToken', 'jwt', 'jwtToken']) || pickFirst(raw, ['token', 'accessToken', 'jwt', 'jwtToken']);
+    const user = token ? {
+      id: data?.id ?? raw?.id ?? 0,
+      email: data?.email ?? raw?.email,
+      fullName: data?.fullName ?? raw?.fullName,
+    } : undefined;
+
+    return { data: { token, user, raw } };
+  },
+  sendVerificationCode: (email, purpose = 'register') => api.post('/Auth/SendVerificationCode', { email, purpose }),
+  verifyCodeAndRegister: (email, code, fullName, password, invitationToken) =>
+    api.post('/Auth/VerifyCodeAndRegister', { email, code, fullName, password, invitationToken }).then((res) => {
+      const raw = res?.data || {};
+      const data = raw?.data ?? raw ?? {};
+      const token = data?.token || data?.accessToken || raw?.token;
+      const user = token
+        ? {
+            ...(data?.user || raw?.user || {}),
+            id: data?.user?.id ?? raw?.user?.id ?? data?.id ?? raw?.id ?? 0,
+            email: data?.user?.email ?? raw?.user?.email ?? data?.email ?? raw?.email ?? email,
+            fullName: data?.user?.fullName ?? raw?.user?.fullName ?? data?.fullName ?? raw?.fullName ?? fullName,
+          }
+        : undefined;
+      return { data: { token, user, raw } };
+    }),
   verifyCodeForReset: (email, code) => api.post('/Auth/VerifyCodeForReset', { email, code }),
   resetPassword: (email, code, newPassword) =>
     api.post('/Auth/ResetPassword', { email, code, newPassword }),
+  updateProfile: (userId, data) => api.put(`/Users/${userId}/Profile`, data),
 };
 
 // ---------------- HOUSES ----------------
@@ -150,8 +190,12 @@ export const houseApi = {
   addMember: (houseId, userId) => api.post(`/Houses/${houseId}/members`, { houseId, userId }),
   removeMember: (houseId, userId) => api.delete(`/Houses/${houseId}/members/${userId}`),
   sendInvitation: (houseId, email) => api.post(`/Houses/${houseId}/invitations`, { email }),
-  acceptInvitation: (userId, invitationCode) =>
-    api.post('/Houses/AcceptInvitation', { userId, invitationCode }),
+  acceptInvitation: (userIdOrInvitationCode, invitationCode) => {
+    if (invitationCode == null) {
+      return api.post('/Houses/AcceptInvitation', { invitationCode: userIdOrInvitationCode });
+    }
+    return api.post('/Houses/AcceptInvitation', { userId: userIdOrInvitationCode, invitationCode });
+  },
   getMembers: (houseId) => api.get(`/Houses/${houseId}/members`),
 
   // Debts
@@ -266,6 +310,15 @@ export const receiptsApi = {
   reparse: (receiptId) => api.post(`/Receipts/${receiptId}/Reparse`),
   update: (receiptId, payload) => api.put(`/Receipts/${receiptId}`, payload),
   convertToExpense: (receiptId, payload) => api.post(`/Receipts/${receiptId}/ConvertToExpense`, payload),
+};
+
+export const houseNotesApi = {
+  getBoard: (houseId) => api.get(`/HouseNotes/${houseId}`),
+  createSection: (houseId, title) => api.post(`/HouseNotes/${houseId}/sections`, { title }),
+  createItem: (sectionId, content) => api.post(`/HouseNotes/sections/${sectionId}/items`, { content }),
+  completeItem: (itemId) => api.post(`/HouseNotes/items/${itemId}/complete`),
+  deleteItem: (itemId) => api.delete(`/HouseNotes/items/${itemId}`),
+  deleteSection: (sectionId) => api.delete(`/HouseNotes/sections/${sectionId}`),
 };
 
 

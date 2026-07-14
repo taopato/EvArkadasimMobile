@@ -1,6 +1,8 @@
 // src/screens/DebtSummaryScreen.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { houseApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +21,7 @@ const fmt = (n) => {
 const DebtSummaryScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const CommonStyles = useCommonStyles();
   const { houseId: routeHouseId } = route.params || {};
   const houseId = Number(routeHouseId || user?.defaultHouseId);
@@ -152,7 +155,10 @@ const DebtSummaryScreen = ({ route, navigation }) => {
 
   return (
     <View style={[CommonStyles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView style={[CommonStyles.content, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={[CommonStyles.content, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 32 }}
+      >
         <View style={CommonStyles.header}>
           <Text style={[CommonStyles.title, { color: theme.colors.text.primary }]}>Borç/Alacak Özeti</Text>
           <Text style={[CommonStyles.subtitle, { color: theme.colors.text.secondary }]}>
@@ -206,7 +212,10 @@ const DebtSummaryScreen = ({ route, navigation }) => {
 
         {/* Size borçlu olanlar */}
         <View style={[CommonStyles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral?.[200] }]}> 
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>📗 Size Borçlu Olanlar</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="arrow-down-circle-outline" size={18} color={theme.colors.success[600]} />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Size Borçlu Olanlar</Text>
+          </View>
           {receivables.length ? (
             receivables.map((r) => (
               <View key={String(r.userId)} style={CommonStyles.listItem}>
@@ -227,7 +236,10 @@ const DebtSummaryScreen = ({ route, navigation }) => {
 
         {/* Sizin borçlu olduklarınız */}
         <View style={[CommonStyles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral?.[200] }]}> 
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>📕 Borçlu Olduklarınız</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="arrow-up-circle-outline" size={18} color={theme.colors.warning[600]} />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Borçlu Olduklarınız</Text>
+          </View>
           {debts.length ? (
             debts.map((d) => (
               <View key={String(d.userId)} style={CommonStyles.listItem}>
@@ -256,7 +268,8 @@ const styles = StyleSheet.create({
   kpiLabel: { fontSize: 12, marginBottom: 6 },
   kpiValue: { fontWeight: '900', fontSize: 16 },
 
-  sectionTitle: { fontSize: 16, fontWeight: '900', marginBottom: 10 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: '900', marginBottom: 0 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { fontWeight: '800' },
   amount: { fontWeight: '900' },

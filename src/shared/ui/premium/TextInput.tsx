@@ -36,9 +36,9 @@ export const PremiumTextInput: React.FC<Props> = ({
         styles.input,
         {
           borderColor: theme.colors.neutral[300],
-          backgroundColor: theme.colors.background,
+          backgroundColor: theme.colors.surface,
           color: theme.colors.text.primary,
-          borderRadius: r.md,
+          borderRadius: r.lg,
           paddingHorizontal: s.lg,
           paddingVertical: s.md,
           fontSize: (typo as any).size,
@@ -53,7 +53,7 @@ export const PremiumTextInput: React.FC<Props> = ({
 const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
-    minHeight: 48,
+    minHeight: 54,
   },
 });
 

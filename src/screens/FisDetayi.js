@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { PanGestureHandler, PinchGestureHandler, State as GestureState } from 'react-native-gesture-handler';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, receiptsApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
@@ -98,7 +99,7 @@ const synthesizeItemsFromRawText = (rawText, detectedTotalAmount = 0) => {
   const text = String(rawText || '').trim();
   if (!text) {
     return detectedTotalAmount > 0
-      ? [{ name: 'Fis Toplami', price: detectedTotalAmount, quantity: 1, lineTotal: detectedTotalAmount, isAssigned: false, isShared: true, personalUserId: null }]
+      ? [{ name: 'Fiş Toplamı', price: detectedTotalAmount, quantity: 1, lineTotal: detectedTotalAmount, isAssigned: false, isShared: true, personalUserId: null }]
       : [];
   }
 
@@ -161,7 +162,7 @@ const synthesizeItemsFromRawText = (rawText, detectedTotalAmount = 0) => {
   }
 
   return detectedTotalAmount > 0
-    ? [{ name: 'Fis Toplami', price: detectedTotalAmount, quantity: 1, lineTotal: detectedTotalAmount, isAssigned: false, isShared: true, personalUserId: null, sortOrder: 0 }]
+    ? [{ name: 'Fiş Toplamı', price: detectedTotalAmount, quantity: 1, lineTotal: detectedTotalAmount, isAssigned: false, isShared: true, personalUserId: null, sortOrder: 0 }]
     : [];
 };
 
@@ -245,20 +246,13 @@ const normalizeResolvedItems = (items = []) => items
 const calculateItemsTotal = (items = []) => items.reduce((sum, item) => sum + toNumber(item?.lineTotal ?? item?.price), 0);
 
 const resolveReceiptItems = (preferredItems = [], rawText = '', detectedTotalAmount = 0) => {
+  // Backend'in (kutu/pozisyon bilgisiyle) çıkardığı kalemler her zaman ham
+  // metni kör regex ile bölen synthesize fallback'inden daha güvenilir.
+  // Fallback yalnızca backend hiç kalem döndürmediğinde kullanılır.
   const sanitizedPreferred = normalizeResolvedItems(normalizeReceiptItems(preferredItems));
-  const fallback = normalizeResolvedItems(synthesizeItemsFromRawText(rawText, detectedTotalAmount));
+  if (sanitizedPreferred.length) return sanitizedPreferred;
 
-  if (!sanitizedPreferred.length) return fallback;
-  if (!fallback.length) return sanitizedPreferred;
-
-  const preferredTotal = calculateItemsTotal(sanitizedPreferred);
-  const fallbackTotal = calculateItemsTotal(fallback);
-
-  const fallbackLooksBetter =
-    fallback.length > sanitizedPreferred.length ||
-    fallbackTotal > preferredTotal + 0.5;
-
-  return fallbackLooksBetter ? fallback : sanitizedPreferred;
+  return normalizeResolvedItems(synthesizeItemsFromRawText(rawText, detectedTotalAmount));
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -285,7 +279,7 @@ const getRenderMetrics = (imageFrame, imageSourceSize) => {
   };
 };
 
-export default function FisDetayi({ route, navigation }) {
+function FisDetayiInner({ route, navigation }) {
   const { user } = useAuth();
   const { theme } = useTheme();
   const CommonStyles = useCommonStyles();
@@ -375,7 +369,7 @@ export default function FisDetayi({ route, navigation }) {
         setPayerUserId(String(normalizedMembers[0].id));
       }
     } catch {
-      Alert.alert('Hata', 'Fis detaylari yuklenemedi.');
+      Alert.alert('Hata', 'Fiş detayları yüklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -384,6 +378,10 @@ export default function FisDetayi({ route, navigation }) {
   useEffect(() => {
     load();
   }, [receiptId, houseId]);
+
+  const imageUri = receipt?.imageUrl
+    ? (receipt.imageUrl.startsWith('http') ? receipt.imageUrl : `${BASE_URL}${receipt.imageUrl}`)
+    : null;
 
   useEffect(() => {
     if (!imageUri) return undefined;
@@ -547,11 +545,11 @@ export default function FisDetayi({ route, navigation }) {
     if (!receiptId) return null;
     const payloadItems = buildPayloadItems();
     if (!payloadItems.length) {
-      if (!silent) Alert.alert('Uyari', 'En az bir fis kalemi olmali.');
+      if (!silent) Alert.alert('Uyarı', 'En az bir fiş kalemi olmalı.');
       return null;
     }
     if (payloadItems.some((item) => !item.isShared && !item.personalUserId)) {
-      if (!silent) Alert.alert('Uyari', 'Kisisel isaretlenen her kalem icin bir kisi secmelisin.');
+      if (!silent) Alert.alert('Uyarı', 'Kişisel işaretlenen her kalem için bir kişi seçmelisin.');
       return null;
     }
 
@@ -592,7 +590,7 @@ export default function FisDetayi({ route, navigation }) {
       }
       return nextReceipt;
     } catch {
-      if (!silent) Alert.alert('Hata', 'Fis taslagi kaydedilemedi.');
+      if (!silent) Alert.alert('Hata', 'Fiş taslağı kaydedilemedi.');
       return null;
     } finally {
       setSaving(false);
@@ -601,13 +599,13 @@ export default function FisDetayi({ route, navigation }) {
 
   const convertToExpense = async () => {
     if (!payerUserId) {
-      Alert.alert('Uyari', 'Once odeyen kisiyi sec.');
+      Alert.alert('Uyarı', 'Önce ödeyen kişiyi seç.');
       return;
     }
 
     const saved = await saveDraft({ silent: true });
     if (!saved) {
-      Alert.alert('Hata', 'Donusum oncesi fis kaydedilemedi.');
+      Alert.alert('Hata', 'Dönüşüm öncesi fiş kaydedilemedi.');
       return;
     }
 
@@ -616,21 +614,17 @@ export default function FisDetayi({ route, navigation }) {
       await receiptsApi.convertToExpense(receiptId, {
         payerUserId: Number(payerUserId),
         recordedByUserId: Number(user?.id),
-        note: receipt?.storeName || 'Fisten olusturuldu',
+        note: receipt?.storeName || 'Fişten oluşturuldu',
         category,
       });
-      Alert.alert('Basarili', 'Fis harcamaya donusturuldu.');
+      Alert.alert('Başarılı', 'Fiş harcamaya dönüştürüldü.');
       navigation.goBack();
     } catch {
-      Alert.alert('Hata', 'Fis harcamaya donusturulemedi.');
+      Alert.alert('Hata', 'Fiş harcamaya dönüştürülemedi.');
     } finally {
       setSaving(false);
     }
   };
-
-  const imageUri = receipt?.imageUrl
-    ? (receipt.imageUrl.startsWith('http') ? receipt.imageUrl : `${BASE_URL}${receipt.imageUrl}`)
-    : null;
 
   const explicitTotal = items.reduce((sum, item) => sum + toNumber(item.lineTotal), 0);
   const detectedTotal = toNumber(receipt?.detectedTotalAmount);
@@ -806,7 +800,7 @@ export default function FisDetayi({ route, navigation }) {
     const nextIndex = items.length + 1;
     const baseName = marker?.type === 'shared'
       ? `Ortak Kalem ${nextIndex}`
-      : `${marker?.label || 'Kisisel'} Kalem ${nextIndex}`;
+      : `${marker?.label || 'Kişisel'} Kalem ${nextIndex}`;
 
     return {
       name: baseName,
@@ -1057,9 +1051,9 @@ export default function FisDetayi({ route, navigation }) {
             <Text style={styles.markerHint}>
               {imageInteractionEnabled
                 ? (activeMarker
-                  ? `${activeMarker.label} icin urunun ustune dokun veya kucuk bir alan ciz. Kutular yalnizca gercek urun konumu varsa ya da sen olusturduysan gorunur.`
-                  : 'Fotograf aktif. Kutular sadece okunabilen urunler veya senin olusturdugun alanlar icin gosterilir.')
-                : 'Kalemleri dogrudan asagidaki kartlardan kisiye atayabilirsin. Fotograftan ayirmak istersen once ustten bir kisi sec.'}
+                  ? `${activeMarker.label} için ürünün üstüne dokun veya küçük bir alan çiz. Kutular yalnızca gerçek ürün konumu varsa ya da sen oluşturduysan görünür.`
+                  : 'Fotoğraf aktif. Kutular sadece okunabilen ürünler veya senin oluşturduğun alanlar için gösterilir.')
+                : 'Kalemleri doğrudan aşağıdaki kartlardan kişiye atayabilirsin. Fotoğraftan ayırmak istersen önce üstten bir kişi seç.'}
             </Text>
             <PinchGestureHandler onGestureEvent={handlePinchGesture} onHandlerStateChange={handlePinchStateChange}>
               <View>
@@ -1183,7 +1177,7 @@ export default function FisDetayi({ route, navigation }) {
 
         <View style={styles.section} onTouchStart={deactivateImageInteraction}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Kalemler ve paylasim</Text>
+            <Text style={styles.sectionTitle}>Kalemler ve paylaşım</Text>
             <TouchableOpacity onPress={addItem}>
               <Text style={styles.addText}>+ Kalem ekle</Text>
             </TouchableOpacity>
@@ -1207,15 +1201,15 @@ export default function FisDetayi({ route, navigation }) {
                       <Text style={styles.itemNumberBadgeText}>{index + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.itemName}>{item.name || 'Isimsiz kalem'}</Text>
+                      <Text style={styles.itemName}>{item.name || 'İsimsiz kalem'}</Text>
                       <Text style={styles.itemSubText}>
-                        {item.boxLeft != null ? 'Fotograftan secildi' : 'Elle eklendi'}
+                        {item.boxLeft != null ? 'Fotoğraftan seçildi' : 'Elle eklendi'}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.itemActions}>
                     <TouchableOpacity onPress={() => openEditor(index)}>
-                      <Text style={styles.editText}>Duzenle</Text>
+                      <Text style={styles.editText}>Düzenle</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => removeItem(index)}>
                       <Text style={styles.removeText}>Sil</Text>
@@ -1246,7 +1240,7 @@ export default function FisDetayi({ route, navigation }) {
                   <Text style={styles.assignmentLabel}>Bu kalem kime ait?</Text>
                   {!item.isShared ? (
                     <View style={styles.personalOwnerBadge}>
-                      <Text style={styles.personalOwnerText}>{owner?.fullName || 'Kisisel'}</Text>
+                      <Text style={styles.personalOwnerText}>{owner?.fullName || 'Kişisel'}</Text>
                     </View>
                   ) : (
                     <View style={[styles.personalOwnerBadge, styles.itemOwnerPillShared]}>
@@ -1285,7 +1279,7 @@ export default function FisDetayi({ route, navigation }) {
         <View style={styles.summaryCard} onTouchStart={deactivateImageInteraction}>
           <Text style={styles.summaryTitle}>{receipt?.storeName || 'Fis Detayi'}</Text>
           <Text style={styles.summarySub}>
-            {receipt?.receiptDate ? new Date(receipt.receiptDate).toLocaleDateString('tr-TR') : 'Tarih secilmedi'}
+            {receipt?.receiptDate ? new Date(receipt.receiptDate).toLocaleDateString('tr-TR') : 'Tarih seçilmedi'}
           </Text>
           <Text style={styles.summaryAmount}>
             {total.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
@@ -1296,7 +1290,7 @@ export default function FisDetayi({ route, navigation }) {
               <Text style={styles.summaryMetaValue}>{sharedTotal.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</Text>
             </View>
             <View style={styles.summaryMetaBadge}>
-              <Text style={styles.summaryMetaLabel}>Kisisel</Text>
+              <Text style={styles.summaryMetaLabel}>Kişisel</Text>
               <Text style={styles.summaryMetaValue}>{personalTotal.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</Text>
             </View>
           </View>
@@ -1304,8 +1298,8 @@ export default function FisDetayi({ route, navigation }) {
             <View style={styles.missingAmountCard}>
               <Text style={styles.missingAmountTitle}>Eksik okunan tutar var</Text>
               <Text style={styles.missingAmountText}>
-                Fis toplami {total.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}, kalemlerin toplami ise {explicitTotal.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}.
-                Kalan {missingAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} tutar ortak kalacak. Istersen `Kalem ekle` ile eksik urunu manuel girebilirsin.
+                Fiş toplamı {total.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}, kalemlerin toplamı ise {explicitTotal.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}.
+                Kalan {missingAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} tutar ortak kalacak. İstersen `Kalem ekle` ile eksik ürünü manuel girebilirsin.
               </Text>
             </View>
           ) : null}
@@ -1321,7 +1315,7 @@ export default function FisDetayi({ route, navigation }) {
         ) : null}
 
         <View style={styles.section} onTouchStart={deactivateImageInteraction}>
-          <Text style={styles.sectionTitle}>Odeyen</Text>
+          <Text style={styles.sectionTitle}>Ödeyen</Text>
           <View style={styles.chips}>
             {members.map((member) => {
               const active = String(member.id) === String(payerUserId);
@@ -1357,10 +1351,10 @@ export default function FisDetayi({ route, navigation }) {
         </View>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={() => saveDraft()} disabled={saving}>
-          <Text style={styles.secondaryButtonText}>{saving ? 'Kaydediliyor...' : 'Taslagi Kaydet'}</Text>
+          <Text style={styles.secondaryButtonText}>{saving ? 'Kaydediliyor...' : 'Taslağı Kaydet'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.primaryButton} onPress={convertToExpense} disabled={saving}>
-          <Text style={styles.primaryButtonText}>Harcamaya Donustur</Text>
+          <Text style={styles.primaryButtonText}>Harcamaya Dönüştür</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -1368,13 +1362,19 @@ export default function FisDetayi({ route, navigation }) {
         <Pressable style={styles.modalBackdrop} onPress={closeEditor} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 84 : 0}>
           <View style={styles.modalSheet}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
-              <Text style={styles.modalTitle}>Kalemi duzenle</Text>
-              <Text style={styles.modalHint}>Urun adini, fiyatini ve paylasim tipini burada guncelleyebilirsin.</Text>
+            <KeyboardAwareScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalContent}
+              enableOnAndroid
+              extraScrollHeight={20}
+              keyboardOpeningTime={0}
+            >
+              <Text style={styles.modalTitle}>Kalemi düzenle</Text>
+              <Text style={styles.modalHint}>Ürün adını, fiyatını ve paylaşım tipini burada güncelleyebilirsin.</Text>
 
               <TextInput
                 style={styles.input}
-                placeholder="Urun adi"
+                placeholder="Ürün adı"
                 value={draftItem?.name ?? ''}
                 onChangeText={(value) => setDraftItem((prev) => ({ ...prev, name: value }))}
               />
@@ -1423,7 +1423,7 @@ export default function FisDetayi({ route, navigation }) {
                   style={[styles.chip, !draftItem?.isShared && styles.chipActive]}
                   onPress={() => setDraftItem((prev) => ({ ...prev, isShared: false }))}
                 >
-                  <Text style={[styles.chipText, !draftItem?.isShared && styles.chipTextActive]}>Kisisel</Text>
+                  <Text style={[styles.chipText, !draftItem?.isShared && styles.chipTextActive]}>Kişisel</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1446,17 +1446,62 @@ export default function FisDetayi({ route, navigation }) {
 
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalSecondaryButton} onPress={closeEditor}>
-                  <Text style={styles.modalSecondaryButtonText}>Vazgec</Text>
+                  <Text style={styles.modalSecondaryButtonText}>Vazgeç</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalPrimaryButton} onPress={saveEditor}>
                   <Text style={styles.modalPrimaryButtonText}>Kaydet</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+}
+
+class FisDetayiErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('FisDetayi render hatası:', error?.message, info?.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Text style={{ fontWeight: '800', fontSize: 17, marginBottom: 8, textAlign: 'center' }}>
+            Fiş görüntülenemedi
+          </Text>
+          <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 }}>
+            Bu fişi açarken beklenmeyen bir hata oluştu. Lütfen geri dönüp tekrar dene.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#172839', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24 }}
+            onPress={() => this.props.navigation?.goBack?.()}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Geri dön</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function FisDetayi(props) {
+  return (
+    <FisDetayiErrorBoundary navigation={props.navigation}>
+      <FisDetayiInner {...props} />
+    </FisDetayiErrorBoundary>
   );
 }
 

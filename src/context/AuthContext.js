@@ -1,6 +1,7 @@
 // src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import eventBus from '../shared/events/bus';
 
 const AuthContext = createContext();
 
@@ -35,6 +36,16 @@ export const AuthProvider = ({ children }) => {
   // Uygulama başladığında token'ı kontrol et
   useEffect(() => {
     checkToken();
+  }, []);
+
+  // API 401 dönerse (token gecersiz/suresi dolmus) oturumu otomatik temizle
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+    };
+    eventBus.on('auth:unauthorized', onUnauthorized);
+    return () => eventBus.off('auth:unauthorized', onUnauthorized);
   }, []);
 
   const checkToken = async () => {
@@ -76,7 +87,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (userData, authToken) => {
     try {
       if (!authToken || isTokenExpired(authToken)) {
-        throw new Error('Gecersiz veya suresi dolmus oturum belirteci.');
+        throw new Error('Geçersiz veya süresi dolmuş oturum belirteci.');
       }
 
       const normalizedUser = {
