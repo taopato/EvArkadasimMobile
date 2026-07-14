@@ -48,6 +48,7 @@ import FisGecmisi from './src/screens/FisGecmisi';
 import DilAyarlari from './src/screens/DilAyarlari';
 import EvNotlari from './src/screens/EvNotlari';
 import Bildirimler from './src/screens/Bildirimler';
+import HesabiSil from './src/screens/HesabiSil';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -216,10 +217,10 @@ function ThemedNavigator() {
             <Stack.Screen
               name="FaturaEkle"
               component={FaturaEkle}
-              options={({ route }) => ({ title: route.params?.isEditing ? 'Faturayı Düzenle' : 'Yeni Fatura' })}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen name="FaturaDetayi" component={FaturaDetayi} options={{ title: 'Fatura Detayı' }} />
-            <Stack.Screen name="BillDetail" component={FaturaDetayi} options={{ title: 'Fatura Detayı' }} />
+            <Stack.Screen name="FaturaDetayi" component={FaturaDetayi} options={{ headerShown: false }} />
+            <Stack.Screen name="BillDetail" component={FaturaDetayi} options={{ headerShown: false }} />
             <Stack.Screen name="OdemeEkle" component={OdemeEkle} options={{ title: '' }} />
             <Stack.Screen name="DuzenliGiderEkle" component={DuzenliGiderEkle} options={{ title: '' }} />
             <Stack.Screen name="DuzenliGiderEkleScreen" component={DuzenliGiderEkle} options={{ title: '' }} />
@@ -231,6 +232,7 @@ function ThemedNavigator() {
             <Stack.Screen name="DilAyarlari" component={DilAyarlari} options={{ title: 'Dil Ayarları' }} />
             <Stack.Screen name="EvNotlari" component={EvNotlari} options={{ title: 'Ev Notları' }} />
             <Stack.Screen name="Bildirimler" component={Bildirimler} options={{ title: 'Bildirimler' }} />
+            <Stack.Screen name="HesabiSil" component={HesabiSil} options={{ headerShown: false }} />
           </>
         )}
       </Stack.Navigator>

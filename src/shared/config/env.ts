@@ -122,8 +122,7 @@ const WEB_BASE =
 
 const NATIVE_BASE =
   (USE_NGROK ? NGROK_BASE : (ENV_API_URL || EXTRA_API_URL)) ||
-  (__DEV__ ? DEV_BASE : undefined) ||
-  DEV_BASE;
+  (__DEV__ ? DEV_BASE : DEFAULT_WEB_PROD_API);
 
 const SELECTED_BASE = Platform.OS === 'web' ? WEB_BASE : NATIVE_BASE;
 
@@ -135,6 +134,12 @@ export const BASE_URL: string = SELECTED_BASE;
 
 /* İstersen bazı yerlerde kısa yoldan kullanmak için alternatif de bırakıyorum: */
 export const API_BASE_URL: string = `${SELECTED_BASE}/api`;
+
+export const resolveMediaUrl = (value?: string | null): string | undefined => {
+  if (!value) return undefined;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${SELECTED_BASE}${value.startsWith('/') ? value : `/${value}`}`;
+};
 
 export const GOOGLE_CLIENT_IDS = {
   web: EXTRA_GOOGLE_WEB_CLIENT_ID || ENV_GOOGLE_WEB_CLIENT_ID || '',

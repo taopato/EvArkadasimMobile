@@ -5,23 +5,20 @@
     "owner": "takopato4",
     "version": "1.0.0",
     "orientation": "portrait",
+    "userInterfaceStyle": "light",
     "icon": "./src/assets/icon.png",
-    "splash": {
-      "image": "./src/assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f6f3ed"
-    },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.taopato.roomora",
+      "buildNumber": "1",
       "usesAppleSignIn": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        },
-        "NSCameraUsageDescription": "Fiş taramak ve harcama/ödeme kanıtı eklemek için kameraya erişim gerekir.",
-        "NSPhotoLibraryUsageDescription": "Fiş veya dekont fotoğrafı seçebilmek için galeriye erişim gerekir.",
-        "NSPhotoLibraryAddUsageDescription": "Taranan fiş görsellerini kaydedebilmek için galeriye erişim gerekir."
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Fiş taramak ve profil fotoğrafı çekmek için kameraya erişim gerekir.",
+        "NSPhotoLibraryUsageDescription": "Fiş, dekont veya profil fotoğrafı seçebilmek için galeriye erişim gerekir."
       }
     },
     "android": {

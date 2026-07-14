@@ -17,11 +17,22 @@ module.exports = ({ config }) => {
       'expo-font',
       'expo-apple-authentication',
       '@react-native-community/datetimepicker',
+      'expo-status-bar',
+      [
+        'expo-splash-screen',
+        {
+          image: './src/assets/splash.png',
+          imageWidth: 220,
+          resizeMode: 'contain',
+          backgroundColor: '#f6f3ed',
+        },
+      ],
       [
         'expo-image-picker',
         {
-          cameraPermission: 'Fiş taramak ve harcama/ödeme kanıtı eklemek için kameraya erişim gerekir.',
-          photosPermission: 'Fiş veya dekont fotoğrafı seçebilmek için galeriye erişim gerekir.',
+          cameraPermission: 'Fiş taramak ve profil fotoğrafı çekmek için kameraya erişim gerekir.',
+          photosPermission: 'Fiş, dekont veya profil fotoğrafı seçebilmek için galeriye erişim gerekir.',
+          microphonePermission: false,
         },
       ],
     ],

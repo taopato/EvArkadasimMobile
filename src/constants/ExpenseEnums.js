@@ -26,7 +26,7 @@ export const PaylasimTuru = {
 export const NON_BILL_KEYS = ['Market', 'Food', 'Other'];
 export const BILL_KEYS = ['Water', 'Electricity', 'Rent', 'Gas', 'Internet', 'Other'];
 
-// Backend Domain.Enums.ExpenseCategory: Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Other=99
+// Backend Domain.Enums.ExpenseCategory: Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Gas=6, Other=99
 const CATEGORY_ID_TO_KEY = {
   0: 'Rent',
   1: 'Internet',
@@ -34,7 +34,20 @@ const CATEGORY_ID_TO_KEY = {
   3: 'Water',
   4: 'Market',
   5: 'Food',
+  6: 'Gas',
   99: 'Other',
+};
+
+export const normalizeExpenseCategoryKey = (category) => {
+  if (category === null || category === undefined || category === '') return null;
+
+  const numeric = Number(category);
+  if (Number.isFinite(numeric) && CATEGORY_ID_TO_KEY[numeric]) {
+    return CATEGORY_ID_TO_KEY[numeric];
+  }
+
+  const normalized = String(category).trim().toLowerCase();
+  return Object.values(ExpenseCategory).find((key) => key.toLowerCase() === normalized) || null;
 };
 
 export const getCategoryDisplayName = (category) => {
@@ -42,23 +55,23 @@ export const getCategoryDisplayName = (category) => {
     Water: 'Su',
     Electricity: 'Elektrik',
     Rent: 'Kira',
-    Gas: 'Dogalgaz',
-    Other: 'Diger',
-    Internet: 'Internet',
+    Gas: 'Doğalgaz',
+    Other: 'Diğer',
+    Internet: 'İnternet',
     Market: 'Market',
     Food: 'Yemek',
     0: 'Kira',
-    1: 'Internet',
+    1: 'İnternet',
     2: 'Elektrik',
     3: 'Su',
     4: 'Market',
     5: 'Yemek',
-    99: 'Diger',
+    6: 'Doğalgaz',
+    99: 'Diğer',
   };
 
-  const numKey = Number(category);
-  if (!Number.isNaN(numKey) && map[numKey] != null) return map[numKey];
-  return map[category] ?? String(category);
+  const key = normalizeExpenseCategoryKey(category);
+  return map[key] ?? String(category);
 };
 
 // Backend'in beklediği numerik enum'a çeviri (Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Other=99)
@@ -66,8 +79,9 @@ export const toExpenseCategory = (nameOrId) => {
   const byName = {
     Elektrik: 2,
     Su: 3,
-    Dogalgaz: 99,
-    DogalGaz: 99,
+    Dogalgaz: 6,
+    'Doğalgaz': 6,
+    DogalGaz: 6,
     Internet: 1,
     Kira: 0,
     Market: 4,
@@ -75,12 +89,12 @@ export const toExpenseCategory = (nameOrId) => {
     Diger: 99,
     Electricity: 2,
     Water: 3,
-    Gas: 99,
+    Gas: 6,
     Rent: 0,
     Other: 99,
     Food: 5,
   };
-  const byId = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 99: 99 };
+  const byId = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 99: 99 };
 
   if (typeof nameOrId === 'number') return byId[nameOrId] ?? 99;
 
@@ -103,8 +117,8 @@ export const getCategoryIconName = (category) => {
     Food: 'restaurant-outline',
   };
 
-  if (typeof category === 'number') category = CATEGORY_ID_TO_KEY[category] ?? category;
-  return iconMap[category] || 'cash-outline';
+  const key = normalizeExpenseCategoryKey(category);
+  return iconMap[key] || 'cash-outline';
 };
 
 export const getCategoryColor = (category) => {
@@ -119,25 +133,25 @@ export const getCategoryColor = (category) => {
     Food: '#ec4899',
   };
 
-  if (typeof category === 'number') category = CATEGORY_ID_TO_KEY[category] ?? category;
-  return colorMap[category] || '#6b7280';
+  const key = normalizeExpenseCategoryKey(category);
+  return colorMap[key] || '#6b7280';
 };
 
 export const isBillCategory = (category) =>
-  BILL_KEYS.includes(typeof category === 'number' ? CATEGORY_ID_TO_KEY[category] ?? category : category);
+  BILL_KEYS.includes(normalizeExpenseCategoryKey(category));
 
 export const isFixedExpense = (category) => {
-  const key = typeof category === 'number' ? CATEGORY_ID_TO_KEY[category] ?? category : category;
+  const key = normalizeExpenseCategoryKey(category);
   return ['Rent', 'Internet'].includes(key);
 };
 
 export const isVariableExpense = (category) => {
-  const key = typeof category === 'number' ? CATEGORY_ID_TO_KEY[category] ?? category : category;
+  const key = normalizeExpenseCategoryKey(category);
   return ['Water', 'Electricity', 'Gas'].includes(key);
 };
 
 export const getSplitPolicyOptions = (category) => {
-  const key = typeof category === 'number' ? CATEGORY_ID_TO_KEY[category] ?? category : category;
+  const key = normalizeExpenseCategoryKey(category);
   return key === 'Market' || key === 'Food'
     ? [SplitPolicy.Esit, SplitPolicy.KisiBazli]
     : [SplitPolicy.Esit];
@@ -176,14 +190,14 @@ export const normalizeExpense = (raw = {}) => {
   const date = raw.kayitTarihi || raw.postDate || raw.date || raw.createdAt || raw.CreatedDate || null;
 
   let key;
-  if (raw.category != null) key = CATEGORY_ID_TO_KEY[Number(raw.category)];
+  if (raw.category != null) key = normalizeExpenseCategoryKey(raw.category);
   if (!key) key = textToKey(`${raw.tur ?? ''} ${raw.description ?? raw.Description ?? raw.note ?? ''}`);
 
   const kind = isBillCategory(key) ? 'bill' : 'other';
 
   return {
     id: raw.id ?? raw.expenseId ?? raw.ExpenseId,
-    title: raw.description ?? raw.Description ?? raw.tur ?? `${getCategoryDisplayName(key)} harcamasi`,
+    title: raw.tur ?? raw.description ?? raw.Description ?? `${getCategoryDisplayName(key)} harcaması`,
     amount: Number(raw.tutar ?? raw.amount ?? raw.Amount ?? 0),
     date,
     payerName: raw.odeyenKullaniciAdi ?? raw.OdeyenKullaniciAdi,
@@ -227,4 +241,5 @@ export default {
   ymOf,
   nowYm,
   CATEGORY_ID_TO_KEY,
+  normalizeExpenseCategoryKey,
 };

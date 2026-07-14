@@ -6,7 +6,11 @@ node_modules/
 # Expo
 .expo/
 dist/
+.release-check/
 web-build/
+playwright-report/
+test-results/
+blob-report/
 
 # Native
 *.orig.*
@@ -35,6 +39,7 @@ expo-tunnel.out.log
 .env.*
 !.env.example
 .env*.local
+PROGRESS_NOTES.md
 
 # typescript
 *.tsbuildinfo

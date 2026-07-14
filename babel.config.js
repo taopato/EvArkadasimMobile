@@ -1,9 +1,9 @@
 module.exports = function (api) {
-  api.cache(true);
+  const isProduction = api.env('production');
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      ['babel-plugin-transform-remove-console', { exclude: ['error', 'warn'] }],
+      ...(isProduction ? ['babel-plugin-transform-remove-console'] : []),
       ['@babel/plugin-proposal-decorators', { legacy: true }],
       'react-native-worklets/plugin',
     ],

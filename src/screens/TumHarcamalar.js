@@ -501,7 +501,8 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
           onPress={() => navigation.navigate('HarcamaEkle', { houseId, houseName })}
           activeOpacity={0.9}
         >
-          <Text style={styles.primaryActionText}>+ Harcama Ekle</Text>
+          <Ionicons name="add-circle-outline" size={19} color={theme.colors.text.onPrimary} />
+          <Text style={styles.primaryActionText}>Yeni Harcama</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.secondaryActionButton}
@@ -628,11 +629,13 @@ function makeStyles(theme, isCompact) {
     primaryActionButton: {
       flex: 1,
       backgroundColor: theme.colors.primary[600],
-      borderRadius: 16,
-      paddingVertical: 14,
+      borderRadius: 12,
+      minHeight: 50,
       paddingHorizontal: 16,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
       ...shadow(2, 'rgba(29, 78, 216, 0.22)'),
     },
     primaryActionText: {

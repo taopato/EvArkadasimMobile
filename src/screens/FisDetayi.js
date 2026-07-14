@@ -26,7 +26,7 @@ import { BASE_URL } from '../shared/config/env';
 const CATEGORY_OPTIONS = [
   { key: 'Market', label: 'Market' },
   { key: 'Food', label: 'Yemek' },
-  { key: 'Other', label: 'Diger' },
+  { key: 'Other', label: 'Diğer' },
 ];
 
 const MARKER_COLORS = [
@@ -308,6 +308,8 @@ function FisDetayiInner({ route, navigation }) {
   const [imageInteractionEnabled, setImageInteractionEnabled] = useState(false);
   const [draftSelection, setDraftSelection] = useState(null);
   const draftSelectionRef = useRef(null);
+  const isConverted = String(receipt?.status ?? '').toLowerCase() === 'converted'
+    || Number(receipt?.status) === 3;
 
   const load = async () => {
     if (!receiptId || !houseId) return;
@@ -337,12 +339,16 @@ function FisDetayiInner({ route, navigation }) {
       const rawDetectedTotal = extractDetectedTotalFromRawText(receiptData?.rawOcrText);
       const explicitExistingTotal = calculateItemsTotal(meaningfulExistingItems);
       const hasMeaninglessSavedItems = normalizedItems.some((item) => !isMeaningfulReceiptItem(item));
-      const shouldReparse = normalizedItems.length === 0
+      const receiptIsConverted = String(receiptData?.status ?? '').toLowerCase() === 'converted'
+        || Number(receiptData?.status) === 3;
+      const shouldReparse = !receiptIsConverted && (
+        normalizedItems.length === 0
         || normalizedItems.every((item) => toNumber(item.lineTotal) <= 0)
         || normalizedItems.every((item) => item.boxLeft == null || item.boxTop == null || item.boxWidth == null || item.boxHeight == null)
         || meaningfulExistingItems.length === 0
         || hasMeaninglessSavedItems
-        || (rawDetectedTotal > 0 && explicitExistingTotal + 0.5 < rawDetectedTotal);
+        || (rawDetectedTotal > 0 && explicitExistingTotal + 0.5 < rawDetectedTotal)
+      );
 
       if (shouldReparse) {
         try {
@@ -404,12 +410,14 @@ function FisDetayiInner({ route, navigation }) {
   }, [imageUri]);
 
   const patchItem = (index, next) => {
+    if (isConverted) return;
     setItems((prev) => prev.map((item, itemIndex) => (
       itemIndex === index ? { ...item, ...next } : item
     )));
   };
 
   const toggleSelected = (index) => {
+    if (isConverted) return;
     setSelectedIndexes((prev) => (
       prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index]
     ));
@@ -421,6 +429,7 @@ function FisDetayiInner({ route, navigation }) {
   };
 
   const applyBulkAssignment = ({ isShared, personalUserId = null }) => {
+    if (isConverted) return;
     if (!selectedIndexes.length) return;
     setItems((prev) => prev.map((item, index) => (
       selectedIndexes.includes(index)
@@ -437,6 +446,7 @@ function FisDetayiInner({ route, navigation }) {
   };
 
   const addItem = () => {
+    if (isConverted) return;
     setItems((prev) => [
       ...prev,
       {
@@ -453,6 +463,7 @@ function FisDetayiInner({ route, navigation }) {
   };
 
   const removeItem = (index) => {
+    if (isConverted) return;
     setItems((prev) => prev
       .filter((_, itemIndex) => itemIndex !== index)
       .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex })));
@@ -461,6 +472,7 @@ function FisDetayiInner({ route, navigation }) {
   };
 
   const openEditor = (index) => {
+    if (isConverted) return;
     const source = items[index];
     if (!source) return;
 
@@ -562,7 +574,7 @@ function FisDetayiInner({ route, navigation }) {
       );
 
       const response = await receiptsApi.update(receiptId, {
-        storeName: receipt?.storeName || 'Fis',
+        storeName: receipt?.storeName || 'Fiş',
         receiptDate: receipt?.receiptDate,
         detectedTotalAmount: preservedDetectedTotal,
         items: payloadItems,
@@ -613,17 +625,42 @@ function FisDetayiInner({ route, navigation }) {
     try {
       await receiptsApi.convertToExpense(receiptId, {
         payerUserId: Number(payerUserId),
-        recordedByUserId: Number(user?.id),
         note: receipt?.storeName || 'Fişten oluşturuldu',
         category,
       });
       Alert.alert('Başarılı', 'Fiş harcamaya dönüştürüldü.');
-      navigation.goBack();
+      navigation.navigate('MainTabs', { screen: 'TumHarcamalar' });
     } catch {
       Alert.alert('Hata', 'Fiş harcamaya dönüştürülemedi.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteReceipt = () => {
+    if (!receiptId || isConverted || saving) return;
+    Alert.alert(
+      'Fişi sil',
+      'Bu fiş ve taranan görseli kalıcı olarak silinecek.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Sil',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await receiptsApi.remove(receiptId);
+              navigation.goBack();
+            } catch {
+              Alert.alert('Hata', 'Fiş silinemedi. Lütfen tekrar dene.');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const explicitTotal = items.reduce((sum, item) => sum + toNumber(item.lineTotal), 0);
@@ -981,7 +1018,7 @@ function FisDetayiInner({ route, navigation }) {
       <View style={CommonStyles.container}>
         <View style={CommonStyles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary[600]} />
-          <Text style={CommonStyles.loadingText}>Fis okunuyor...</Text>
+          <Text style={CommonStyles.loadingText}>Fiş okunuyor...</Text>
         </View>
       </View>
     );
@@ -1002,59 +1039,66 @@ function FisDetayiInner({ route, navigation }) {
               <TouchableOpacity style={styles.zoomButton} onPress={() => setImageZoom((prev) => Math.max(1, Number((prev - 0.25).toFixed(2))))}>
                 <Text style={styles.zoomButtonText}>-</Text>
               </TouchableOpacity>
-              <Text style={styles.zoomLabel}>Yakinlik %{Math.round(imageZoom * 100)}</Text>
+              <Text style={styles.zoomLabel}>Yakınlık %{Math.round(imageZoom * 100)}</Text>
               <TouchableOpacity style={styles.zoomButton} onPress={() => setImageZoom((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}>
                 <Text style={styles.zoomButtonText}>+</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.zoomResetButton} onPress={() => setImageZoom(1)}>
-                <Text style={styles.zoomResetButtonText}>Sifirla</Text>
+                <Text style={styles.zoomResetButtonText}>Sıfırla</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.markerToolbar}>
-              {markerOptions.map((option) => {
-                const active = activeMarkerKey === option.key;
-                return (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[
-                      styles.markerPill,
-                      active
-                        ? { backgroundColor: option.color.fill, borderColor: option.color.border }
-                        : styles.markerPillInactive,
-                      active && styles.markerPillActive,
-                    ]}
-                    onPress={() => {
-                      setActiveMarkerKey((prev) => {
-                        const next = prev === option.key ? null : option.key;
-                        setImageInteractionEnabled(Boolean(next));
-                        if (!next) {
-                          setDraftSelection(null);
-                        }
-                        return next;
-                      });
-                    }}
-                  >
-                    <View style={[styles.markerDot, { backgroundColor: option.color.badge }]} />
-                    <Text
-                      style={[
-                        styles.markerPillText,
-                        { color: active ? option.color.text : theme.colors.text.primary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={styles.markerHint}>
-              {imageInteractionEnabled
-                ? (activeMarker
-                  ? `${activeMarker.label} için ürünün üstüne dokun veya küçük bir alan çiz. Kutular yalnızca gerçek ürün konumu varsa ya da sen oluşturduysan görünür.`
-                  : 'Fotoğraf aktif. Kutular sadece okunabilen ürünler veya senin oluşturduğun alanlar için gösterilir.')
-                : 'Kalemleri doğrudan aşağıdaki kartlardan kişiye atayabilirsin. Fotoğraftan ayırmak istersen önce üstten bir kişi seç.'}
-            </Text>
+            {!isConverted ? (
+              <>
+                <View style={styles.markerToolbar}>
+                  {markerOptions.map((option) => {
+                    const active = activeMarkerKey === option.key;
+                    return (
+                      <TouchableOpacity
+                        key={option.key}
+                        style={[
+                          styles.markerPill,
+                          active
+                            ? { backgroundColor: option.color.fill, borderColor: option.color.border }
+                            : styles.markerPillInactive,
+                          active && styles.markerPillActive,
+                        ]}
+                        onPress={() => {
+                          setActiveMarkerKey((prev) => {
+                            const next = prev === option.key ? null : option.key;
+                            setImageInteractionEnabled(Boolean(next));
+                            if (!next) setDraftSelection(null);
+                            return next;
+                          });
+                        }}
+                      >
+                        <View style={[styles.markerDot, { backgroundColor: option.color.badge }]} />
+                        <Text
+                          style={[
+                            styles.markerPillText,
+                            { color: active ? option.color.text : theme.colors.text.primary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.markerHint}>
+                  {imageInteractionEnabled
+                    ? (activeMarker
+                      ? `${activeMarker.label} için ürünün üstüne dokun veya küçük bir alan çiz. Kutular yalnızca gerçek ürün konumu varsa ya da sen oluşturduysan görünür.`
+                      : 'Fotoğraf aktif. Kutular sadece okunabilen ürünler veya senin oluşturduğun alanlar için gösterilir.')
+                    : 'Kalemleri doğrudan aşağıdaki kartlardan kişiye atayabilirsin. Fotoğraftan ayırmak istersen önce üstten bir kişi seç.'}
+                </Text>
+              </>
+            ) : (
+              <View style={styles.convertedNotice}>
+                <Text style={styles.convertedNoticeTitle}>Harcamaya dönüştürüldü</Text>
+                <Text style={styles.convertedNoticeText}>Bu fiş kayıt bütünlüğü için salt okunur gösteriliyor.</Text>
+              </View>
+            )}
             <PinchGestureHandler onGestureEvent={handlePinchGesture} onHandlerStateChange={handlePinchStateChange}>
               <View>
                 <PanGestureHandler
@@ -1178,12 +1222,16 @@ function FisDetayiInner({ route, navigation }) {
         <View style={styles.section} onTouchStart={deactivateImageInteraction}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Kalemler ve paylaşım</Text>
-            <TouchableOpacity onPress={addItem}>
-              <Text style={styles.addText}>+ Kalem ekle</Text>
-            </TouchableOpacity>
+            {!isConverted ? (
+              <TouchableOpacity onPress={addItem}>
+                <Text style={styles.addText}>+ Kalem ekle</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
           <Text style={styles.sectionHint}>
-            Her kalemin altindan `Ortak` veya bir ev arkadasi sec. Fotoğraftaki numaraya dokunursan ilgili kalem karti vurgulanir.
+            {isConverted
+              ? 'Fiş kalemleri ve paylaşım bilgileri tamamlanan harcama kaydıyla eşleşir.'
+              : 'Her kalemin altından `Ortak` veya bir ev arkadaşı seç. Fotoğraftaki numaraya dokunursan ilgili kalem kartı vurgulanır.'}
           </Text>
 
           {visibleItems.map(({ item, index }) => {
@@ -1207,14 +1255,16 @@ function FisDetayiInner({ route, navigation }) {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.itemActions}>
-                    <TouchableOpacity onPress={() => openEditor(index)}>
-                      <Text style={styles.editText}>Düzenle</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeItem(index)}>
-                      <Text style={styles.removeText}>Sil</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {!isConverted ? (
+                    <View style={styles.itemActions}>
+                      <TouchableOpacity onPress={() => openEditor(index)}>
+                        <Text style={styles.editText}>Düzenle</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => removeItem(index)}>
+                        <Text style={styles.removeText}>Sil</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.itemStatsRow}>
@@ -1249,7 +1299,7 @@ function FisDetayiInner({ route, navigation }) {
                   )}
                 </View>
 
-                <View style={styles.quickAssignRow}>
+                {!isConverted ? <View style={styles.quickAssignRow}>
                   <TouchableOpacity
                     style={[styles.quickAssignButton, item.isShared && styles.quickAssignButtonActive]}
                     onPress={() => patchItem(index, { isAssigned: true, isShared: true, personalUserId: null })}
@@ -1270,7 +1320,7 @@ function FisDetayiInner({ route, navigation }) {
                       </TouchableOpacity>
                     );
                   })}
-                </View>
+                </View> : null}
               </View>
             );
           })}
@@ -1314,48 +1364,55 @@ function FisDetayiInner({ route, navigation }) {
           </View>
         ) : null}
 
-        <View style={styles.section} onTouchStart={deactivateImageInteraction}>
-          <Text style={styles.sectionTitle}>Ödeyen</Text>
-          <View style={styles.chips}>
-            {members.map((member) => {
-              const active = String(member.id) === String(payerUserId);
-              return (
-                <TouchableOpacity
-                  key={String(member.id)}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => setPayerUserId(String(member.id))}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{member.fullName}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+        {!isConverted ? (
+          <>
+            <View style={styles.section} onTouchStart={deactivateImageInteraction}>
+              <Text style={styles.sectionTitle}>Ödeyen</Text>
+              <View style={styles.chips}>
+                {members.map((member) => {
+                  const active = String(member.id) === String(payerUserId);
+                  return (
+                    <TouchableOpacity
+                      key={String(member.id)}
+                      style={[styles.chip, active && styles.chipActive]}
+                      onPress={() => setPayerUserId(String(member.id))}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{member.fullName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
-        <View style={styles.section} onTouchStart={deactivateImageInteraction}>
-          <Text style={styles.sectionTitle}>Kategori</Text>
-          <View style={styles.chips}>
-            {CATEGORY_OPTIONS.map((option) => {
-              const active = option.key === category;
-              return (
-                <TouchableOpacity
-                  key={option.key}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => setCategory(option.key)}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+            <View style={styles.section} onTouchStart={deactivateImageInteraction}>
+              <Text style={styles.sectionTitle}>Kategori</Text>
+              <View style={styles.chips}>
+                {CATEGORY_OPTIONS.map((option) => {
+                  const active = option.key === category;
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[styles.chip, active && styles.chipActive]}
+                      onPress={() => setCategory(option.key)}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => saveDraft()} disabled={saving}>
-          <Text style={styles.secondaryButtonText}>{saving ? 'Kaydediliyor...' : 'Taslağı Kaydet'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.primaryButton} onPress={convertToExpense} disabled={saving}>
-          <Text style={styles.primaryButtonText}>Harcamaya Dönüştür</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => saveDraft()} disabled={saving}>
+              <Text style={styles.secondaryButtonText}>{saving ? 'Kaydediliyor...' : 'Taslağı Kaydet'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={convertToExpense} disabled={saving}>
+              <Text style={styles.primaryButtonText}>Harcamaya Dönüştür</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteReceiptButton} onPress={deleteReceipt} disabled={saving}>
+              <Text style={styles.deleteReceiptButtonText}>Fişi Sil</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
       </ScrollView>
 
       <Modal visible={editingIndex != null && !!draftItem} transparent animationType="slide" onRequestClose={closeEditor}>
@@ -1601,6 +1658,16 @@ const makeStyles = (theme) => StyleSheet.create({
     marginBottom: 10,
     lineHeight: 18,
   },
+  convertedNotice: {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: theme.colors.success[50],
+    borderWidth: 1,
+    borderColor: theme.colors.success[200],
+    marginBottom: 12,
+  },
+  convertedNoticeTitle: { color: theme.colors.success[700], fontWeight: '900', marginBottom: 4 },
+  convertedNoticeText: { color: theme.colors.text.secondary, lineHeight: 18 },
   imageOverlayHit: {
     position: 'absolute',
     borderRadius: 10,
@@ -1869,6 +1936,8 @@ const makeStyles = (theme) => StyleSheet.create({
   secondaryButtonText: { color: theme.colors.text.primary, fontWeight: '800' },
   primaryButton: { borderRadius: 14, backgroundColor: theme.colors.primary[600], paddingVertical: 16, alignItems: 'center' },
   primaryButtonText: { color: theme.colors.text.onPrimary, fontWeight: '900' },
+  deleteReceiptButton: { paddingVertical: 14, alignItems: 'center', marginTop: 6 },
+  deleteReceiptButtonText: { color: theme.colors.error[700], fontWeight: '800' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' },
   modalSheet: { backgroundColor: theme.colors.surface, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 26, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: theme.colors.neutral[200] },
   modalContent: { paddingBottom: Platform.OS === 'ios' ? 28 : 40 },

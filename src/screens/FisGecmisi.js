@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { receiptsApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
-import { BASE_URL } from '../shared/config/env';
+import { resolveMediaUrl } from '../shared/config/env';
 
 const STATUS_LABELS = {
   Uploaded: 'Yüklendi',
@@ -47,12 +47,12 @@ export default function FisGecmisi({ navigation, route }) {
 
   useEffect(() => {
     load();
-  }, [houseId]);
+    const unsubscribe = navigation.addListener('focus', load);
+    return unsubscribe;
+  }, [houseId, navigation]);
 
   const renderItem = ({ item }) => {
-    const imageUri = item.imageUrl?.startsWith('http')
-      ? item.imageUrl
-      : `${BASE_URL}${item.imageUrl || ''}`;
+    const imageUri = resolveMediaUrl(item.imageUrl);
 
     return (
       <TouchableOpacity
@@ -88,7 +88,7 @@ export default function FisGecmisi({ navigation, route }) {
         contentContainerStyle={styles.content}
         ListHeaderComponent={(
           <Text style={styles.headerNote}>
-            Buradan eski fişleri açıp kalemleri tekrar düzenleyebilir veya harcamaya dönüştürebilirsin.
+            Taslak fişleri düzenleyebilir veya harcamaya dönüştürebilirsin. Dönüştürülen fişler salt okunur saklanır.
           </Text>
         )}
         ListEmptyComponent={!loading ? <Text style={styles.empty}>Henüz kaydedilmiş fiş yok.</Text> : null}

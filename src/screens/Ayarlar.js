@@ -1,11 +1,11 @@
 import React from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
-import { BASE_URL, GOOGLE_CLIENT_IDS } from '../shared/config/env';
+import { BASE_URL, GOOGLE_CLIENT_IDS, resolveMediaUrl } from '../shared/config/env';
 import { shadow } from '../shared/ui/shadow';
 
 const Row = ({ icon, title, desc, onPress, danger, styles, theme }) => (
@@ -43,6 +43,7 @@ export default function SettingsScreen({ navigation }) {
 
   const name = user?.fullName || user?.name || 'Kullanıcı';
   const houseName = user?.defaultHouseName || (user?.defaultHouseId ? `Ev #${user.defaultHouseId}` : 'Ev seçilmedi');
+  const profileImage = resolveMediaUrl(user?.profileImageUrl);
 
   const onLogout = async () => {
     try {
@@ -57,7 +58,11 @@ export default function SettingsScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{String(name).trim().charAt(0).toUpperCase() || 'K'}</Text>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{String(name).trim().charAt(0).toUpperCase() || 'K'}</Text>
+            )}
           </View>
           <View style={styles.identity}>
             <Text style={styles.name}>{name}</Text>
@@ -120,6 +125,32 @@ export default function SettingsScreen({ navigation }) {
             styles={styles}
             theme={theme}
           />
+          <Row
+            icon="shield-checkmark-outline"
+            title="Gizlilik Politikası"
+            desc="Verilerinin nasıl işlendiğini ve seçeneklerini gör"
+            onPress={async () => {
+              try {
+                await Linking.openURL(`${BASE_URL}/privacy.html`);
+              } catch {
+                Alert.alert('Bağlantı açılamadı', 'Gizlilik politikası şu anda görüntülenemiyor.');
+              }
+            }}
+            styles={styles}
+            theme={theme}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Row
+            icon="trash-outline"
+            title="Hesabımı Sil"
+            desc="Hesabını ve kişisel verilerini kalıcı olarak sil"
+            onPress={() => navigation.navigate('HesabiSil')}
+            danger
+            styles={styles}
+            theme={theme}
+          />
         </View>
 
         <View style={styles.metaCard}>
@@ -174,7 +205,9 @@ const makeStyles = (theme, insets) =>
       borderWidth: 1,
       borderColor: theme.colors.primary[200],
       marginRight: 14,
+      overflow: 'hidden',
     },
+    avatarImage: { width: '100%', height: '100%' },
     avatarText: {
       color: theme.colors.primary[900],
       fontSize: 22,

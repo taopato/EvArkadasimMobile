@@ -1,157 +1,144 @@
-// src/screens/BillDetailScreen.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Alert,
+  RefreshControl,
   ScrollView,
-  Platform
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { expensesApi } from '../services/api';
-import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
+import {
+  getCategoryDisplayName,
+  getCategoryIconName,
+  normalizeExpenseCategoryKey,
+} from '../constants/ExpenseEnums';
 import { useTheme } from '../shared/theme/ThemeProvider';
+import { shadow } from '../shared/ui/shadow';
 import Toast from '../components/Toast';
 
-// basit TR tarih
-const formatDate = (dateString) => {
-  if (!dateString) return 'Tarih yok';
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleDateString('tr-TR');
-  } catch { return 'Geçersiz tarih'; }
+const formatAmount = (amount) => new Intl.NumberFormat('tr-TR', {
+  style: 'currency',
+  currency: 'TRY',
+  minimumFractionDigits: 2,
+}).format(Number(amount || 0));
+
+const formatDate = (value) => {
+  if (!value) return 'Belirtilmedi';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Belirtilmedi';
+  return date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
-// ₺ format
-const formatAmount = (amount) =>
-  new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(Number(amount || 0));
-
-// tur metninden kategori tahmini
-const textToKey = (text = '') => {
-  const t = String(text).toLowerCase();
-  if (/(elektrik|electric)/.test(t)) return 'Electricity';
-  if (/(su|water)/.test(t)) return 'Water';
-  if (/(doğalgaz|dogalgaz|gaz|gas)/.test(t)) return 'Gas';
-  if (/(internet)/.test(t)) return 'Internet';
-  if (/(kira|rent)/.test(t)) return 'Rent';
-  return 'Other';
+const inferCategory = (bill) => {
+  const mapped = normalizeExpenseCategoryKey(bill?.category);
+  if (mapped && mapped !== 'Other') return mapped;
+  const text = `${bill?.tur || ''} ${bill?.description || ''}`.toLocaleLowerCase('tr-TR');
+  if (text.includes('elektrik')) return 'Electricity';
+  if (/(doğalgaz|dogalgaz|gaz)/.test(text)) return 'Gas';
+  if (text.includes('internet')) return 'Internet';
+  if (text.includes('kira')) return 'Rent';
+  if (/(^|\s)su(\s|$)/.test(text)) return 'Water';
+  return mapped || 'Other';
 };
 
-const getUtilityTypeName = (key) => ({
-  'Rent': 'Kira',
-  'Electricity': 'Elektrik',
-  'Water': 'Su',
-  'Gas': 'Doğalgaz',
-  'Internet': 'İnternet',
-  'Market': 'Market',
-  'Food': 'Yemek',
-  'Other': 'Diğer'
-}[key] || 'Diğer');
+const DetailRow = ({ icon, label, value, styles, theme, last }) => (
+  <View style={[styles.detailRow, last && styles.detailRowLast]}>
+    <View style={styles.detailIcon}>
+      <Ionicons name={icon} size={18} color={theme.colors.primary[600]} />
+    </View>
+    <View style={styles.detailBody}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  </View>
+);
 
-const getUtilityIcon = (key) => ({
-  'Rent': 'home-outline',
-  'Electricity': 'flash-outline',
-  'Water': 'water-outline',
-  'Gas': 'flame-outline',
-  'Internet': 'wifi-outline',
-  'Market': 'cart-outline',
-  'Food': 'restaurant-outline',
-  'Other': 'document-text-outline'
-}[key] || 'document-text-outline');
-
-const BillDetailScreen = ({ route, navigation }) => {
-  const { billId, houseId, houseName } = route.params || {};
-  const { user } = useAuth();
-  const CommonStyles = useCommonStyles();
+export default function FaturaDetayi({ route, navigation }) {
+  const { billId, houseId, houseName } = route?.params || {};
   const { theme } = useTheme();
-  const ColorThemes = makeColorThemes(theme);
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
-  const showToast = (message, type = 'success') => setToast({ visible: true, message, type });
-  const hideToast = () => setToast(prev => ({ ...prev, visible: false }));
-
-  useEffect(() => {
+  const load = useCallback(async (silent = false) => {
     if (!billId) {
-      showToast('Fatura ID bulunamadı', 'error');
-      navigation.goBack();
+      setToast({ visible: true, message: 'Fatura bilgisi bulunamadı.', type: 'error' });
+      setLoading(false);
       return;
     }
-    fetchBillDetails();
-  }, [billId]);
-
-  const fetchBillDetails = async () => {
+    if (!silent) setLoading(true);
     try {
-      setLoading(true);
       const response = await expensesApi.getById(billId);
-      // BE: { isSuccess, data }
-      const data = response?.data?.data ?? response?.data ?? null;
-      if (data) setBill(data);
-      else showToast('Fatura detayları alınamadı', 'error');
+      const data = response?.data?.data ?? response?.data;
+      setBill(data || null);
     } catch (error) {
-      console.error('Fatura detayları hatası:', error);
-      showToast('Fatura detayları yüklenirken bir hata oluştu', 'error');
+      setToast({
+        visible: true,
+        message: error?.response?.data?.message || 'Fatura detayları yüklenemedi.',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [billId]);
 
-  // Görsel/isim için key çıkar
-  const key = bill ? textToKey(bill.tur || bill.category || '') : 'Other';
-  const icon = getUtilityIcon(key);
-  const displayName = getUtilityTypeName(key);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Dönem: kayitTarihi → YYYY-MM
-  const period = bill?.kayitTarihi
-    ? `${new Date(bill.kayitTarihi).getFullYear()}-${String(new Date(bill.kayitTarihi).getMonth()+1).padStart(2,'0')}`
-    : '';
-
-  // Taksit/Recurring bilgisi
-  const idx = bill?.installmentIndex || bill?.InstallmentIndex || null;
-  const cnt = bill?.installmentCount || bill?.InstallmentCount || null;
-  const dueDay = bill?.dueDay || bill?.DueDay || null;
-
-  const handleDeleteBill = () => {
-    Alert.alert(
-      'Faturayı Sil',
-      'Bu faturayı silmek istediğinizden emin misiniz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Sil',
-          style: 'destructive',
-          onPress: async () => {
+  const remove = () => Alert.alert(
+    'Faturayı sil',
+    'Bu fatura ve ona bağlı borç dağılımı silinecek. Bu işlem geri alınamaz.',
+    [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await expensesApi.remove(billId);
             try {
-              await expensesApi.remove(billId);
-              showToast('Fatura başarıyla silindi', 'success');
-              navigation.goBack();
-            } catch (error) {
-              console.error('Fatura silme hatası:', error);
-              showToast('Fatura silinirken bir hata oluştu', 'error');
-            }
+              const bus = (await import('../shared/events/bus')).default;
+              bus.emit('expenses:updated', { houseId });
+            } catch {}
+            navigation.goBack();
+          } catch (error) {
+            setToast({
+              visible: true,
+              message: error?.response?.data?.message || 'Fatura silinemedi.',
+              type: 'error',
+            });
+          } finally {
+            setDeleting(false);
           }
-        }
-      ]
-    );
-  };
+        },
+      },
+    ]
+  );
 
   if (loading) {
     return (
-      <View style={CommonStyles.container}>
-        <View style={CommonStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary[500]} />
-          <Text style={CommonStyles.loadingText}>Fatura detayları yükleniyor...</Text>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <TouchableOpacity accessibilityLabel="Geri" style={styles.headerButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={25} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Fatura Detayı</Text>
+          <View style={styles.headerButton} />
+        </View>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={theme.colors.primary[600]} />
+          <Text style={styles.loadingText}>Fatura yükleniyor...</Text>
         </View>
       </View>
     );
@@ -159,149 +146,213 @@ const BillDetailScreen = ({ route, navigation }) => {
 
   if (!bill) {
     return (
-      <View style={CommonStyles.container}>
-        <View style={CommonStyles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={40} color={theme.colors.text.secondary} style={{ marginBottom: 8 }} />
-          <Text style={CommonStyles.emptyText}>Fatura bulunamadı</Text>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <TouchableOpacity accessibilityLabel="Geri" style={styles.headerButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={25} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Fatura Detayı</Text>
+          <View style={styles.headerButton} />
+        </View>
+        <View style={styles.loadingWrap}>
+          <Ionicons name="document-text-outline" size={42} color={theme.colors.text.disabled} />
+          <Text style={styles.emptyTitle}>Fatura bulunamadı</Text>
         </View>
       </View>
     );
   }
 
+  const category = inferCategory(bill);
+  const title = getCategoryDisplayName(category);
+  const icon = getCategoryIconName(category);
+  const billDate = bill.dueDate || bill.postDate || bill.kayitTarihi || bill.createdDate;
+  const note = bill.note || bill.description;
+  const isGenericNote = !note || String(note).trim() === String(bill.tur || '').trim();
+
   return (
-    <View style={CommonStyles.container}>
-      <ScrollView style={CommonStyles.content}>
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Fatura Detayı</Text>
-          <Text style={CommonStyles.subtitle}>
-            {houseName} • {displayName}
-          </Text>
-        </View>
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <TouchableOpacity accessibilityLabel="Geri" style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={25} color={theme.colors.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Fatura Detayı</Text>
+        <View style={styles.headerButton} />
+      </View>
 
-        {/* Bilgiler */}
-        <View style={styles.billInfoContainer}>
-          <View style={styles.billHeader}>
-            <View style={styles.billIconContainer}>
-              <Ionicons name={icon} size={28} color={theme.colors.primary[600]} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(true); }}
+            colors={[theme.colors.primary[600]]}
+          />
+        )}
+      >
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroIcon}>
+              <Ionicons name={icon} size={24} color={theme.colors.text.onPrimary} />
             </View>
-            <View style={styles.billTitleContainer}>
-              <Text style={styles.billTitle}>
-                {bill.tur || `${displayName} Faturası`}
-              </Text>
-              {!!idx && !!cnt && (
-                <Text style={[styles.statusText, { color: (theme.colors.primary?.[600] ?? theme.colors.text.secondary) }]}>
-                  {`Taksit ${idx}/${cnt}`}
-                </Text>
-              )}
-              {!idx && !!dueDay && (
-                <Text style={[styles.statusText, { color: (theme.colors.primary?.[600] ?? theme.colors.text.secondary) }]}>
-                  {`Vade günü: ${dueDay}`}
-                </Text>
-              )}
+            <View style={styles.heroIdentity}>
+              <Text style={styles.heroTitle}>{title} Faturası</Text>
+              <Text style={styles.heroSubtitle} numberOfLines={1}>{houseName || 'Aktif ev'}</Text>
             </View>
           </View>
-
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Tutar:</Text>
-            <Text style={styles.detailValue}>{formatAmount(bill.amount ?? bill.tutar)}</Text>
+          <Text style={styles.amount}>{formatAmount(bill.tutar ?? bill.amount)}</Text>
+          <View style={styles.datePill}>
+            <Ionicons name="calendar-outline" size={15} color={theme.colors.primary[100]} />
+            <Text style={styles.datePillText}>{formatDate(billDate)}</Text>
           </View>
-
-          {!!bill.kayitTarihi && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Kayıt Tarihi:</Text>
-              <Text style={styles.detailValue}>{formatDate(bill.kayitTarihi)}</Text>
-            </View>
-          )}
-
-          {!!period && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Dönem:</Text>
-              <Text style={styles.detailValue}>{period}</Text>
-            </View>
-          )}
-
-          {!!dueDay && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Vade Günü:</Text>
-              <Text style={styles.detailValue}>{dueDay}</Text>
-            </View>
-          )}
-
-          {!!bill.planStartMonth && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Plan Başlangıcı:</Text>
-              <Text style={styles.detailValue}>{formatDate(bill.planStartMonth)}</Text>
-            </View>
-          )}
-
-          {!!bill.description && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Not:</Text>
-              <Text style={styles.detailValue}>{bill.description}</Text>
-            </View>
-          )}
         </View>
 
-        {/* İşlem Butonları */}
-        <View style={styles.actionButtons}>
-          {/* Düzenle ekranı sende farklıysa route adını değiştir */}
-          <TouchableOpacity
-            style={[CommonStyles.menuButton, { flex: 1, marginRight: 8 }]}
-            onPress={() => {
-              navigation.navigate('FaturaEkle', {
-                billId,
-                houseId,
-                houseName,
-                isEditing: true
-              });
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
-              <Ionicons name="create-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
-              <Text style={CommonStyles.buttonText}>Düzenle</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[CommonStyles.menuButton, { flex: 1, marginLeft: 8 }]}
-            onPress={handleDeleteBill}
-            activeOpacity={0.8}
-          >
-            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.error.background }]}>
-              <Ionicons name="trash-outline" size={22} color={ColorThemes.error.foreground} style={{ marginBottom: 4 }} />
-              <Text style={CommonStyles.buttonText}>Sil</Text>
-            </View>
-          </TouchableOpacity>
+        <View style={styles.detailCard}>
+          <Text style={styles.sectionTitle}>Fatura bilgileri</Text>
+          <DetailRow icon="receipt-outline" label="Fatura türü" value={title} styles={styles} theme={theme} />
+          <DetailRow icon="person-outline" label="Ödemeyi yapan" value={bill.odeyenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
+          <DetailRow icon="create-outline" label="Kaydı oluşturan" value={bill.kaydedenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
+          <DetailRow icon="calendar-number-outline" label="Kayıt tarihi" value={formatDate(bill.kayitTarihi || bill.createdDate)} styles={styles} theme={theme} last />
         </View>
 
-        <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
+        {!isGenericNote && (
+          <View style={styles.noteCard}>
+            <Ionicons name="chatbox-ellipses-outline" size={20} color={theme.colors.success[600]} />
+            <View style={styles.noteBody}>
+              <Text style={styles.noteLabel}>Not</Text>
+              <Text style={styles.noteText}>{note}</Text>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('FaturaEkle', {
+              billId,
+              houseId: houseId || bill.houseId,
+              houseName,
+              isEditing: true,
+            })}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="create-outline" size={19} color={theme.colors.text.onPrimary} />
+            <Text style={styles.editButtonText}>Düzenle</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={remove}
+            disabled={deleting}
+            activeOpacity={0.88}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color={theme.colors.error[700]} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={19} color={theme.colors.error[700]} />
+                <Text style={styles.deleteButtonText}>Sil</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((current) => ({ ...current, visible: false }))}
+      />
     </View>
   );
-};
-
-function makeStyles(theme) {
-  return StyleSheet.create({
-    billInfoContainer: { backgroundColor: theme.colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
-    billHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    billIconContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: theme.colors.primary[100], justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-    billIcon: { fontSize: 28 },
-    billTitleContainer: { flex: 1 },
-    billTitle: { fontSize: 18, fontWeight: '600', color: theme.colors.text.primary, marginBottom: 4 },
-    statusText: { fontSize: 14, fontWeight: '600' },
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[100] },
-    detailLabel: { fontSize: 14, color: theme.colors.text.secondary, fontWeight: '500' },
-    detailValue: { fontSize: 14, color: theme.colors.text.primary, fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 12 },
-    actionButtons: {
-      flexDirection: 'row',
-      marginBottom: 16,
-    },
-  });
 }
 
-export default BillDetailScreen;
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  header: {
+    minHeight: 56 + insets.top,
+    paddingTop: insets.top,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.neutral[200],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: theme.colors.text.primary, fontSize: 19, fontWeight: '800' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loadingText: { color: theme.colors.text.secondary, marginTop: 12 },
+  emptyTitle: { color: theme.colors.text.primary, fontSize: 17, fontWeight: '700', marginTop: 12 },
+  content: { padding: 18, paddingBottom: insets.bottom + 36 },
+  heroCard: {
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary[900],
+    padding: 18,
+    marginBottom: 14,
+    ...shadow(2, 'rgba(10,29,45,0.22)'),
+  },
+  heroTop: { flexDirection: 'row', alignItems: 'center' },
+  heroIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  heroIdentity: { flex: 1, marginLeft: 12 },
+  heroTitle: { color: theme.colors.text.onPrimary, fontSize: 17, fontWeight: '800' },
+  heroSubtitle: { color: theme.colors.primary[200], fontSize: 13, marginTop: 2 },
+  amount: { color: theme.colors.text.onPrimary, fontSize: 34, fontWeight: '800', marginTop: 22 },
+  datePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  datePillText: { color: theme.colors.primary[100], fontSize: 13, fontWeight: '600' },
+  detailCard: {
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: { color: theme.colors.text.primary, fontSize: 15, fontWeight: '800', marginBottom: 8 },
+  detailRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[100] },
+  detailRowLast: { borderBottomWidth: 0 },
+  detailIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
+  detailBody: { flex: 1, marginLeft: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  detailLabel: { color: theme.colors.text.secondary, fontSize: 13 },
+  detailValue: { flex: 1, color: theme.colors.text.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  noteCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 14,
+    backgroundColor: theme.colors.success[50],
+    borderWidth: 1,
+    borderColor: theme.colors.success[100],
+    padding: 14,
+    marginBottom: 12,
+  },
+  noteBody: { flex: 1, marginLeft: 10 },
+  noteLabel: { color: theme.colors.success[700], fontSize: 12, fontWeight: '800' },
+  noteText: { color: theme.colors.text.primary, fontSize: 14, lineHeight: 20, marginTop: 3 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  editButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary[900],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  editButtonText: { color: theme.colors.text.onPrimary, fontSize: 14, fontWeight: '800' },
+  deleteButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: theme.colors.error[50],
+    borderWidth: 1,
+    borderColor: theme.colors.error[100],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  deleteButtonText: { color: theme.colors.error[700], fontSize: 14, fontWeight: '800' },
+});

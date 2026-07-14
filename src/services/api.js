@@ -99,7 +99,15 @@ export const authApi = {
       const authHeader = res?.headers?.authorization || res?.headers?.Authorization;
       const tokenFromHeader = typeof authHeader === 'string' ? authHeader.replace(/^[Bb]earer\s+/,'') : undefined;
       const token = tokenFromBody || tokenFromHeader;
-      const user = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
+      const nestedUser = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
+      const user = nestedUser || (token ? {
+        id: data?.id ?? raw?.id ?? 0,
+        email: data?.email ?? raw?.email,
+        fullName: data?.fullName ?? raw?.fullName,
+        phoneNumber: data?.phoneNumber ?? raw?.phoneNumber,
+        iban: data?.iban ?? raw?.iban,
+        profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
+      } : undefined);
 
       // Normalize edilmiş dönüş: LoginScreen daha kolay karar verebilsin
       return { data: { token, user, raw } };
@@ -118,7 +126,14 @@ export const authApi = {
         const raw = await res.json().catch(() => ({}));
         const data = raw?.data ?? raw ?? {};
         const token = data?.token || data?.accessToken || undefined;
-        const user = data?.user || data?.userDto || undefined;
+        const user = data?.user || data?.userDto || (token ? {
+          id: data?.id ?? raw?.id ?? 0,
+          email: data?.email ?? raw?.email,
+          fullName: data?.fullName ?? raw?.fullName,
+          phoneNumber: data?.phoneNumber ?? raw?.phoneNumber,
+          iban: data?.iban ?? raw?.iban,
+          profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
+        } : undefined);
         return { data: { token, user, raw } };
       } catch (fallbackErr) {
         throw err;
@@ -141,6 +156,9 @@ export const authApi = {
       id: data?.id ?? raw?.id ?? 0,
       email: data?.email ?? raw?.email,
       fullName: data?.fullName ?? raw?.fullName,
+      phoneNumber: data?.phoneNumber ?? raw?.phoneNumber,
+      iban: data?.iban ?? raw?.iban,
+      profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
     } : undefined);
 
     return { data: { token, user, raw } };
@@ -156,6 +174,9 @@ export const authApi = {
       id: data?.id ?? raw?.id ?? 0,
       email: data?.email ?? raw?.email,
       fullName: data?.fullName ?? raw?.fullName,
+      phoneNumber: data?.phoneNumber ?? raw?.phoneNumber,
+      iban: data?.iban ?? raw?.iban,
+      profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
     } : undefined;
 
     return { data: { token, user, raw } };
@@ -180,6 +201,15 @@ export const authApi = {
   resetPassword: (email, code, newPassword) =>
     api.post('/Auth/ResetPassword', { email, code, newPassword }),
   updateProfile: (userId, data) => api.put(`/Users/${userId}/Profile`, data),
+  uploadProfileImage: (userId, image) => {
+    const formData = new FormData();
+    formData.append('image', image);
+    return api.post(`/Users/${userId}/ProfileImage`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+  },
+  deleteAccount: (userId) => api.delete(`/Users/${userId}/Account`),
 };
 
 // ---------------- HOUSES ----------------
@@ -294,10 +324,9 @@ export const expensesApi = {
 
 // ---------------- RECEIPTS ----------------
 export const receiptsApi = {
-  scan: async ({ houseId, uploadedByUserId, image }) => {
+  scan: async ({ houseId, image }) => {
     const fd = new FormData();
     fd.append('HouseId', Number(houseId));
-    fd.append('UploadedByUserId', Number(uploadedByUserId));
     fd.append('Image', image);
 
     return api.post('/Receipts/Scan', fd, {
@@ -310,6 +339,7 @@ export const receiptsApi = {
   reparse: (receiptId) => api.post(`/Receipts/${receiptId}/Reparse`),
   update: (receiptId, payload) => api.put(`/Receipts/${receiptId}`, payload),
   convertToExpense: (receiptId, payload) => api.post(`/Receipts/${receiptId}/ConvertToExpense`, payload),
+  remove: (receiptId) => api.delete(`/Receipts/${receiptId}`),
 };
 
 export const houseNotesApi = {

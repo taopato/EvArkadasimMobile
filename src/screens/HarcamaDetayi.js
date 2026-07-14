@@ -1,14 +1,16 @@
 // HarcamaDetayi.js
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { expensesApi, ledgerApi } from '../services/api';
 import { houseApi } from '../services/api';
 import eventBus from '../shared/events/bus';
 import { useAuth } from '../context/AuthContext';
+import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 
 const HarcamaDetayi = ({ navigation, route }) => {
   const { expenseId: expenseIdParam, billId: billIdParam, houseId, houseName } = route.params || {};
@@ -123,8 +125,8 @@ const HarcamaDetayi = ({ navigation, route }) => {
           if (Number.isFinite(uid)) pMap[String(uid)] = String(val);
         }
         setFormTitle(title);
-        setFormTotal(formatThousandsTRInput(totalRaw));
-        setFormShared(formatThousandsTRInput(sharedRaw));
+        setFormTotal(formatMoneyInput(totalRaw));
+        setFormShared(formatMoneyInput(sharedRaw));
         setFormPersonal(pMap);
         setFormNote(String(expenseData?.note ?? expenseData?.Note ?? expenseData?.description ?? expenseData?.Description ?? expenseData?.aciklama ?? expenseData?.Aciklama ?? ''));
       } catch {}
@@ -195,26 +197,6 @@ const HarcamaDetayi = ({ navigation, route }) => {
     }
   };
 
-  const parseNumber = (v) => {
-    const s = String(v ?? '').replace(',', '.');
-    const n = Number(s);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  // Binlik ayırıcı (kuruş yok) yardımcıları
-  const formatThousandsTRInput = (text) => {
-    if (text == null) return '';
-    const digits = String(text).replace(/\D/g, '');
-    if (!digits) return '';
-    const intStr = digits.replace(/^0+(?=\d)/, '');
-    return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
-  const parseIntFromTR = (s) => {
-    if (!s) return 0;
-    const digits = String(s).replace(/\D/g, '');
-    return digits ? Number(digits) : 0;
-  };
-
   const handleStartEdit = () => {
     setIsEditing(true);
   };
@@ -223,8 +205,8 @@ const HarcamaDetayi = ({ navigation, route }) => {
     // Formu mevcut expense verisine geri al
     if (expense) {
       setFormTitle(expense?.tur || expense?.category || '');
-      setFormTotal(formatThousandsTRInput(String(expense?.tutar ?? expense?.amount ?? '')));
-      setFormShared(formatThousandsTRInput(String(expense?.ortakHarcamaTutari ?? '')));
+      setFormTotal(formatMoneyInput(String(expense?.tutar ?? expense?.amount ?? '')));
+      setFormShared(formatMoneyInput(String(expense?.ortakHarcamaTutari ?? '')));
       const pMap = {};
       (expense?.sahsiHarcamalar || []).forEach(it => {
         const uid = Number(it?.userId ?? it?.UserId);
@@ -241,10 +223,10 @@ const HarcamaDetayi = ({ navigation, route }) => {
     try {
       const dto = {
         Tur: String(formTitle || '').trim(),
-        Tutar: parseIntFromTR(formTotal),
-        OrtakHarcamaTutari: parseIntFromTR(formShared),
+        Tutar: parseMoneyInput(formTotal),
+        OrtakHarcamaTutari: parseMoneyInput(formShared),
         SahsiHarcamalar: Object.entries(formPersonal)
-          .map(([uid, val]) => ({ UserId: Number(uid), Tutar: parseNumber(val) }))
+          .map(([uid, val]) => ({ UserId: Number(uid), Tutar: parseMoneyInput(val) }))
           .filter(x => Number.isFinite(x.UserId) && x.Tutar >= 0),
         Aciklama: String(formNote || '').trim(),
         Note: String(formNote || '').trim(),
@@ -255,6 +237,10 @@ const HarcamaDetayi = ({ navigation, route }) => {
       if (!dto.Tur) return Alert.alert('Hata', 'Başlık/Tür boş olamaz');
       if (!(dto.Tutar > 0)) return Alert.alert('Hata', 'Toplam tutar > 0 olmalı');
       if (dto.OrtakHarcamaTutari < 0) return Alert.alert('Hata', 'Ortak tutar 0 veya daha büyük olmalı');
+      const personalTotal = dto.SahsiHarcamalar.reduce((sum, item) => sum + item.Tutar, 0);
+      if (Math.abs(dto.OrtakHarcamaTutari + personalTotal - dto.Tutar) > 0.01) {
+        return Alert.alert('Tutarları kontrol et', 'Ortak tutar ile kişisel tutarların toplamı genel tutara eşit olmalı.');
+      }
 
       await expensesApi.update(expenseId, dto);
       Alert.alert('Başarılı', 'Harcama güncellendi');
@@ -339,7 +325,12 @@ const HarcamaDetayi = ({ navigation, route }) => {
 
   return (
     <View style={CommonStyles.container}>
-      <ScrollView style={CommonStyles.content}>
+      <KeyboardAwareScrollView
+        style={CommonStyles.content}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={110}
+      >
         <View style={CommonStyles.header}>
           <Text style={CommonStyles.title}>Harcama Detayı</Text>
           <Text style={CommonStyles.subtitle}>{houseName || ''}</Text>
@@ -417,7 +408,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
                 <TextInput
                   style={styles.input}
                   value={formTotal}
-                  onChangeText={(t) => setFormTotal(formatThousandsTRInput(t))}
+                  onChangeText={(t) => setFormTotal(formatMoneyInput(t))}
                   keyboardType="numeric"
                   placeholder="2.500"
                 />
@@ -427,7 +418,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
                 <TextInput
                   style={styles.input}
                   value={formShared}
-                  onChangeText={(t) => setFormShared(formatThousandsTRInput(t))}
+                  onChangeText={(t) => setFormShared(formatMoneyInput(t))}
                   keyboardType="numeric"
                   placeholder="2.000"
                 />
@@ -501,7 +492,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
                     <TextInput
                       style={[styles.input, { width: 120, textAlign: 'right' }]}
                       value={val}
-                      onChangeText={(t) => setFormPersonal((p) => ({ ...p, [uid]: t }))}
+                      onChangeText={(t) => setFormPersonal((p) => ({ ...p, [uid]: formatMoneyInput(t) }))}
                       keyboardType="decimal-pad"
                       placeholder="0"
                     />
@@ -587,7 +578,7 @@ const HarcamaDetayi = ({ navigation, route }) => {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 };

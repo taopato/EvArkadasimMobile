@@ -1,347 +1,446 @@
-// src/screens/AddBillScreen.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Animated, Platform, TextInput, Keyboard
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../shared/theme/ThemeProvider';
-
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { houseApi, expensesApi } from '../services/api';
-import Toast from '../components/Toast';
-import { toExpenseCategory } from '../constants/ExpenseEnums';
+import { expensesApi, houseApi } from '../services/api';
+import {
+  getCategoryDisplayName,
+  normalizeExpenseCategoryKey,
+  toExpenseCategory,
+} from '../constants/ExpenseEnums';
+import { useTheme } from '../shared/theme/ThemeProvider';
 import DateField from '../shared/ui/DateField';
-
-const getCategoryDisplayName = (category) => {
-  const categoryMap = {
-    Electricity: 'Elektrik', Water: 'Su', Internet: 'İnternet', Rent: 'Kira', Gas: 'Doğalgaz',
-    Market: 'Market', Food: 'Yemek', Other: 'Diğer',
-    0: 'Kira', 1: 'İnternet', 2: 'Elektrik', 3: 'Su', 4: 'Doğalgaz', 5: 'Yemek', 99: 'Diğer',
-  };
-  return categoryMap[category] || category;
-};
+import { shadow } from '../shared/ui/shadow';
+import Toast from '../components/Toast';
+import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 
 const BILL_TYPES = [
-  { key: 'Water', icon: 'water-outline', label: 'Su', isFixed: false, description: 'Değişken - aylık değişir' },
-  { key: 'Electricity', icon: 'flash-outline', label: 'Elektrik', isFixed: false, description: 'Değişken - aylık değişir' },
-  { key: 'Rent', icon: 'home-outline', label: 'Kira', isFixed: true, description: 'Sabit - her ay aynı' },
-  { key: 'Gas', icon: 'flame-outline', label: 'Doğalgaz', isFixed: false, description: 'Değişken - aylık değişir' },
-  { key: 'Other', icon: 'document-text-outline', label: 'Diğer', isFixed: null, description: 'Listede olmayan giderler' },
-  { key: 'Internet', icon: 'wifi-outline', label: 'İnternet', isFixed: true, description: 'Sabit - her ay aynı' },
+  { key: 'Electricity', icon: 'flash-outline', label: 'Elektrik', hint: 'Aylık tutar değişebilir' },
+  { key: 'Water', icon: 'water-outline', label: 'Su', hint: 'Aylık tutar değişebilir' },
+  { key: 'Gas', icon: 'flame-outline', label: 'Doğalgaz', hint: 'Aylık tutar değişebilir' },
+  { key: 'Internet', icon: 'wifi-outline', label: 'İnternet', hint: 'Düzenli fatura' },
+  { key: 'Rent', icon: 'home-outline', label: 'Kira', hint: 'Düzenli ödeme' },
+  { key: 'Other', icon: 'document-text-outline', label: 'Diğer', hint: 'Başka bir fatura' },
 ];
 
-const AddBillScreen = ({ route, navigation }) => {
-  const { houseId, houseName, billId, isEditing } = route.params || {};
+const todayISO = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const categoryFromBill = (bill) => {
+  const mapped = normalizeExpenseCategoryKey(bill?.category);
+  if (mapped && mapped !== 'Other') return mapped;
+
+  const text = `${bill?.tur || ''} ${bill?.description || ''}`.toLocaleLowerCase('tr-TR');
+  if (text.includes('elektrik')) return 'Electricity';
+  if (/(doğalgaz|dogalgaz|gaz)/.test(text)) return 'Gas';
+  if (/(internet|wifi)/.test(text)) return 'Internet';
+  if (/(kira|rent)/.test(text)) return 'Rent';
+  if (/(^|\s)su(\s|$)|water/.test(text)) return 'Water';
+  return mapped || 'Other';
+};
+
+const normalizeMembers = (raw) => (Array.isArray(raw) ? raw : [])
+  .map((member) => ({
+    userId: Number(member.userId ?? member.user?.id ?? member.id),
+    fullName: member.fullName ?? member.name ?? member.user?.fullName ?? 'Kullanıcı',
+  }))
+  .filter((member) => Number.isInteger(member.userId) && member.userId > 0);
+
+export default function FaturaEkle({ route, navigation }) {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
+  const params = route?.params || {};
+  const houseId = Number(params.houseId || user?.defaultHouseId || 0);
+  const houseName = params.houseName || user?.defaultHouseName || 'Aktif ev';
+  const isEditing = Boolean(params.isEditing && params.billId);
+  const billId = Number(params.billId || 0);
 
-  const [loading, setLoading] = useState(false);
-  const [members, setMembers] = useState([]);
-
-  const [amount, setAmount] = useState('100.00');
-  const [billDate, setBillDate] = useState(''); // YYYY-MM-DD
-  const [month, setMonth] = useState('');       // YYYY-MM
+  const [amount, setAmount] = useState('');
+  const [billDate, setBillDate] = useState(todayISO());
+  const [billType, setBillType] = useState('Electricity');
   const [note, setNote] = useState('');
-  const [billType, setBillType] = useState('Water');
-  const [responsibleUserId, setResponsibleUserId] = useState(null);
-  const [isRecurring, setIsRecurring] = useState(false);
-
+  const [members, setMembers] = useState([]);
+  const [responsibleUserId, setResponsibleUserId] = useState(Number(user?.id) || null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(50));
-
-  const showToast = (message, type = 'success') => setToast({ visible: true, message, type });
-  const hideToast = () => setToast(prev => ({ ...prev, visible: false }));
-
-  const normalizeMembers = (raw) =>
-    (Array.isArray(raw) ? raw : [])
-      .map(m => ({
-        userId: Number(m.userId ?? m.user?.id ?? NaN),
-        fullName: m.fullName ?? m.name ?? m.user?.fullName ?? 'Kullanıcı'
-      }))
-      .filter(m => Number.isInteger(m.userId) && m.userId > 0);
+  const selectedType = BILL_TYPES.find((item) => item.key === billType) || BILL_TYPES[0];
 
   useEffect(() => {
-    if (!houseId) {
-      showToast('Gerekli bilgiler eksik', 'error');
-      navigation.goBack();
+    let active = true;
+    const load = async () => {
+      if (!houseId) {
+        setToast({ visible: true, message: 'Önce aktif bir ev seçmelisin.', type: 'error' });
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const memberResponse = await houseApi.getMembers(houseId);
+        const memberList = normalizeMembers(memberResponse?.data?.data ?? memberResponse?.data);
+        if (!active) return;
+        setMembers(memberList);
+        const me = memberList.find((member) => member.userId === Number(user?.id));
+        if (me) setResponsibleUserId(me.userId);
+
+        if (isEditing) {
+          const response = await expensesApi.getById(billId);
+          const bill = response?.data?.data ?? response?.data;
+          if (!bill || !active) return;
+          setAmount(formatMoneyInput(String(bill.tutar ?? bill.amount ?? '')));
+          const rawDate = bill.postDate || bill.dueDate || bill.kayitTarihi || bill.createdDate;
+          if (rawDate) setBillDate(String(rawDate).slice(0, 10));
+          setBillType(categoryFromBill(bill));
+          setResponsibleUserId(Number(bill.odeyenUserId) || me?.userId || null);
+          const rawNote = bill.note || bill.description || '';
+          const title = String(bill.tur || '').trim();
+          setNote(rawNote && rawNote !== title ? rawNote : '');
+        }
+      } catch (error) {
+        const message = error?.response?.data?.message || 'Fatura bilgileri yüklenemedi.';
+        setToast({ visible: true, message: String(message), type: 'error' });
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, [billId, houseId, isEditing, user?.id]);
+
+  const save = async () => {
+    Keyboard.dismiss();
+    const money = parseMoneyInput(amount);
+    if (money <= 0) {
+      setToast({ visible: true, message: 'Geçerli bir fatura tutarı gir.', type: 'warning' });
       return;
     }
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const today = `${y}-${m}-${d}`;
-    setBillDate(today);
-    setMonth(`${y}-${m}`);
-
-    fetchMembers();
-    if (isEditing && billId) fetchBillData();
-
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
-    ]).start();
-  }, [houseId, billId, isEditing]);
-
-  useFocusEffect(
-    React.useCallback(() => { if (houseId) fetchMembers(); }, [houseId])
-  );
-
-  useEffect(() => {
-    const selected = BILL_TYPES.find(t => t.key === billType);
-    if (!selected) return;
-    if (selected.isFixed === true) { setIsRecurring(true);  showToast(`${selected.label} - ${selected.description}`, 'info'); }
-    else if (selected.isFixed === false) { setIsRecurring(false); showToast(`${selected.label} - ${selected.description}`, 'info'); }
-    else { setIsRecurring(false); }
-  }, [billType]);
-
-  useEffect(() => {
-    if (billDate && /^\d{4}-\d{2}-\d{2}$/.test(billDate)) setMonth(billDate.slice(0, 7));
-  }, [billDate]);
-
-  const fetchMembers = async () => {
-    try {
-      const res = await houseApi.getMembers(houseId);
-      const list = normalizeMembers(res?.data);
-      setMembers(list);
-      const me = list.find(x => x.userId === Number(user?.id));
-      if (me) setResponsibleUserId(me.userId);
-    } catch (err) {
-      showToast('Ev üyeleri alınamadı', 'error');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(billDate)) {
+      setToast({ visible: true, message: 'Geçerli bir tarih seç.', type: 'warning' });
+      return;
     }
-  };
-
-  const fetchBillData = async () => {
-    try {
-      setLoading(true);
-      const response = await expensesApi.getById(billId);
-      const bill = response?.data?.data ?? response?.data;
-      if (!bill) return;
-
-      setAmount(String(bill.amount ?? bill.tutar ?? 0));
-      const pDate = bill.postDate ? String(bill.postDate).slice(0, 10) : '';
-      setBillDate(pDate || billDate);
-      setMonth((pDate || billDate).slice(0, 7));
-      setNote(bill.note ?? '');
-      setBillType(typeof bill.category === 'number' ? getCategoryDisplayName(bill.category) : (bill.category || 'Water'));
-      setResponsibleUserId(bill.odeyenUserId || null);
-    } catch {
-      showToast('Fatura verileri alınamadı', 'error');
-    } finally {
-      setLoading(false);
+    if (!members.some((member) => member.userId === Number(responsibleUserId))) {
+      setToast({ visible: true, message: 'Ödemeyi yapan ev arkadaşını seç.', type: 'warning' });
+      return;
     }
-  };
 
-  const validateForm = () => {
-    const money = parseFloat(String(amount).replace(',', '.'));
-    if (Number.isNaN(money) || money <= 0) { showToast('Geçerli bir tutar girin', 'warning'); return { ok: false }; }
-    if (!billDate || !/^\d{4}-\d{2}-\d{2}$/.test(billDate)) { showToast('Tarih formatı YYYY-MM-DD olmalı', 'warning'); return { ok: false }; }
-    if (!responsibleUserId) { showToast('Ödeyen kişi seçin', 'warning'); return { ok: false }; }
-    const memberIds = new Set(members.map(m => m.userId));
-    if (!memberIds.has(Number(responsibleUserId))) { showToast('Seçilen kişi ev üyesi değil', 'error'); return { ok: false }; }
-    return { ok: true, money };
-  };
+    const category = toExpenseCategory(billType);
+    const title = `${selectedType.label} Faturası`;
+    const description = note.trim() || title;
+    const date = `${billDate}T12:00:00`;
 
-  const handleCreateBill = async () => {
-    Keyboard.dismiss();
-    const v = validateForm();
-    if (!v.ok) return;
-
-    setLoading(true);
+    setSaving(true);
     try {
-      if (isEditing && billId) {
-        const safeTur = `${getCategoryDisplayName(billType)} ${month}`.slice(0, 30);
-        const updateData = {
-          tur: safeTur,
-          category: toExpenseCategory(billType),
-          tutar: v.money,
-          postDate: `${billDate}T00:00:00`,
-          dueDate: `${billDate}T00:00:00`,
-          // update’te Description zorunlu değilse göndermeye gerek yok
-          splitPolicy: 0,
-        };
-        await expensesApi.update(billId, updateData);
-        showToast('Fatura güncellendi', 'success');
-        navigation.goBack();
+      if (isEditing) {
+        await expensesApi.update(billId, {
+          tur: title,
+          tutar: money,
+          ortakHarcamaTutari: money,
+          sahsiHarcamalar: [],
+          category,
+          postDate: date,
+          dueDate: date,
+          odeyenUserId: Number(responsibleUserId),
+          description,
+          note: description,
+          aciklama: description,
+        });
       } else {
-        await handleCreateIrregularExpense(v.money);
+        await expensesApi.createIrregular({
+          tur: title,
+          category,
+          tutar: money,
+          houseId,
+          odeyenUserId: Number(responsibleUserId),
+          kaydedenUserId: Number(user?.id),
+          postDate: date,
+          dueDate: date,
+          splitPolicy: 0,
+          personalItems: [],
+          description,
+          note: description,
+          aciklama: description,
+        });
       }
-    } catch (e) {
-      const serverText = String(e?.response?.data ?? e?.message ?? '');
-      showToast(serverText || 'Beklenmeyen hata', 'error');
+
+      try {
+        const bus = (await import('../shared/events/bus')).default;
+        bus.emit('expenses:updated', { houseId });
+      } catch {}
+      setToast({ visible: true, message: isEditing ? 'Fatura güncellendi.' : 'Fatura kaydedildi.', type: 'success' });
+      setTimeout(() => navigation.goBack(), 450);
+    } catch (error) {
+      const message = error?.response?.data?.message || error?.response?.data || error?.message || 'Fatura kaydedilemedi.';
+      setToast({ visible: true, message: String(message), type: 'error' });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
-
-  const handleCreateIrregularExpense = async (moneyValue) => {
-    try {
-      const payerId = Number(responsibleUserId);
-      const creatorId = Number(user?.id);
-      const house = Number(houseId);
-
-      const safeTur = `${getCategoryDisplayName(billType)} ${month}`.slice(0, 30);
-      const desc = `${getCategoryDisplayName(billType)} • ${billDate}`; // 🔸 Description NOT NULL
-
-      const payload = {
-        tur: safeTur,
-        category: toExpenseCategory(billType),
-        tutar: moneyValue,
-        houseId: house,
-        odeyenUserId: payerId,
-        kaydedenUserId: creatorId,
-        postDate: `${billDate}T00:00:00`,
-        dueDate: `${billDate}T00:00:00`,
-        splitPolicy: 0,
-        personalItems: [],
-        // 🔸 zorunlu alan:
-        description: desc,
-        Description: desc,
-        Aciklama: desc,
-      };
-
-      await expensesApi.createIrregular(payload);
-
-      try { (await import('../shared/events/bus')).default.emit('expenses:updated', { houseId: house }); } catch {}
-
-      showToast('Kayıt oluşturuldu', 'success');
-      if (navigation?.canGoBack?.()) navigation.goBack();
-      else navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params: { houseId } });
-    } catch (e) {
-      const serverText = String(e?.response?.data ?? e?.message ?? '');
-      showToast(serverText || 'Oluşturma hatası', 'error');
-      throw e;
-    }
-  };
-
-  const styles = useMemo(() => makeStyles(theme), [theme]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{isEditing ? 'Faturayı Düzenle' : 'Yeni Fatura Oluştur'}</Text>
-          <Text style={styles.subtitle}>{houseName} • {getCategoryDisplayName(billType)}</Text>
-        </View>
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <TouchableOpacity accessibilityLabel="Geri" style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={25} color={theme.colors.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{isEditing ? 'Faturayı Düzenle' : 'Yeni Fatura'}</Text>
+        <View style={styles.headerButton} />
+      </View>
 
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={theme.colors.primary[600]} />
+          <Text style={styles.loadingText}>Fatura hazırlanıyor...</Text>
+        </View>
+      ) : (
         <KeyboardAwareScrollView
-          style={styles.formContainer}
+          contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           enableOnAndroid
-          extraScrollHeight={20}
+          enableAutomaticScroll
+          extraScrollHeight={110}
           keyboardOpeningTime={0}
         >
-          <View style={styles.card}>
-            <Text style={styles.label}>Tutar (₺)</Text>
-            <TextInput style={styles.textInput} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Örn: 100.00" placeholderTextColor={theme.colors.text.disabled} />
+          <View style={styles.contextRow}>
+            <Ionicons name="home-outline" size={17} color={theme.colors.primary[600]} />
+            <Text style={styles.contextText} numberOfLines={1}>{houseName}</Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Tarih</Text>
-            <DateField value={billDate} onChange={setBillDate} placeholder="Tarih seç" />
-            <Text style={styles.hint}>Dönem: {month || '-'}</Text>
+          <View style={styles.amountCard}>
+            <Text style={styles.amountLabel}>Fatura tutarı</Text>
+            <View style={styles.amountInputRow}>
+              <Text style={styles.currency}>₺</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={amount}
+                onChangeText={(value) => setAmount(formatMoneyInput(value))}
+                placeholder="0,00"
+                placeholderTextColor={theme.colors.primary[300]}
+                keyboardType="decimal-pad"
+                inputMode="decimal"
+                returnKeyType="done"
+                maxLength={12}
+              />
+            </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Fatura Türü</Text>
-            <View style={styles.pickerContainer}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Fatura türü</Text>
+            <View style={styles.typeGrid}>
               {BILL_TYPES.map((type) => {
                 const selected = billType === type.key;
                 return (
                   <TouchableOpacity
                     key={type.key}
-                    style={[styles.billTypeButton, selected && styles.selectedBillTypeButton]}
+                    style={[styles.typeButton, selected && styles.typeButtonSelected]}
                     onPress={() => setBillType(type.key)}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name={type.icon} size={22} color={selected ? theme.colors.primary[700] : theme.colors.text.secondary} style={{ marginBottom: 6 }} />
-                    <Text style={[styles.billTypeButtonText, selected && styles.selectedBillTypeButtonText]}>
+                    <Ionicons
+                      name={type.icon}
+                      size={21}
+                      color={selected ? theme.colors.success[700] : theme.colors.text.secondary}
+                    />
+                    <Text style={[styles.typeLabel, selected && styles.typeLabelSelected]} numberOfLines={1}>
                       {type.label}
                     </Text>
-                    <Text style={[styles.billTypeDescription, selected && { color: theme.colors.primary[700] }]}>{type.description}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Not (opsiyonel)</Text>
-            <TextInput style={[styles.textInput, styles.textArea]} value={note} onChangeText={setNote} multiline placeholder="İstersen not gir" placeholderTextColor={theme.colors.text.disabled} />
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Fatura tarihi</Text>
+            <DateField value={billDate} onChange={setBillDate} placeholder="Tarih seç" />
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Ödeyen Kişi</Text>
-            <View style={styles.pickerContainer}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ödemeyi yapan</Text>
+            <View style={styles.memberWrap}>
               {members.map((member) => {
-                const selected = Number(member.userId) === Number(responsibleUserId);
+                const selected = member.userId === Number(responsibleUserId);
                 return (
                   <TouchableOpacity
                     key={member.userId}
-                    style={[styles.memberButton, selected && styles.selectedMemberButton]}
+                    style={[styles.memberChip, selected && styles.memberChipSelected]}
                     onPress={() => setResponsibleUserId(member.userId)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.memberButtonText, selected && styles.selectedMemberButtonText]}>
+                    <View style={[styles.memberInitial, selected && styles.memberInitialSelected]}>
+                      <Text style={[styles.memberInitialText, selected && styles.memberInitialTextSelected]}>
+                        {member.fullName.trim().charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={[styles.memberText, selected && styles.memberTextSelected]} numberOfLines={1}>
                       {member.fullName}
                     </Text>
+                    {selected && <Ionicons name="checkmark-circle" size={18} color={theme.colors.success[600]} />}
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
 
-          <TouchableOpacity style={[styles.createButton, loading && styles.createButtonDisabled]} onPress={handleCreateBill} disabled={loading} activeOpacity={0.88}>
-            {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} size="small" /> : <Text style={styles.createButtonText}>{isEditing ? 'Faturayı Güncelle' : 'Faturayı Kaydet'}</Text>}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Not <Text style={styles.optional}>(isteğe bağlı)</Text></Text>
+            <TextInput
+              style={styles.noteInput}
+              value={note}
+              onChangeText={setNote}
+              placeholder="Örn. Haziran dönemi"
+              placeholderTextColor={theme.colors.text.disabled}
+              multiline
+              textAlignVertical="top"
+              maxLength={240}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveButton, saving && styles.buttonDisabled]}
+            onPress={save}
+            disabled={saving}
+            activeOpacity={0.88}
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.colors.text.onPrimary} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color={theme.colors.text.onPrimary} />
+                <Text style={styles.saveButtonText}>{isEditing ? 'Değişiklikleri Kaydet' : 'Faturayı Kaydet'}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </KeyboardAwareScrollView>
+      )}
 
-        <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
-      </Animated.View>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((current) => ({ ...current, visible: false }))}
+      />
     </View>
   );
-};
-
-function makeStyles(theme) {
-  return StyleSheet.create({
-    container: { flex: 1 },
-    content: { flex: 1, padding: 18 },
-    header: { marginBottom: 18 },
-    title: { fontSize: 22, fontWeight: '900', color: theme.colors.text.primary, marginBottom: 4 },
-    subtitle: { fontSize: 14, color: theme.colors.text.secondary },
-    formContainer: { flex: 1 },
-    card: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: theme.colors.neutral[200],
-      padding: 16,
-      marginBottom: 14,
-    },
-    label: { fontSize: 14, fontWeight: '800', color: theme.colors.text.primary, marginBottom: 10 },
-    textInput: { backgroundColor: theme.colors.background, borderRadius: 12, padding: 14, fontSize: 16, color: theme.colors.text.primary, borderWidth: 1, borderColor: theme.colors.neutral[200] },
-    textArea: { height: 90, textAlignVertical: 'top' },
-    hint: { marginTop: 8, color: theme.colors.text.secondary, fontSize: 12 },
-    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    billTypeButton: { backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, minWidth: 104, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.neutral[200] },
-    selectedBillTypeButton: { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[600] },
-    billTypeButtonText: { fontSize: 14, fontWeight: '700', color: theme.colors.text.primary, textAlign: 'center' },
-    selectedBillTypeButtonText: { color: theme.colors.primary[700] },
-    billTypeDescription: { fontSize: 11, color: theme.colors.text.secondary, textAlign: 'center', marginTop: 4 },
-    memberButton: { backgroundColor: theme.colors.background, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, minWidth: 100, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.neutral[200] },
-    selectedMemberButton: { backgroundColor: theme.colors.primary[600], borderColor: theme.colors.primary[600] },
-    memberButtonText: { fontSize: 14, fontWeight: '700', color: theme.colors.text.primary, textAlign: 'center' },
-    selectedMemberButtonText: { color: theme.colors.text.onPrimary },
-    createButton: { backgroundColor: theme.colors.primary[600], borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 4, marginBottom: 30 },
-    createButtonDisabled: { opacity: 0.7 },
-    createButtonText: { fontSize: 16, fontWeight: '900', color: theme.colors.text.onPrimary },
-  });
 }
 
-export default AddBillScreen;
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  header: {
+    minHeight: 56 + insets.top,
+    paddingTop: insets.top,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.neutral[200],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: theme.colors.text.primary, fontSize: 19, fontWeight: '800' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: theme.colors.text.secondary, marginTop: 12 },
+  content: { padding: 18, paddingBottom: insets.bottom + 36 },
+  contextRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  contextText: { flex: 1, color: theme.colors.text.secondary, fontSize: 14, fontWeight: '600' },
+  amountCard: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    backgroundColor: theme.colors.primary[900],
+    ...shadow(2, 'rgba(10,29,45,0.20)'),
+  },
+  amountLabel: { color: theme.colors.primary[200], fontSize: 13, fontWeight: '700' },
+  amountInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  currency: { color: theme.colors.text.onPrimary, fontSize: 30, fontWeight: '700', marginRight: 7 },
+  amountInput: { flex: 1, color: theme.colors.text.onPrimary, fontSize: 36, fontWeight: '800', paddingVertical: 4 },
+  section: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    padding: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: { color: theme.colors.text.primary, fontSize: 14, fontWeight: '800', marginBottom: 11 },
+  optional: { color: theme.colors.text.secondary, fontWeight: '500' },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeButton: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    minWidth: 90,
+    minHeight: 72,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    backgroundColor: theme.colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    gap: 5,
+  },
+  typeButtonSelected: { borderColor: theme.colors.success[500], backgroundColor: theme.colors.success[50] },
+  typeLabel: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '700' },
+  typeLabelSelected: { color: theme.colors.success[700] },
+  selectionHint: { color: theme.colors.text.secondary, fontSize: 12, marginTop: 10 },
+  memberWrap: { gap: 8 },
+  memberChip: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  memberChipSelected: { borderColor: theme.colors.success[500], backgroundColor: theme.colors.success[50] },
+  memberInitial: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.neutral[200] },
+  memberInitialSelected: { backgroundColor: theme.colors.success[100] },
+  memberInitialText: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '800' },
+  memberInitialTextSelected: { color: theme.colors.success[700] },
+  memberText: { flex: 1, color: theme.colors.text.primary, fontSize: 14, fontWeight: '600' },
+  memberTextSelected: { color: theme.colors.success[700], fontWeight: '800' },
+  noteInput: {
+    minHeight: 84,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text.primary,
+    fontSize: 15,
+    padding: 13,
+  },
+  saveButton: {
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: theme.colors.success[600],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  saveButtonText: { color: theme.colors.text.onPrimary, fontSize: 15, fontWeight: '800' },
+  buttonDisabled: { opacity: 0.65 },
+});

@@ -12,26 +12,14 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, expensesApi, receiptsApi } from '../services/api';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
-
-const formatThousandsTRInput = (text) => {
-  if (text == null) return '';
-  const digits = String(text).replace(/\D/g, '');
-  if (!digits) return '';
-  const intStr = digits.replace(/^0+(?=\d)/, '');
-  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
-
-const parseIntFromTR = (value) => {
-  if (!value) return 0;
-  const digits = String(value).replace(/\D/g, '');
-  return digits ? Number(digits) : 0;
-};
+import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 
 const QUICK_EXPENSES = [
   { key: 'Market', label: 'Market' },
@@ -110,7 +98,7 @@ export default function AddExpenseScreen({ navigation, route }) {
     }
   };
 
-  const amountNum = parseIntFromTR(amount) || 0;
+  const amountNum = parseMoneyInput(amount) || 0;
 
   const save = async () => {
     if (!amountNum || amountNum <= 0) {
@@ -130,7 +118,7 @@ export default function AddExpenseScreen({ navigation, route }) {
     const personalItems = [];
 
     Object.entries(personal).forEach(([userId, value]) => {
-      const numeric = Number(String(value).replace(',', '.')) || 0;
+      const numeric = parseMoneyInput(value) || 0;
       if (numeric > 0) {
         personalTotal += numeric;
         personalItems.push({ userId: Number(userId), tutar: numeric });
@@ -188,18 +176,37 @@ export default function AddExpenseScreen({ navigation, route }) {
 
     try {
       setScanningReceipt(true);
-      const fileName = asset.fileName || asset.uri.split('/').pop() || `receipt-${Date.now()}.jpg`;
-      const mimeType = asset.mimeType || 'image/jpeg';
+      let preparedAsset = asset;
+      if (Platform.OS !== 'web') {
+        const actions = Number(asset.width) > 2200
+          ? [{ resize: { width: 2200 } }]
+          : [];
+        const processed = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        preparedAsset = {
+          ...asset,
+          ...processed,
+          fileName: `fis-${Date.now()}.jpg`,
+          mimeType: 'image/jpeg',
+        };
+      }
+
+      const fileName = preparedAsset.fileName
+        || preparedAsset.uri.split('/').pop()
+        || `fis-${Date.now()}.jpg`;
+      const mimeType = preparedAsset.mimeType || 'image/jpeg';
 
       // Web'de FormData gerçek bir File/Blob bekler; RN'in {uri,name,type}
       // nesnesi native'de çalışır ama web'de görsel hiç gönderilmez.
       const image = Platform.OS === 'web'
-        ? new File([await (await fetch(asset.uri)).blob()], fileName, { type: mimeType })
-        : { uri: asset.uri, name: fileName, type: mimeType };
+        ? new File([await (await fetch(preparedAsset.uri)).blob()], fileName, { type: mimeType })
+        : { uri: preparedAsset.uri, name: fileName, type: mimeType };
 
       const response = await receiptsApi.scan({
         houseId: activeHouseId,
-        uploadedByUserId: Number(user?.id),
         image,
       });
 
@@ -225,9 +232,10 @@ export default function AddExpenseScreen({ navigation, route }) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+      selectionLimit: 1,
     });
 
     if (!result.canceled) {
@@ -243,8 +251,9 @@ export default function AddExpenseScreen({ navigation, route }) {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
     });
 
     if (!result.canceled) {
@@ -298,9 +307,10 @@ export default function AddExpenseScreen({ navigation, route }) {
           <TextInput
             style={styles.input}
             placeholder="1.000"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
+            inputMode="decimal"
             value={amount}
-            onChangeText={(text) => setAmount(formatThousandsTRInput(text))}
+            onChangeText={(text) => setAmount(formatMoneyInput(text))}
           />
           <Text style={styles.hint}>Örnek: 1.000</Text>
         </View>
@@ -370,7 +380,10 @@ export default function AddExpenseScreen({ navigation, route }) {
                   placeholder="0"
                   keyboardType="decimal-pad"
                   value={personal[String(member.id)] || ''}
-                  onChangeText={(value) => setPersonal((prev) => ({ ...prev, [String(member.id)]: value }))}
+                  onChangeText={(value) => setPersonal((prev) => ({
+                    ...prev,
+                    [String(member.id)]: formatMoneyInput(value),
+                  }))}
                 />
               </View>
             ))}

@@ -46,6 +46,8 @@ export default function DateField({ value, onChange, placeholder, minimumDate, m
                 value={dateValue}
                 mode="date"
                 display="inline"
+                themeVariant={theme.mode === 'light' ? 'light' : 'dark'}
+                accentColor={theme.colors.primary[600]}
                 onChange={handleChange}
                 minimumDate={minimumDate}
                 maximumDate={maximumDate}
@@ -84,7 +86,7 @@ const makeStyles = (theme) => StyleSheet.create({
     borderRadius: 12,
     padding: 14,
   },
-  text: { fontSize: 16 },
+  text: { flex: 1, fontSize: 16 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: theme.colors.surface,

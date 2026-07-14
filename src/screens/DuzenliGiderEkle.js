@@ -9,19 +9,7 @@ import { useTheme } from '../shared/theme/ThemeProvider';
 import { houseApi, expensesApi } from '../services/api';
 import eventBus from '../shared/events/bus';
 import { getCategoryDisplayName, toExpenseCategory } from '../constants/ExpenseEnums';
-
-const formatThousandsTRInput = (text) => {
-  if (text == null) return '';
-  const digits = String(text).replace(/\D/g, '');
-  if (!digits) return '';
-  const intStr = digits.replace(/^0+(?=\d)/, '');
-  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
-
-const parseIntFromTR = (value) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits ? Number(digits) : 0;
-};
+import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 
 export default function DuzenliGiderEkle({ navigation, route }) {
   const { user } = useAuth();
@@ -105,7 +93,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       const descriptionSafe = `${safeTur} | Başlangıç ${selectedDate.toLocaleDateString('tr-TR')}`;
 
       if (mode === 'installment') {
-        const total = parseIntFromTR(totalAmount);
+        const total = parseMoneyInput(totalAmount);
         if (!(total > 0)) return Alert.alert('Hata', 'Toplam tutar sıfırdan büyük olmalı.');
 
         await expensesApi.create({
@@ -130,7 +118,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
         Alert.alert('Başarılı', 'Taksitli gider planı oluşturuldu.');
       } else if (mode === 'recurring') {
-        const monthly = parseIntFromTR(fixedAmount);
+        const monthly = parseMoneyInput(fixedAmount);
         if (!(monthly > 0)) return Alert.alert('Hata', 'Aylık tutar sıfırdan büyük olmalı.');
 
         await expensesApi.create({
@@ -155,7 +143,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
         Alert.alert('Başarılı', 'Düzenli gider planı oluşturuldu.');
       } else {
-        const once = parseIntFromTR(fixedAmount);
+        const once = parseMoneyInput(fixedAmount);
         if (!(once > 0)) return Alert.alert('Hata', 'Tutar sıfırdan büyük olmalı.');
 
         await expensesApi.create({
@@ -248,8 +236,9 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 value={fixedAmount}
-                onChangeText={(text) => setFixedAmount(formatThousandsTRInput(text))}
-                keyboardType="numeric"
+                onChangeText={(text) => setFixedAmount(formatMoneyInput(text))}
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 placeholder="20.000"
                 placeholderTextColor={theme.colors.text.disabled}
               />
@@ -262,8 +251,9 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 value={totalAmount}
-                onChangeText={(text) => setTotalAmount(formatThousandsTRInput(text))}
-                keyboardType="numeric"
+                onChangeText={(text) => setTotalAmount(formatMoneyInput(text))}
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 placeholder="120.000"
                 placeholderTextColor={theme.colors.text.disabled}
               />

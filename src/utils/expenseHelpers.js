@@ -218,7 +218,7 @@ export const getExpenseDisplayTitle = (item) => {
     raw?.category ?? raw?.Category ?? raw?.utilityType ?? raw?.UtilityType ?? ''
   ).trim();
 
-  if (planType !== 'irregular' && /(başlangıç|baslangic|baÅŸlangÄ±Ã§)/i.test(rawTitle)) {
+  if (planType !== 'irregular' && /(başlangıç|baslangic)/i.test(rawTitle)) {
     return categoryLabel;
   }
 

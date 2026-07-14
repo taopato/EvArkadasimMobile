@@ -1,7 +1,6 @@
 import { getCategoryDisplayName } from '../constants/ExpenseEnums';
 
-// Backend Domain.Enums.ExpenseCategory: Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Other=99.
-// "Gas" has no backend id — it's only ever inferred from free-text (see textToKey below).
+// Backend Domain.Enums.ExpenseCategory: Rent=0, Internet=1, Electricity=2, Water=3, Market=4, Food=5, Gas=6, Other=99.
 export const CATEGORY_ID_TO_KEY = {
   0: 'Rent',
   1: 'Internet',
@@ -9,6 +8,7 @@ export const CATEGORY_ID_TO_KEY = {
   3: 'Water',
   4: 'Market',
   5: 'Food',
+  6: 'Gas',
   99: 'Other',
 };
 
