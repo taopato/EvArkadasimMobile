@@ -17,7 +17,6 @@ module.exports = ({ config }) => {
       'expo-font',
       'expo-apple-authentication',
       '@react-native-community/datetimepicker',
-      'expo-status-bar',
       [
         'expo-splash-screen',
         {
