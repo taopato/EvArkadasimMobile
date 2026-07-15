@@ -42,6 +42,20 @@ test('mobile web critical navigation renders without runtime errors', async ({ p
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('home.png'), fullPage: true });
 
+  await page.getByText('Borç Özeti', { exact: true }).click();
+  await expect(page.getByText('Borç/Alacak Özeti', { exact: true })).toBeVisible();
+  await page.getByText('Borçlarımı Gör', { exact: true }).click();
+  await expect(page.getByText('Borçlarım', { exact: true })).toBeVisible();
+  await expect(page.getByText('Toplam Borç', { exact: true }).last()).toBeVisible();
+  if (await page.getByText('Dönemsel Ödemeler', { exact: true }).count()) {
+    await expect(page.getByText('Normal ortak hesap', { exact: true })).toBeVisible();
+  }
+  await assertNoHorizontalOverflow();
+  await page.screenshot({ path: testInfo.outputPath('debts.png'), fullPage: true });
+  await page.goBack();
+  await page.goBack();
+  await expect(page.getByText('Haftalık ev harcaması', { exact: true })).toBeVisible();
+
   await page.getByText('Ödemeler', { exact: true }).last().click();
   await expect(page.getByText('Yeni Ödeme Ekle', { exact: true })).toBeVisible();
   await assertNoHorizontalOverflow();
@@ -65,6 +79,15 @@ test('mobile web critical navigation renders without runtime errors', async ({ p
   await expect(page.getByText('Yeni Fatura Planı Ekle', { exact: true })).toBeVisible();
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('bills.png'), fullPage: true });
+  await page.getByText('Yeni Fatura Planı Ekle', { exact: true }).click();
+  await expect(page.getByText('Ödeme Planı', { exact: true })).toBeVisible();
+  await expect(page.getByText('Dönemsel sabit', { exact: true })).toBeVisible();
+  await page.getByText('Dönemsel sabit', { exact: true }).click();
+  await expect(page.getByText('Borçlarım alanında gösterilmeye başlanacak gün', { exact: true })).toBeVisible();
+  await assertNoHorizontalOverflow();
+  await page.screenshot({ path: testInfo.outputPath('scheduled-plan-create.png'), fullPage: true });
+  await page.goBack();
+  await expect(page.getByText('Bu ay toplam', { exact: true })).toBeVisible();
   await page.getByText('Elektrik', { exact: true }).last().click();
   await expect(page.getByText('Fatura Detayı', { exact: true })).toBeVisible();
   await expect(page.getByText('Fatura bilgileri', { exact: true })).toBeVisible();

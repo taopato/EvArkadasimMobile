@@ -5,13 +5,14 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  Alert,
   FlatList,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { expensesApi } from '../services/api';
+import { expensesApi, scheduledChargesApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { getCategoryDisplayName as getCatName, getCategoryIconName as getCatIconName } from '../constants/ExpenseEnums';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
@@ -29,6 +30,7 @@ import { getParentCategoryHint } from '../shared/state/categoryHints';
 import { useFocusEffect } from '@react-navigation/native';
 import useScrollRestore from '../hooks/useScrollRestore';
 import BrandMark from '../components/BrandMark';
+import ScheduledChargeCard from '../components/ScheduledChargeCard';
 
 const formatAmount = (amount) =>
   new Intl.NumberFormat('tr-TR', {
@@ -153,6 +155,8 @@ export default function BillsOverviewScreen({ navigation, route }) {
     type: 'success',
   });
   const [items, setItems] = React.useState([]);
+  const [scheduledPlans, setScheduledPlans] = React.useState([]);
+  const [busyCycleId, setBusyCycleId] = React.useState(null);
   const lastFetchedAtRef = useRef(0);
   const debounceRef = useRef(null);
   const { listRef, handleScroll } = useScrollRestore(
@@ -171,6 +175,14 @@ export default function BillsOverviewScreen({ navigation, route }) {
     if (!opts?.silent) setLoading(true);
     try {
       const resExp = await expensesApi.getByHouse(Number(houseId));
+      let scheduled = [];
+      try {
+        const resScheduled = await scheduledChargesApi.getByHouse(Number(houseId));
+        const rawScheduled = resScheduled?.data?.data ?? resScheduled?.data ?? [];
+        scheduled = Array.isArray(rawScheduled) ? rawScheduled : [];
+      } catch (scheduledError) {
+        console.error('Scheduled charges fetch error:', scheduledError);
+      }
       const rawExp =
         resExp?.data?.data ?? resExp?.data?.list ?? resExp?.data ?? [];
       const arrExp = Array.isArray(rawExp) ? rawExp : [];
@@ -303,11 +315,13 @@ export default function BillsOverviewScreen({ navigation, route }) {
       );
 
       setItems(onlyThisMonth);
+      setScheduledPlans(scheduled);
       lastFetchedAtRef.current = Date.now();
     } catch (e) {
       console.error('BillsOverviewScreen fetch error:', e);
       showToast('Fatura verileri yüklenemedi', 'error');
       setItems([]);
+      setScheduledPlans([]);
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -325,11 +339,17 @@ export default function BillsOverviewScreen({ navigation, route }) {
       if (Number(changedId) !== Number(houseId)) return;
       fetchData({ silent: true });
     };
+    const onScheduledUpdated = ({ houseId: changedId }) => {
+      if (Number(changedId) !== Number(houseId)) return;
+      fetchData({ silent: true });
+    };
     eventBus.on('expenses:updated', onUpdated);
     eventBus.on('expenses:created:recurring', onCreatedRecurring);
+    eventBus.on('scheduled-charges:updated', onScheduledUpdated);
     return () => {
       eventBus.off('expenses:updated', onUpdated);
       eventBus.off('expenses:created:recurring', onCreatedRecurring);
+      eventBus.off('scheduled-charges:updated', onScheduledUpdated);
     };
   }, [houseId]);
 
@@ -406,6 +426,48 @@ export default function BillsOverviewScreen({ navigation, route }) {
     });
   };
 
+  const handleToggleShare = async (plan, share, isPaid) => {
+    if (!plan?.cycle?.id || !share?.userId) return;
+    setBusyCycleId(plan.cycle.id);
+    try {
+      await scheduledChargesApi.setSharePaid(plan.cycle.id, share.userId, isPaid);
+      showToast(isPaid ? 'Kira payı ödendi olarak işaretlendi.' : 'Kira payı yeniden açıldı.');
+      eventBus.emit('scheduled-charges:updated', { houseId });
+    } catch (error) {
+      showToast(error?.response?.data?.message || 'Ödeme durumu güncellenemedi.', 'error');
+    } finally {
+      setBusyCycleId(null);
+    }
+  };
+
+  const handleToggleExternal = (plan, isPaid) => {
+    if (!plan?.cycle?.id) return;
+    Alert.alert(
+      isPaid ? 'Kirayı ödendi işaretle' : 'Ödeme durumunu geri al',
+      isPaid
+        ? 'Bu dönem için ev sahibine ödeme yapıldığını onaylıyor musunuz?'
+        : 'Ev sahibine ödeme durumunu yeniden bekliyor yapmak istiyor musunuz?',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: isPaid ? 'Ödendi' : 'Geri Al',
+          onPress: async () => {
+            setBusyCycleId(plan.cycle.id);
+            try {
+              await scheduledChargesApi.setExternalPaid(plan.cycle.id, isPaid);
+              showToast(isPaid ? 'Kira ödemesi tamamlandı.' : 'Ödeme durumu geri alındı.');
+              eventBus.emit('scheduled-charges:updated', { houseId });
+            } catch (error) {
+              showToast(error?.response?.data?.message || 'Ödeme durumu güncellenemedi.', 'error');
+            } finally {
+              setBusyCycleId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const categories = [
     { key: null, label: 'Tümü' },
     { key: 'Electricity', label: 'Elektrik' },
@@ -454,6 +516,24 @@ export default function BillsOverviewScreen({ navigation, route }) {
             </View>
           )}
         </View>
+        {scheduledPlans.length > 0 && (
+          <View style={{ marginTop: 18 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+              <Text style={{ color: theme.colors.text.primary, fontSize: 17, fontWeight: '900' }}>Dönemsel Ödemeler</Text>
+              <Text style={{ color: theme.colors.text.secondary, fontSize: 12 }}>Normal hesaptan ayrı</Text>
+            </View>
+            {scheduledPlans.map((plan) => (
+              <ScheduledChargeCard
+                key={String(plan.id)}
+                plan={plan}
+                currentUserId={user?.id}
+                busy={Number(busyCycleId) === Number(plan?.cycle?.id)}
+                onToggleShare={handleToggleShare}
+                onToggleExternal={handleToggleExternal}
+              />
+            ))}
+          </View>
+        )}
         <PrimaryActionCard
           icon="document-text-outline"
           title="Yeni Fatura Planı Ekle"
@@ -503,7 +583,7 @@ export default function BillsOverviewScreen({ navigation, route }) {
         />
       </View>
     </View>
-  ), [theme, totals, filtered, houseName, category, isCompact]);
+  ), [theme, totals, filtered, houseName, category, isCompact, scheduledPlans, busyCycleId, user?.id]);
 
   const renderItem = useCallback(({ item: it }) => {
     if (it.__header) {
