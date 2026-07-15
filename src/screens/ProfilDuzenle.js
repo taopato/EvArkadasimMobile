@@ -103,6 +103,7 @@ export default function ProfilDuzenle({ navigation }) {
   const [ibanDigits, setIbanDigits] = useState(() => getTurkishIbanDigits(user?.iban));
   const [photoAsset, setPhotoAsset] = useState(null);
   const [saving, setSaving] = useState(false);
+  const userId = Number(user?.id ?? user?.userId ?? 0);
 
   const initials = useMemo(() => {
     const source = fullName || user?.email || 'Kullanıcı';
@@ -163,7 +164,7 @@ export default function ProfilDuzenle({ navigation }) {
       Alert.alert('IBAN', 'Geçerli bir Türkiye IBAN’ı gir.');
       return;
     }
-    if (!user?.id) {
+    if (!Number.isInteger(userId) || userId <= 0) {
       Alert.alert('Oturum hatası', 'Profil güncellemek için yeniden giriş yapmalısın.');
       return;
     }
@@ -173,11 +174,11 @@ export default function ProfilDuzenle({ navigation }) {
       let profileImageUrl = user?.profileImageUrl || null;
       if (photoAsset) {
         const image = await buildUploadImage(photoAsset);
-        const uploadResponse = await authApi.uploadProfileImage(user.id, image);
+        const uploadResponse = await authApi.uploadProfileImage(userId, image);
         profileImageUrl = uploadResponse?.data?.profileImageUrl || profileImageUrl;
       }
 
-      const response = await authApi.updateProfile(user.id, {
+      const response = await authApi.updateProfile(userId, {
         fullName: cleanName,
         phoneNumber: phoneDigits ? toTurkishMobileE164(phoneDigits) : '',
         iban: ibanDigits ? toCanonicalTurkishIban(ibanDigits) : '',

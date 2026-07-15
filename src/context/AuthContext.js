@@ -1,54 +1,36 @@
 // src/context/AuthContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import eventBus from '../shared/events/bus';
+import { isTokenExpired, normalizeAuthUser } from '../shared/auth/session';
 
 const AuthContext = createContext();
-
-const decodeJwtPayload = (token) => {
-  try {
-    const parts = String(token || '').split('.');
-    if (parts.length < 2) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-    const json = globalThis?.atob
-      ? globalThis.atob(padded)
-      : Buffer.from(padded, 'base64').toString('utf-8');
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-};
-
-const isTokenExpired = (token) => {
-  const payload = decodeJwtPayload(token);
-  const exp = Number(payload?.exp);
-  if (!Number.isFinite(exp) || exp <= 0) return false;
-  const now = Math.floor(Date.now() / 1000);
-  return exp <= now + 15;
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef(null);
+  const tokenRef = useRef(null);
 
-  // Uygulama başladığında token'ı kontrol et
-  useEffect(() => {
-    checkToken();
+  const applySession = useCallback((nextUser, nextToken) => {
+    userRef.current = nextUser;
+    tokenRef.current = nextToken;
+    setUser(nextUser);
+    setToken(nextToken);
   }, []);
 
+  // Uygulama başladığında token'ı kontrol et
   // API 401 dönerse (token gecersiz/suresi dolmus) oturumu otomatik temizle
   useEffect(() => {
     const onUnauthorized = () => {
-      setToken(null);
-      setUser(null);
+      applySession(null, null);
     };
     eventBus.on('auth:unauthorized', onUnauthorized);
     return () => eventBus.off('auth:unauthorized', onUnauthorized);
-  }, []);
+  }, [applySession]);
 
-  const checkToken = async () => {
+  const checkToken = useCallback(async () => {
     try {
       const storedToken = await AsyncStorage.getItem('authToken');
       const storedUser = await AsyncStorage.getItem('user');
@@ -57,20 +39,24 @@ export const AuthProvider = ({ children }) => {
         if (isTokenExpired(storedToken)) {
           await AsyncStorage.removeItem('authToken');
           await AsyncStorage.removeItem('user');
-          setToken(null);
-          setUser(null);
+          applySession(null, null);
           return;
         }
 
         try {
-          const userData = JSON.parse(storedUser);
-          setToken(storedToken);
-          setUser(userData);
+          const userData = normalizeAuthUser(JSON.parse(storedUser), storedToken);
+          if (!userData?.id) {
+            await AsyncStorage.multiRemove(['authToken', 'user']);
+            applySession(null, null);
+            return;
+          }
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
+          applySession(userData, storedToken);
         } catch (parseError) {
           console.error('Kullanıcı verisi parse hatası:', parseError);
           // Geçersiz veri varsa temizle
-          await AsyncStorage.removeItem('authToken');
-          await AsyncStorage.removeItem('user');
+          await AsyncStorage.multiRemove(['authToken', 'user']);
+          applySession(null, null);
         }
       } else if (!storedToken && storedUser) {
         await AsyncStorage.removeItem('user');
@@ -82,41 +68,51 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [applySession]);
 
-  const login = async (userData, authToken) => {
+  useEffect(() => {
+    checkToken();
+  }, [checkToken]);
+
+  const login = useCallback(async (userData, authToken) => {
     try {
       if (!authToken || isTokenExpired(authToken)) {
         throw new Error('Geçersiz veya süresi dolmuş oturum belirteci.');
       }
 
-      const normalizedUser = {
-        ...userData,
-        id: Number(userData?.id ?? userData?.userId ?? 0) || 0,
-      };
+      const normalizedUser = normalizeAuthUser(userData, authToken);
+      if (!normalizedUser?.id) {
+        throw new Error('Oturum yanıtında kullanıcı kimliği bulunamadı.');
+      }
 
       await AsyncStorage.setItem('authToken', authToken);
       await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
 
-      setToken(authToken);
-      setUser(normalizedUser);
+      applySession(normalizedUser, authToken);
     } catch (error) {
       console.error('Login hatası:', error);
       throw error;
     }
-  };
+  }, [applySession]);
 
-  const updateUser = async (updater) => {
+  const updateUser = useCallback(async (updater) => {
     try {
-      const nextUser = typeof updater === 'function' ? updater(user) : updater;
+      const currentUser = userRef.current;
+      const candidate = typeof updater === 'function' ? updater(currentUser) : updater;
+      const nextUser = normalizeAuthUser(candidate, tokenRef.current);
+      if (!nextUser?.id) {
+        throw new Error('Kullanıcı kimliği korunamadı.');
+      }
       await AsyncStorage.setItem('user', JSON.stringify(nextUser));
+      userRef.current = nextUser;
       setUser(nextUser);
     } catch (error) {
       console.error('Kullanıcı güncelleme hatası:', error);
+      throw error;
     }
-  };
+  }, []);
 
-  const setDefaultHouseId = async (houseId, houseName) => {
+  const setDefaultHouseId = useCallback(async (houseId, houseName) => {
     const hid = Number(houseId);
     if (!hid) return;
 
@@ -125,24 +121,23 @@ export const AuthProvider = ({ children }) => {
       defaultHouseId: hid,
       ...(houseName ? { defaultHouseName: houseName } : {}),
     }));
-  };
+  }, [updateUser]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       // Token ve kullanıcı bilgilerini temizle
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('user');
       
-      setToken(null);
-      setUser(null);
+      applySession(null, null);
     } catch (error) {
       console.error('Logout hatası:', error);
     }
-  };
+  }, [applySession]);
 
-  const getToken = () => {
-    return token;
-  };
+  const getToken = useCallback(() => {
+    return tokenRef.current;
+  }, []);
 
   return (
     <AuthContext.Provider value={{ 

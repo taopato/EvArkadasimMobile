@@ -10,6 +10,7 @@ import eventBus from '../shared/events/bus';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { shadow } from '../shared/ui/shadow';
 import BrandMark from '../components/BrandMark';
+import PrimaryActionCard from '../shared/ui/PrimaryActionCard';
 
 const PAGE_SIZE = 8;
 
@@ -215,9 +216,10 @@ export default function Odemeler({ route, navigation }) {
               <BrandMark variant="logo" size={110} subtle style={styles.heroWatermark} />
             </View>
 
-            <TouchableOpacity
-              style={styles.primaryCta}
-              activeOpacity={0.9}
+            <PrimaryActionCard
+              icon="add"
+              title="Yeni Ödeme Ekle"
+              subtitle="Borcu kapat veya ödeme isteği gönder"
               onPress={() => {
                 if (houseId) {
                   navigation.navigate('OdemeEkle', { houseId, houseName: user?.defaultHouseName || 'Aktif Ev' });
@@ -225,16 +227,8 @@ export default function Odemeler({ route, navigation }) {
                   navigation.navigate('GrupListesi', { redirectTo: 'OdemeEkle' });
                 }
               }}
-            >
-              <View style={styles.primaryCtaIconWrap}>
-                <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.primaryCtaTitle}>Yeni Ödeme Ekle</Text>
-                <Text style={styles.primaryCtaSubtitle}>Borcu kapat veya ödeme isteği gönder</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.onPrimary} />
-            </TouchableOpacity>
+              style={styles.primaryCta}
+            />
 
             <View style={styles.filterRow}>
               <Chip title="Tümü" active={filterMode === 'all'} onPress={() => setFilterMode('all')} />
@@ -290,26 +284,8 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   heroValue: { color: '#fff', fontSize: 22, fontWeight: '900' },
   heroWatermark: { position: 'absolute', right: -20, bottom: -20, opacity: 0.12 },
   primaryCta: {
-    backgroundColor: theme.colors.primary[600],
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 16,
-    gap: 12,
-    ...shadow(2, 'rgba(23,40,57,0.18)'),
   },
-  primaryCtaIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryCtaTitle: { color: theme.colors.text.onPrimary, fontSize: 16, fontWeight: '800' },
-  primaryCtaSubtitle: { marginTop: 2, color: theme.colors.text.onPrimary, opacity: 0.9, fontSize: 12 },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
   chip: {
     paddingVertical: 9,

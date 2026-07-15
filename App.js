@@ -10,7 +10,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { LanguageProvider } from './src/context/LanguageContext';
 import MainTabBar from './src/shared/ui/MainTabBar';
 
 import GirisYap from './src/screens/GirisYap';
@@ -45,7 +44,6 @@ import ProfilDuzenle from './src/screens/ProfilDuzenle';
 import HarcamaOzeti from './src/screens/HarcamaOzeti';
 import FisDetayi from './src/screens/FisDetayi';
 import FisGecmisi from './src/screens/FisGecmisi';
-import DilAyarlari from './src/screens/DilAyarlari';
 import EvNotlari from './src/screens/EvNotlari';
 import Bildirimler from './src/screens/Bildirimler';
 import HesabiSil from './src/screens/HesabiSil';
@@ -117,7 +115,6 @@ const linking = {
       BekleyenOdemeler: 'bekleyen-odemeler',
       DebtSummaryScreen: 'debt-summary',
       ThemeSettingsScreen: 'theme-settings',
-      DilAyarlari: 'dil-ayarlari',
       EvNotlari: 'ev-notlari',
       Bildirimler: 'bildirimler',
     },
@@ -229,7 +226,6 @@ function ThemedNavigator() {
             <Stack.Screen name="BillsOverviewScreen" component={Faturalar} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="UtilityBillCreate" component={DuzenliGiderEkle} options={{ title: '' }} />
             <Stack.Screen name="HarcamaOzeti" component={HarcamaOzeti} options={{ title: 'Harcama Özeti', headerShown: false }} />
-            <Stack.Screen name="DilAyarlari" component={DilAyarlari} options={{ title: 'Dil Ayarları' }} />
             <Stack.Screen name="EvNotlari" component={EvNotlari} options={{ title: 'Ev Notları' }} />
             <Stack.Screen name="Bildirimler" component={Bildirimler} options={{ title: 'Bildirimler' }} />
             <Stack.Screen name="HesabiSil" component={HesabiSil} options={{ headerShown: false }} />
@@ -250,14 +246,12 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <LanguageProvider>
-            <ThemeProvider>
-              <AuthProvider>
-                <ThemedStatusBar />
-                <ThemedNavigator />
-              </AuthProvider>
-            </ThemeProvider>
-          </LanguageProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <ThemedStatusBar />
+              <ThemedNavigator />
+            </AuthProvider>
+          </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

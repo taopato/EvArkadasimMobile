@@ -25,8 +25,8 @@ import { BILL_KEYS, normalizeExpense } from '../utils/expenseClassifier';
 import { HeroHeader } from '../shared/ui/premium/HeroHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import eventBus from '../shared/events/bus';
-import { shadow } from '../shared/ui/shadow';
 import BrandMark from '../components/BrandMark';
+import PrimaryActionCard from '../shared/ui/PrimaryActionCard';
 import {
   compareByRecentDate,
   formatCurrency,
@@ -496,14 +496,12 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
       />
 
       <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.primaryActionButton}
+        <PrimaryActionCard
+          icon="add"
+          title="Yeni Harcama Ekle"
+          subtitle="Tek seferlik veya paylaşımlı bir gider oluştur"
           onPress={() => navigation.navigate('HarcamaEkle', { houseId, houseName })}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="add-circle-outline" size={19} color={theme.colors.text.onPrimary} />
-          <Text style={styles.primaryActionText}>Yeni Harcama</Text>
-        </TouchableOpacity>
+        />
         <TouchableOpacity
           style={styles.secondaryActionButton}
           onPress={() => setShowFilters(true)}
@@ -619,32 +617,16 @@ function makeStyles(theme, isCompact) {
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
     loadingText: { marginTop: 16, fontSize: 16, color: theme.colors.text.secondary },
     actionRow: {
-      flexDirection: isCompact ? 'column' : 'row',
       gap: 10,
       paddingHorizontal: 16,
       paddingTop: 14,
       paddingBottom: 10,
       backgroundColor: theme.colors.background,
     },
-    primaryActionButton: {
-      flex: 1,
-      backgroundColor: theme.colors.primary[600],
-      borderRadius: 12,
-      minHeight: 50,
-      paddingHorizontal: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      ...shadow(2, 'rgba(29, 78, 216, 0.22)'),
-    },
-    primaryActionText: {
-      color: theme.colors.text.onPrimary,
-      fontSize: 15,
-      fontWeight: '800',
-    },
     secondaryActionButton: {
-      minWidth: isCompact ? 0 : 108,
+      alignSelf: 'flex-end',
+      minWidth: 108,
+      minHeight: 42,
       paddingHorizontal: 16,
       borderRadius: 16,
       borderWidth: 1,

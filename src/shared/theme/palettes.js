@@ -1,10 +1,6 @@
-// Geliştirici test amaçlı renk paleti seçenekleri.
-// Her palet artık sadece vurgu (primary/info) rengini değil, arka plan/kart/nötr
-// tonlarını da değiştirir — böylece gerçekten farklı bir tema hissi verir.
-// Kullanıcı birini seçip beğendiğinde, bu dosya tek bir sabit palete indirgenip
-// TemaAyarlari.js'teki palet seçici kaldırılacak (bkz. PROGRESS_NOTES.md).
+// Kullanıcı tarafından seçilebilen kalıcı Roomora renk paletleri.
 
-export const DEFAULT_PALETTE_KEY = 'navy';
+export const DEFAULT_PALETTE_KEY = 'sky';
 
 export const PALETTES = [
   {
