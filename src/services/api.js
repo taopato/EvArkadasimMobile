@@ -322,6 +322,19 @@ export const expensesApi = {
   remove: (expenseId) => api.delete(`/Expenses/DeleteExpense/${expenseId}`),
 };
 
+// ---------------- SCHEDULED CHARGES ----------------
+// Kira/aidat gibi dönemsel tahsilatlar normal borç defterinden ayrı tutulur.
+export const scheduledChargesApi = {
+  create: (body) => api.post('/RecurringCharges', body),
+  getByHouse: (houseId) => api.get(`/RecurringCharges/house/${Number(houseId)}`),
+  getMyDue: (houseId) => api.get(`/RecurringCharges/house/${Number(houseId)}/my-due`),
+  setSharePaid: (cycleId, userId, isPaid) =>
+    api.put(`/RecurringCharges/cycles/${Number(cycleId)}/shares/${Number(userId)}`, { isPaid: Boolean(isPaid) }),
+  setExternalPaid: (cycleId, isPaid) =>
+    api.put(`/RecurringCharges/cycles/${Number(cycleId)}/external-payment`, { isPaid: Boolean(isPaid) }),
+  remove: (planId) => api.delete(`/RecurringCharges/${Number(planId)}`),
+};
+
 // ---------------- RECEIPTS ----------------
 export const receiptsApi = {
   scan: async ({ houseId, image }) => {

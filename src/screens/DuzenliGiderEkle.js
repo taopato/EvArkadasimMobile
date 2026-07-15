@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useAuth } from '../context/AuthContext';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { houseApi, expensesApi } from '../services/api';
+import { houseApi, expensesApi, scheduledChargesApi } from '../services/api';
 import eventBus from '../shared/events/bus';
 import { getCategoryDisplayName, toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
@@ -28,13 +28,14 @@ export default function DuzenliGiderEkle({ navigation, route }) {
   const [totalAmount, setTotalAmount] = useState('');
   const [installmentCount, setInstallmentCount] = useState('12');
   const [participants, setParticipants] = useState([]);
+  const [collectionStartDay, setCollectionStartDay] = useState('10');
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), Math.min(now.getDate(), 28));
+    return new Date(now.getFullYear(), now.getMonth(), 15);
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempMonthOffset, setTempMonthOffset] = useState(0);
-  const [tempDay, setTempDay] = useState(() => String(Math.min(new Date().getDate(), 28)));
+  const [tempDay, setTempDay] = useState('15');
 
   const calendarMonths = useMemo(() => Array.from({ length: 12 }).map((_, index) => {
     const now = new Date();
@@ -64,6 +65,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           fullName: item.fullName ?? item.FullName ?? item.name ?? 'Bilinmeyen',
         }));
         setMembers(arr);
+        if (mode === 'recurring') setParticipants(arr.map((item) => String(item.userId)));
         const me = arr.find((item) => String(item.userId) === String(user?.id));
         if (me) setPayerUserId(String(me.userId));
       } catch {
@@ -72,11 +74,18 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     })();
   }, [activeHouseId, navigation, user?.id]);
 
+  useEffect(() => {
+    if (mode === 'recurring' && participants.length === 0 && members.length > 0) {
+      setParticipants(members.map((item) => String(item.userId)));
+    }
+  }, [mode, members, participants.length]);
+
   const applySelectedDate = () => {
     const now = new Date();
     const monthDate = new Date(now.getFullYear(), tempMonthOffset, 1);
     const nextDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), Number(tempDay));
     setSelectedDate(nextDate);
+    setCollectionStartDay(String(Math.max(1, Number(tempDay) - 5)));
     setShowDatePicker(false);
   };
 
@@ -120,28 +129,28 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       } else if (mode === 'recurring') {
         const monthly = parseMoneyInput(fixedAmount);
         if (!(monthly > 0)) return Alert.alert('Hata', 'Aylık tutar sıfırdan büyük olmalı.');
+        const collectionDay = Number(collectionStartDay);
+        if (!(collectionDay >= 1 && collectionDay <= dueDayNum)) {
+          return Alert.alert('Hata', 'Tahsilat başlangıcı ödeme gününden sonra olamaz.');
+        }
+        const scheduledParticipants = [...new Set([...participants, String(payerUserId)])];
+        if (scheduledParticipants.length < 2) {
+          return Alert.alert('Hata', 'En az iki ev üyesini kira payına dahil edin.');
+        }
 
-        await expensesApi.create({
-          mode: 'recurring',
-          tur: safeTur,
-          category: categoryEnum,
-          categoryId: categoryEnum,
-          CategoryId: categoryEnum,
-          tutar: monthly,
+        await scheduledChargesApi.create({
           houseId: activeHouseId,
-          odeyenUserId: Number(payerUserId),
-          kaydedenUserId: Number(user?.id),
+          title: safeTur,
+          type: type === 'Electricity' ? 'Electric' : type,
+          payerUserId: Number(payerUserId),
+          fixedAmount: monthly,
           dueDay: dueDayNum,
-          startMonth: isoStart,
-          ortakHarcamaTutari: monthly,
-          sahsiHarcamalar: [],
-          installmentCount: Number(installmentCount),
-          description: descriptionSafe,
-          Description: descriptionSafe,
-          Aciklama: descriptionSafe,
+          collectionStartDay: collectionDay,
+          startMonth,
+          participantUserIds: scheduledParticipants.map((id) => Number(id)),
         });
 
-        Alert.alert('Başarılı', 'Düzenli gider planı oluşturuldu.');
+        Alert.alert('Başarılı', 'Dönemsel ödeme planı oluşturuldu.');
       } else {
         const once = parseMoneyInput(fixedAmount);
         if (!(once > 0)) return Alert.alert('Hata', 'Tutar sıfırdan büyük olmalı.');
@@ -167,6 +176,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       }
 
       eventBus.emit('expenses:updated', { houseId: activeHouseId });
+      if (mode === 'recurring') eventBus.emit('scheduled-charges:updated', { houseId: activeHouseId });
       navigation.goBack();
     } catch (error) {
       Alert.alert('Hata', error?.response?.data?.message || error?.message || 'Kaydedilemedi');
@@ -199,7 +209,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
         <View style={CommonStyles.card}>
           <Text style={styles.sectionTitle}>Plan tipi</Text>
           <View style={styles.rowWrap}>
-            <Chip title="Düzenli" active={mode === 'recurring'} onPress={() => setMode('recurring')} />
+            <Chip title="Dönemsel sabit" active={mode === 'recurring'} onPress={() => setMode('recurring')} />
             <Chip title="Taksitli" active={mode === 'installment'} onPress={() => setMode('installment')} />
             <Chip title="Tek seferlik" active={mode === 'irregular'} onPress={() => setMode('irregular')} />
           </View>
@@ -260,7 +270,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
             </>
           )}
 
-          {mode !== 'irregular' && (
+          {mode === 'installment' && (
             <>
               <Text style={CommonStyles.label}>Süre</Text>
               <View style={styles.rowWrap}>
@@ -307,9 +317,28 @@ export default function DuzenliGiderEkle({ navigation, route }) {
             <Text style={styles.dateHint}>Takvimden seç</Text>
           </TouchableOpacity>
 
-          {mode === 'installment' && (
+          {mode === 'recurring' && (
             <>
-              <Text style={CommonStyles.label}>Katılımcılar</Text>
+              <Text style={CommonStyles.label}>Borçlarım alanında gösterilmeye başlanacak gün</Text>
+              <View style={styles.collectionRow}>
+                <Text style={styles.collectionPrefix}>Ayın</Text>
+                <TextInput
+                  style={[styles.input, styles.dayInput]}
+                  value={collectionStartDay}
+                  onChangeText={(text) => setCollectionStartDay(text.replace(/\D/g, '').slice(0, 2))}
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  placeholder="10"
+                  placeholderTextColor={theme.colors.text.disabled}
+                />
+                <Text style={styles.collectionHint}>günü açılır, ayın {selectedDate.getDate()}. günü sonlanır.</Text>
+              </View>
+            </>
+          )}
+
+          {(mode === 'installment' || mode === 'recurring') && (
+            <>
+              <Text style={CommonStyles.label}>{mode === 'recurring' ? 'Kira payına dahil kişiler' : 'Katılımcılar'}</Text>
               <View style={styles.rowWrap}>
                 {members.map((member) => {
                   const id = String(member.userId);
@@ -400,6 +429,10 @@ const makeStyles = (theme) => StyleSheet.create({
   customMonthRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   customMonthInput: { width: 80, marginBottom: 0, textAlign: 'center' },
   customMonthLabel: { color: theme.colors.text.secondary, fontWeight: '600' },
+  collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  collectionPrefix: { color: theme.colors.text.secondary, fontWeight: '700' },
+  collectionHint: { flex: 1, color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17 },
+  dayInput: { width: 58, marginBottom: 0, textAlign: 'center', paddingHorizontal: 8 },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],

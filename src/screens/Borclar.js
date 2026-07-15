@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, TextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { houseApi } from '../services/api';
+import { houseApi, scheduledChargesApi } from '../services/api';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { formatAmount } from '../constants/ExpenseEnums';
@@ -22,6 +23,7 @@ export default function Borclar({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
   const [totalDebt, setTotalDebt] = useState(0);
+  const [scheduledRows, setScheduledRows] = useState([]);
   const [searchText, setSearchText] = useState('');
 
   const fetchDebts = useCallback(async () => {
@@ -64,9 +66,17 @@ export default function Borclar({ navigation, route }) {
       setRows(myPerspective);
 
       setTotalDebt(sum(myPerspective, (d) => d.amount));
+      try {
+        const scheduledResponse = await scheduledChargesApi.getMyDue(Number(houseId));
+        const scheduledBody = scheduledResponse?.data?.data ?? scheduledResponse?.data ?? {};
+        setScheduledRows(Array.isArray(scheduledBody.items) ? scheduledBody.items : []);
+      } catch {
+        setScheduledRows([]);
+      }
     } catch {
       setRows([]);
       setTotalDebt(0);
+      setScheduledRows([]);
     } finally {
       setLoading(false);
     }
@@ -79,7 +89,10 @@ export default function Borclar({ navigation, route }) {
     const offBus = eventBus.on('payments:updated', (payload) => {
       if (!payload?.houseId || Number(payload.houseId) === Number(houseId)) fetchDebts();
     });
-    return () => { unsubFocus(); offBus(); };
+    const offScheduled = eventBus.on('scheduled-charges:updated', (payload) => {
+      if (!payload?.houseId || Number(payload.houseId) === Number(houseId)) fetchDebts();
+    });
+    return () => { unsubFocus(); offBus(); offScheduled(); };
   }, [navigation, fetchDebts, houseId]);
 
   const filteredRows = useMemo(() => {
@@ -87,6 +100,9 @@ export default function Borclar({ navigation, route }) {
     if (!q) return rows;
     return rows.filter((item) => String(item.counterpartyName || '').toLocaleLowerCase('tr-TR').includes(q));
   }, [rows, searchText]);
+
+  const scheduledDebt = useMemo(() => sum(scheduledRows, (item) => item.amount), [scheduledRows]);
+  const payableNow = totalDebt + scheduledDebt;
 
   if (loading) {
     return (
@@ -110,10 +126,57 @@ export default function Borclar({ navigation, route }) {
         <View style={CommonStyles.card}>
           <Text style={styles.sectionTitle}>Toplam Borç</Text>
           <View style={styles.netStatusContainer}>
-            <Text style={[styles.netAmount, { color: theme.colors.error[600] }]}>{formatAmount(totalDebt)}</Text>
+            <Text style={[styles.netAmount, { color: theme.colors.error[600] }]}>{formatAmount(payableNow)}</Text>
             <Text style={styles.netLabel}>Şu anki toplam borcunuz</Text>
+            {scheduledDebt > 0 && (
+              <View style={styles.breakdown}>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Normal ortak hesap</Text>
+                  <Text style={styles.breakdownValue}>{formatAmount(totalDebt)}</Text>
+                </View>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Dönemsel ödemeler</Text>
+                  <Text style={[styles.breakdownValue, { color: theme.colors.warning[700] }]}>{formatAmount(scheduledDebt)}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
+
+        {scheduledRows.length > 0 && (
+          <View style={CommonStyles.card}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Dönemsel Ödemeler</Text>
+                <Text style={styles.sectionHint}>Normal ortak hesaptan ayrı takip edilir.</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.billsLink}
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId, houseName } })}
+              >
+                <Text style={styles.billsLinkText}>Faturalar</Text>
+                <Ionicons name="chevron-forward" size={14} color={theme.colors.primary[700]} />
+              </TouchableOpacity>
+            </View>
+            {scheduledRows.map((item) => (
+              <View key={`${item.cycleId}-${item.planId}`} style={styles.scheduledRow}>
+                <View style={styles.scheduledIcon}>
+                  <Ionicons name={item.type === 'Rent' ? 'home-outline' : 'calendar-outline'} size={20} color={theme.colors.warning[700]} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.name}>{item.title}</Text>
+                  <Text style={styles.sub}>{item.payerName} kişisine • Ayın {item.dueDay}. günü</Text>
+                </View>
+                <View style={styles.amountWrap}>
+                  <Text style={styles.amount}>{formatAmount(item.amount)}</Text>
+                  <Text style={[styles.subError, item.status === 'Overdue' && { color: theme.colors.error[700] }]}>
+                    {item.status === 'Overdue' ? 'Gecikti' : 'Ödenmedi'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={CommonStyles.card}>
           <Text style={styles.sectionTitle}>Borçlu olduğunuz kişiler</Text>
@@ -179,6 +242,16 @@ const makeStyles = (theme) => StyleSheet.create({
   netStatusContainer: { alignItems: 'center', paddingVertical: 8 },
   netAmount: { fontSize: 28, fontWeight: '900' },
   netLabel: { marginTop: 6, color: theme.colors.text.secondary },
+  breakdown: { width: '100%', marginTop: 14, borderTopWidth: 1, borderTopColor: theme.colors.neutral[200], paddingTop: 10 },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
+  breakdownLabel: { color: theme.colors.text.secondary, fontSize: 12 },
+  breakdownValue: { color: theme.colors.text.primary, fontSize: 12, fontWeight: '800' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sectionHint: { color: theme.colors.text.secondary, fontSize: 11, marginTop: -7 },
+  billsLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 8, paddingLeft: 8 },
+  billsLinkText: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '800' },
+  scheduledRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  scheduledIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.warning[50], marginRight: 11 },
   searchInput: {
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
