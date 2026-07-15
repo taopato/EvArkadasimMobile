@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { PALETTES } from '../shared/theme/palettes';
+import { DEFAULT_PALETTE_KEY, PALETTES } from '../shared/theme/palettes';
 import { shadow } from '../shared/ui/shadow';
 
 const options = [
@@ -21,6 +21,11 @@ const options = [
   },
 ];
 
+const paletteOptions = [
+  ...PALETTES.filter((palette) => palette.key === DEFAULT_PALETTE_KEY),
+  ...PALETTES.filter((palette) => palette.key !== DEFAULT_PALETTE_KEY),
+];
+
 export default function ThemeSettingsScreen({ navigation }) {
   const { theme, themeKey, setThemeKey, paletteKey, setPaletteKey } = useTheme();
   const insets = useSafeAreaInsets();
@@ -29,7 +34,13 @@ export default function ThemeSettingsScreen({ navigation }) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.8}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Geri"
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          activeOpacity={0.8}
+        >
           <Ionicons name="chevron-back" size={26} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tema Ayarları</Text>
@@ -47,6 +58,10 @@ export default function ThemeSettingsScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={item.id}
+                accessibilityRole="radio"
+                accessibilityLabel={item.title}
+                accessibilityState={{ checked: active }}
+                aria-checked={active}
                 activeOpacity={0.9}
                 onPress={() => setThemeKey(item.id)}
                 style={[styles.optionCard, active && styles.optionCardActive]}
@@ -67,16 +82,20 @@ export default function ThemeSettingsScreen({ navigation }) {
         </View>
 
         <View style={styles.paletteSection}>
-          <Text style={styles.paletteTitle}>Renk Paleti <Text style={styles.paletteBadge}>Test</Text></Text>
+          <Text style={styles.paletteTitle}>Renk Paleti</Text>
           <Text style={styles.paletteLead}>
-            Farklı renk paletlerini dene, hangisini beğendiğine karar ver. Bu bölüm geliştirme aşamasında test amaçlıdır.
+            Roomora'yı sana en uygun renklerle kullan. Seçimin bu cihazda korunur ve istediğin zaman değiştirilebilir.
           </Text>
           <View style={styles.paletteGrid}>
-            {PALETTES.map((p) => {
+            {paletteOptions.map((p) => {
               const active = paletteKey === p.key;
               return (
                 <TouchableOpacity
                   key={p.key}
+                  accessibilityRole="radio"
+                  accessibilityLabel={p.label}
+                  accessibilityState={{ checked: active }}
+                  aria-checked={active}
                   activeOpacity={0.9}
                   onPress={() => setPaletteKey(p.key)}
                   style={styles.paletteCard}
@@ -209,16 +228,6 @@ const makeStyles = (theme, insets) =>
       fontSize: 17,
       fontWeight: '800',
       marginBottom: 6,
-    },
-    paletteBadge: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: theme.colors.warning[700],
-      backgroundColor: theme.colors.warning[50],
-      overflow: 'hidden',
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 999,
     },
     paletteLead: {
       color: theme.colors.text.secondary,

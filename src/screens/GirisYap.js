@@ -39,12 +39,6 @@ const GoogleLoginButton = ({ onSuccess, theme, styles }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const isExpoGo = Constants?.appOwnership === 'expo';
   const platformReady = getGooglePlatformReady();
-  const googleConfigured = Boolean(
-    GOOGLE_CLIENT_IDS.web ||
-      GOOGLE_CLIENT_IDS.android ||
-      GOOGLE_CLIENT_IDS.ios ||
-      GOOGLE_CLIENT_IDS.expo
-  );
 
   const projectNameForProxy = Constants?.expoConfig?.owner && Constants?.expoConfig?.slug
     ? `@${Constants.expoConfig.owner}/${Constants.expoConfig.slug}`
@@ -67,40 +61,7 @@ const GoogleLoginButton = ({ onSuccess, theme, styles }) => {
     });
   }, [isExpoGo, projectNameForProxy]);
 
-  if (!platformReady) {
-    return (
-      <>
-        <TouchableOpacity
-          style={[
-            styles.googleButton,
-            {
-              borderColor: theme.colors.neutral[200],
-              backgroundColor: theme.colors.background,
-              opacity: 0.62,
-            },
-          ]}
-          onPress={() =>
-            Alert.alert(
-              'Google girişi hazır değil',
-              Platform.OS === 'ios'
-                ? 'iOS için GOOGLE_IOS_CLIENT_ID tanımlanmalı. Şimdilik e-posta ve şifre ile giriş yapabilirsiniz.'
-                : Platform.OS === 'android'
-                  ? 'Android için GOOGLE_ANDROID_CLIENT_ID tanımlanmalı. Şimdilik e-posta ve şifre ile giriş yapabilirsiniz.'
-                  : 'Google client ID alanları henüz tanımlanmamış görünüyor.'
-            )
-          }
-          activeOpacity={0.85}
-        >
-          <Text style={[styles.googleIcon, { color: theme.colors.primary[600] }]}>G</Text>
-          <Text style={[styles.googleText, { color: theme.colors.text.primary }]}>Google ile giriş yap</Text>
-        </TouchableOpacity>
-
-        <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
-          Google girişi için bu platformun client ID bilgisi eksik.
-        </Text>
-      </>
-    );
-  }
+  if (!platformReady) return null;
 
   return (
     <GoogleLoginButtonReady
@@ -108,7 +69,6 @@ const GoogleLoginButton = ({ onSuccess, theme, styles }) => {
       theme={theme}
       styles={styles}
       googleRedirectUri={googleRedirectUri}
-      googleConfigured={googleConfigured}
       googleLoading={googleLoading}
       setGoogleLoading={setGoogleLoading}
     />
@@ -120,7 +80,6 @@ const GoogleLoginButtonReady = ({
   theme,
   styles,
   googleRedirectUri,
-  googleConfigured,
   googleLoading,
   setGoogleLoading,
 }) => {
@@ -190,11 +149,6 @@ const GoogleLoginButtonReady = ({
         </Text>
       </TouchableOpacity>
 
-      {!googleConfigured && (
-        <Text style={[styles.helper, { color: theme.colors.warning[600] }]}>
-          Google client ID bilgileri tanımlanınca bu buton aktif şekilde çalışacak.
-        </Text>
-      )}
     </>
   );
 };

@@ -18,8 +18,8 @@ import { useCommonStyles } from '../shared/ui/CommonStyles';
 import Toast from '../components/Toast';
 import eventBus from '../shared/events/bus';
 import { PremiumCard } from '../shared/ui/premium/Card';
-import { PremiumButton } from '../shared/ui/premium/Button';
 import { TouchableScale } from '../shared/ui/premium/TouchableScale';
+import PrimaryActionCard from '../shared/ui/PrimaryActionCard';
 import {
   normalizeExpense,
   NON_BILL_KEYS,
@@ -419,12 +419,11 @@ export default function BillsOverviewScreen({ navigation, route }) {
   const ListHeader = useCallback(() => (
     <View>
       <View style={{ paddingTop: insets.top + 12, paddingBottom: 4, paddingHorizontal: 16, backgroundColor: theme.colors.background }}>
-        <View style={{ flexDirection: isCompact ? 'column' : 'row', justifyContent: 'space-between', alignItems: isCompact ? 'flex-start' : 'center', gap: isCompact ? 12 : 0 }}>
+        <View>
           <View>
             <Text style={{ color: theme.colors.text.primary, fontSize: 26, fontWeight: '900' }}>Faturalar</Text>
             <Text style={{ color: theme.colors.text.secondary, marginTop: 2, fontSize: 14 }}>{houseName}</Text>
           </View>
-          <PremiumButton title="Plan Ekle" size="small" onPress={handleAddBill} />
         </View>
 
         <View style={{
@@ -455,6 +454,13 @@ export default function BillsOverviewScreen({ navigation, route }) {
             </View>
           )}
         </View>
+        <PrimaryActionCard
+          icon="document-text-outline"
+          title="Yeni Fatura Planı Ekle"
+          subtitle="Kira ve faturalar için düzenli ödeme planı oluştur"
+          onPress={handleAddBill}
+          style={{ marginTop: 12 }}
+        />
       </View>
 
       <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
@@ -603,7 +609,6 @@ export default function BillsOverviewScreen({ navigation, route }) {
       <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
         {loading ? 'Veriler yükleniyor...' : 'Bu ay için görünür fatura bulunmuyor.'}
       </Text>
-      {!loading && <PremiumButton title="+ Düzenli Gider Ekle" size="small" onPress={handleAddBill} />}
     </View>
   ), [theme, loading]);
 

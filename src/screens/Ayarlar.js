@@ -1,11 +1,11 @@
 import React from 'react';
-import { Alert, Image, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
-import { BASE_URL, GOOGLE_CLIENT_IDS, resolveMediaUrl } from '../shared/config/env';
+import { BASE_URL, resolveMediaUrl } from '../shared/config/env';
 import { shadow } from '../shared/ui/shadow';
 
 const Row = ({ icon, title, desc, onPress, danger, styles, theme }) => (
@@ -25,21 +25,12 @@ const Row = ({ icon, title, desc, onPress, danger, styles, theme }) => (
   </TouchableOpacity>
 );
 
-const isGoogleReadyForPlatform = () => {
-  const isExpoGo = Constants?.appOwnership === 'expo';
-  if (Platform.OS === 'ios') return Boolean(GOOGLE_CLIENT_IDS.ios || (isExpoGo && GOOGLE_CLIENT_IDS.expo));
-  if (Platform.OS === 'android') return Boolean(GOOGLE_CLIENT_IDS.android || (isExpoGo && GOOGLE_CLIENT_IDS.expo));
-  if (Platform.OS === 'web') return Boolean(GOOGLE_CLIENT_IDS.web);
-  return Boolean(GOOGLE_CLIENT_IDS.web || GOOGLE_CLIENT_IDS.expo);
-};
-
 export default function SettingsScreen({ navigation }) {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = makeStyles(theme, insets);
   const appVersion = Constants?.expoConfig?.version || '1.0.0';
-  const googleReady = isGoogleReadyForPlatform();
 
   const name = user?.fullName || user?.name || 'Kullanıcı';
   const houseName = user?.defaultHouseName || (user?.defaultHouseId ? `Ev #${user.defaultHouseId}` : 'Ev seçilmedi');
@@ -103,29 +94,6 @@ export default function SettingsScreen({ navigation }) {
             theme={theme}
           />
           <Row
-            icon="language-outline"
-            title="Dil Seçimi"
-            desc="Türkçe / English"
-            onPress={() => navigation.navigate('DilAyarlari')}
-            styles={styles}
-            theme={theme}
-          />
-          <Row
-            icon="logo-google"
-            title="Google Giriş"
-            desc={googleReady ? 'Kurulum hazır' : 'Bu cihazda henüz yapılandırılmadı'}
-            onPress={() =>
-              Alert.alert(
-                'Google ile Giriş',
-                googleReady
-                  ? 'Google ile giriş bu cihazda kullanılabilir. Giriş ekranından deneyebilirsiniz.'
-                  : 'Google ile giriş için native istemci kimliği henüz tanımlanmamış. Bu ekranda bir ayar yok; e-posta ve şifre ile giriş yapmaya devam edebilirsiniz.'
-              )
-            }
-            styles={styles}
-            theme={theme}
-          />
-          <Row
             icon="shield-checkmark-outline"
             title="Gizlilik Politikası"
             desc="Verilerinin nasıl işlendiğini ve seçeneklerini gör"
@@ -134,6 +102,20 @@ export default function SettingsScreen({ navigation }) {
                 await Linking.openURL(`${BASE_URL}/privacy.html`);
               } catch {
                 Alert.alert('Bağlantı açılamadı', 'Gizlilik politikası şu anda görüntülenemiyor.');
+              }
+            }}
+            styles={styles}
+            theme={theme}
+          />
+          <Row
+            icon="help-circle-outline"
+            title="Yardım ve Destek"
+            desc="Sık sorulan sorular ve iletişim"
+            onPress={async () => {
+              try {
+                await Linking.openURL(`${BASE_URL}/support.html`);
+              } catch {
+                Alert.alert('Bağlantı açılamadı', 'Destek sayfası şu anda görüntülenemiyor.');
               }
             }}
             styles={styles}
@@ -158,15 +140,6 @@ export default function SettingsScreen({ navigation }) {
             <Text style={styles.metaLabel}>Uygulama</Text>
             <Text style={styles.metaValue}>v{appVersion}</Text>
           </View>
-          {__DEV__ && (
-            <>
-              <View style={styles.metaDivider} />
-              <View style={styles.metaItem}>
-                <Text style={styles.metaLabel}>API (dev)</Text>
-                <Text style={styles.metaValue} numberOfLines={1}>{BASE_URL}</Text>
-              </View>
-            </>
-          )}
         </View>
 
         <TouchableOpacity style={styles.logoutButton} activeOpacity={0.88} onPress={onLogout}>

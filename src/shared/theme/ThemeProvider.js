@@ -38,7 +38,9 @@ export const ThemeProvider = ({ children }) => {
 
   const themeObj = useMemo(() => {
     const base = themeKey === 'amoled' ? amoledTheme : defaultTheme;
-    const palette = PALETTES.find((p) => p.key === paletteKey) || PALETTES[0];
+    const palette = PALETTES.find((p) => p.key === paletteKey)
+      || PALETTES.find((p) => p.key === DEFAULT_PALETTE_KEY)
+      || PALETTES[0];
     const variant = themeKey === 'amoled' ? palette.dark : palette.light;
     if (!variant) return base;
     return {
