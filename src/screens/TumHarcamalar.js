@@ -490,7 +490,7 @@ const TumHarcamalarScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <HeroHeader
-        title="Harcamalar"
+        title="Giderler"
         subtitle={`${houseName || ''} • ${summary.count} harcama`}
         amount={formatCurrency(summary.total)}
       />

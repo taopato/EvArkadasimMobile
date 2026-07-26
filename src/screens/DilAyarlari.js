@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useLanguage } from '../context/LanguageContext';
+import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 
 const OPTIONS = [
   { key: 'tr', title: 'Türkçe', subtitle: 'Varsayılan dil' },
   { key: 'en', title: 'English', subtitle: 'Interface language' },
 ];
 
-export default function LanguageSettingsScreen() {
+export default function LanguageSettingsScreen({ navigation }) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { language, setLanguage } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const onSelect = async (key) => {
     if (key === language) return;
@@ -25,8 +28,8 @@ export default function LanguageSettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Dil Seçimi</Text>
+    <View style={[styles.container, { paddingTop: insets.top + 4 }]}>
+      <PageHeader title="Dil Ayarları" onBack={() => navigation.goBack()} />
       <Text style={styles.subtitle}>Seçim kaydedilir ve uygulama tekrar açıldığında korunur.</Text>
 
       <View style={styles.list}>
@@ -78,7 +81,7 @@ const makeStyles = (theme) =>
       gap: 12,
     },
     item: {
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
       backgroundColor: theme.colors.surface,

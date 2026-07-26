@@ -43,7 +43,7 @@ export const PremiumCard: React.FC<CardProps> = ({
           backgroundColor: theme.colors.surface,
           borderColor: theme.colors.neutral[200],
           padding: pad,
-          borderRadius: r.lg,
+          borderRadius: r.md,
           ...elev,
         },
         style,

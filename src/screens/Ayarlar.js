@@ -1,11 +1,11 @@
 import React from 'react';
-import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
-import { BASE_URL, resolveMediaUrl } from '../shared/config/env';
+import { resolveMediaUrl } from '../shared/config/env';
 import { shadow } from '../shared/ui/shadow';
 
 const Row = ({ icon, title, desc, onPress, danger, styles, theme }) => (
@@ -94,30 +94,50 @@ export default function SettingsScreen({ navigation }) {
             theme={theme}
           />
           <Row
-            icon="shield-checkmark-outline"
-            title="Gizlilik Politikası"
-            desc="Verilerinin nasıl işlendiğini ve seçeneklerini gör"
-            onPress={async () => {
-              try {
-                await Linking.openURL(`${BASE_URL}/privacy.html`);
-              } catch {
-                Alert.alert('Bağlantı açılamadı', 'Gizlilik politikası şu anda görüntülenemiyor.');
-              }
-            }}
+            icon="notifications-outline"
+            title="Bildirimler"
+            desc="Ödeme ve fatura hatırlatmalarını yönet"
+            onPress={() => navigation.navigate('NotificationSettings')}
             styles={styles}
             theme={theme}
           />
           <Row
-            icon="help-circle-outline"
-            title="Yardım ve Destek"
-            desc="Sık sorulan sorular ve iletişim"
-            onPress={async () => {
-              try {
-                await Linking.openURL(`${BASE_URL}/support.html`);
-              } catch {
-                Alert.alert('Bağlantı açılamadı', 'Destek sayfası şu anda görüntülenemiyor.');
-              }
-            }}
+            icon="language-outline"
+            title="Dil"
+            desc="Türkçe"
+            onPress={() => navigation.navigate('LanguageSettings')}
+            styles={styles}
+            theme={theme}
+          />
+          <Row
+            icon="shield-checkmark-outline"
+            title="Güvenlik"
+            desc="Hesap güvenliği ve hesap silme"
+            onPress={() => navigation.navigate('SecuritySettings')}
+            styles={styles}
+            theme={theme}
+          />
+          <Row
+            icon="document-text-outline"
+            title="Gizlilik Politikası"
+            desc="Verilerinin nasıl işlendiğini gör"
+            onPress={() => navigation.navigate('LegalDocument', { type: 'privacy' })}
+            styles={styles}
+            theme={theme}
+          />
+          <Row
+            icon="reader-outline"
+            title="Kullanım Koşulları"
+            desc="Roomora kullanım kuralları"
+            onPress={() => navigation.navigate('LegalDocument', { type: 'terms' })}
+            styles={styles}
+            theme={theme}
+          />
+          <Row
+            icon="information-circle-outline"
+            title="Hakkında"
+            desc={`Roomora v${appVersion}`}
+            onPress={() => navigation.navigate('About')}
             styles={styles}
             theme={theme}
           />
@@ -191,27 +211,28 @@ const makeStyles = (theme, insets) =>
     },
     name: {
       color: theme.colors.text.primary,
+      fontFamily: theme.typography?.extrabold,
       fontSize: 24,
-      fontWeight: '900',
       letterSpacing: 0,
     },
     house: {
       color: theme.colors.text.primary,
+      fontFamily: theme.typography?.regular,
       opacity: 0.82,
       fontSize: 16,
       marginTop: 3,
     },
     editButton: {
-      backgroundColor: theme.colors.primary[900],
+      backgroundColor: theme.colors.primary[600],
       paddingHorizontal: 13,
       paddingVertical: 10,
-      borderRadius: 12,
+      borderRadius: 10,
       ...shadow(1, 'rgba(23,40,57,0.18)'),
     },
     editButtonText: {
       color: theme.colors.text.onPrimary,
+      fontFamily: theme.typography?.bold,
       fontSize: 13,
-      fontWeight: '800',
     },
     section: {
       gap: 12,
@@ -219,7 +240,7 @@ const makeStyles = (theme, insets) =>
     },
     row: {
       minHeight: 68,
-      borderRadius: 16,
+      borderRadius: 12,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
@@ -227,7 +248,7 @@ const makeStyles = (theme, insets) =>
       paddingVertical: 12,
       flexDirection: 'row',
       alignItems: 'center',
-      ...shadow(1, 'rgba(23,40,57,0.10)'),
+      ...shadow(1, 'rgba(23,40,57,0.07)'),
     },
     rowDanger: {
       borderColor: theme.colors.error[100],
@@ -258,14 +279,15 @@ const makeStyles = (theme, insets) =>
     },
     rowTitle: {
       color: theme.colors.text.primary,
+      fontFamily: theme.typography?.bold,
       fontSize: 16,
-      fontWeight: '800',
     },
     rowTitleDanger: {
       color: theme.colors.error[700],
     },
     rowDesc: {
       color: theme.colors.text.secondary,
+      fontFamily: theme.typography?.regular,
       fontSize: 12,
       marginTop: 4,
     },
@@ -279,7 +301,7 @@ const makeStyles = (theme, insets) =>
       color: theme.colors.error[500],
     },
     metaCard: {
-      borderRadius: 18,
+      borderRadius: 12,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
@@ -309,7 +331,7 @@ const makeStyles = (theme, insets) =>
     },
     logoutButton: {
       height: 54,
-      borderRadius: 16,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -324,7 +346,7 @@ const makeStyles = (theme, insets) =>
     },
     logoutText: {
       color: theme.colors.text.onPrimary,
+      fontFamily: theme.typography?.bold,
       fontSize: 16,
-      fontWeight: '800',
     },
   });

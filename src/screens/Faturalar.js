@@ -536,8 +536,8 @@ export default function BillsOverviewScreen({ navigation, route }) {
         )}
         <PrimaryActionCard
           icon="document-text-outline"
-          title="Yeni Fatura Planı Ekle"
-          subtitle="Kira ve faturalar için düzenli ödeme planı oluştur"
+          title="Yeni Fatura Ekle"
+          subtitle="Tek seferlik veya düzenli bir fatura oluştur"
           onPress={handleAddBill}
           style={{ marginTop: 12 }}
         />

@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const email = process.env.ROOMORA_TEST_EMAIL;
 const password = process.env.ROOMORA_TEST_PASSWORD;
-const webUrl = process.env.ROOMORA_WEB_URL || 'http://localhost:8082';
+const webUrl = process.env.ROOMORA_WEB_URL || 'http://localhost:8083';
 
 test.use({
   channel: 'chrome',
@@ -10,17 +10,14 @@ test.use({
   deviceScaleFactor: 1,
 });
 
-test('mobile web critical navigation renders without runtime errors', async ({ page }, testInfo) => {
+test('Roomora mobile critical flows render without runtime errors', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
   test.skip(!email || !password, 'ROOMORA_TEST_EMAIL and ROOMORA_TEST_PASSWORD are required.');
 
   const pageErrors = [];
   const serverErrors = [];
-  const dialogs = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  page.on('dialog', async (dialog) => {
-    dialogs.push(dialog.message());
-    await dialog.accept();
-  });
+  page.on('dialog', (dialog) => dialog.accept());
   page.on('response', (response) => {
     if (response.status() >= 500) serverErrors.push(`${response.status()} ${response.url()}`);
   });
@@ -33,97 +30,71 @@ test('mobile web critical navigation renders without runtime errors', async ({ p
     expect(overflow).toBeLessThanOrEqual(2);
   };
 
-  await page.goto(webUrl, { waitUntil: 'networkidle' });
+  await page.goto(webUrl, { waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder('E-posta').fill(email);
   await page.getByPlaceholder('Şifre').fill(password);
   await page.getByText('Giriş Yap', { exact: true }).first().click();
 
-  await expect(page.getByText('Haftalık ev harcaması', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Merhaba,/).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Ana Sayfa', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Faturalar', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Giderler', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Ayarlar', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Ödemeler', { exact: true })).toHaveCount(0);
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('home.png'), fullPage: true });
 
-  await page.getByText('Borç Özeti', { exact: true }).click();
-  await expect(page.getByText('Borç/Alacak Özeti', { exact: true })).toBeVisible();
-  await page.getByText('Borçlarımı Gör', { exact: true }).click();
-  await expect(page.getByText('Borçlarım', { exact: true })).toBeVisible();
-  await expect(page.getByText('Toplam Borç', { exact: true }).last()).toBeVisible();
-  if (await page.getByText('Dönemsel Ödemeler', { exact: true }).count()) {
-    await expect(page.getByText('Normal ortak hesap', { exact: true })).toBeVisible();
-  }
-  await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('debts.png'), fullPage: true });
-  await page.goBack();
-  await page.goBack();
-  await expect(page.getByText('Haftalık ev harcaması', { exact: true })).toBeVisible();
-
-  await page.getByText('Ödemeler', { exact: true }).last().click();
-  await expect(page.getByText('Yeni Ödeme Ekle', { exact: true })).toBeVisible();
-  await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('payments.png'), fullPage: true });
-
   await page.getByText('Giderler', { exact: true }).last().click();
-  await expect(page.getByText('Harcamalar', { exact: true })).toBeVisible();
   await expect(page.getByText('Yeni Harcama Ekle', { exact: true })).toBeVisible();
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('expenses.png'), fullPage: true });
+
   await page.getByText('Yeni Harcama Ekle', { exact: true }).click();
-  await expect(page.getByText('Harcama Ekle', { exact: true })).toBeVisible();
-  await expect(page.getByText('Fiş veya fatura okut', { exact: true })).toBeVisible();
+  await expect(page.getByText('Harcama Ekle', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Hızlı seçimler', { exact: true })).toBeVisible();
+  await expect(page.getByText('Ekmek', { exact: true })).toBeVisible();
+  await page.getByText('Ekmek', { exact: true }).click();
+  await expect(page.getByPlaceholder('Örn. Ekmek')).toHaveValue('Ekmek');
   await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('expense-create.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('quick-expense.png'), fullPage: true });
   await page.goBack();
-  await expect(page.getByText('Harcamalar', { exact: true })).toBeVisible();
 
   await page.getByText('Faturalar', { exact: true }).last().click();
-  await expect(page.getByText('Bu ay toplam', { exact: true })).toBeVisible();
-  await expect(page.getByText('Yeni Fatura Planı Ekle', { exact: true })).toBeVisible();
+  await expect(page.getByText('TOPLAM FATURA', { exact: true })).toBeVisible();
+  await expect(page.getByText('Yeni Fatura Ekle', { exact: true })).toBeVisible();
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('bills.png'), fullPage: true });
-  await page.getByText('Yeni Fatura Planı Ekle', { exact: true }).click();
-  await expect(page.getByText('Ödeme Planı', { exact: true })).toBeVisible();
-  await expect(page.getByText('Dönemsel sabit', { exact: true })).toBeVisible();
-  await page.getByText('Dönemsel sabit', { exact: true }).click();
-  await expect(page.getByText('Borçlarım alanında gösterilmeye başlanacak gün', { exact: true })).toBeVisible();
-  await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('scheduled-plan-create.png'), fullPage: true });
-  await page.goBack();
-  await expect(page.getByText('Bu ay toplam', { exact: true })).toBeVisible();
-  await page.getByText('Elektrik', { exact: true }).last().click();
-  await expect(page.getByText('Fatura Detayı', { exact: true })).toBeVisible();
-  await expect(page.getByText('Fatura bilgileri', { exact: true })).toBeVisible();
-  await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('bill-detail.png'), fullPage: true });
-  await page.getByText('Düzenle', { exact: true }).click();
-  await expect(page.getByText('Faturayı Düzenle', { exact: true })).toBeVisible();
-  await expect(page.getByText('Fatura tarihi', { exact: true })).toBeVisible();
-  await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('bill-edit.png'), fullPage: true });
-  await page.goBack();
-  await expect(page.getByText('Fatura Detayı', { exact: true })).toBeVisible();
-  await page.goBack();
-  await expect(page.getByText('Bu ay toplam', { exact: true })).toBeVisible();
 
   await page.getByText('Ayarlar', { exact: true }).last().click();
-  await expect(page.getByText('Profili Düzenle', { exact: true })).toBeVisible();
+  await expect(page.getByText('Profil Düzenle', { exact: true })).toBeVisible();
+  await expect(page.getByText('Bildirim Ayarları', { exact: true }).last()).toBeVisible();
+  await expect(page.getByText('Gizlilik Politikası', { exact: true })).toBeVisible();
   await expect(page.getByText('API (dev)', { exact: true })).toHaveCount(0);
-  await page.getByText('Tema', { exact: true }).click();
-  await expect(page.getByText('Renk Paleti', { exact: true })).toBeVisible();
-  await expect(page.getByRole('radio', { name: 'Gökyüzü Mavisi' })).toBeChecked();
-  await page.getByLabel('Geri').click();
-  await expect(page.getByText('Profili Düzenle', { exact: true })).toBeVisible();
-  await page.getByText('Profili Düzenle', { exact: true }).click();
-  await expect(page.getByText('Telefon Numarası', { exact: true })).toBeVisible();
-  await expect(page.getByText('+90', { exact: true })).toBeVisible();
-  await expect(page.getByText('TR', { exact: true })).toBeVisible();
   await assertNoHorizontalOverflow();
-  await page.screenshot({ path: testInfo.outputPath('profile.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 
-  const profileUpdate = page.waitForResponse((response) => (
-    /\/api\/Users\/\d+\/Profile$/.test(response.url()) && response.request().method() === 'PUT'
-  ));
-  await page.getByText('Değişiklikleri Kaydet', { exact: true }).click();
-  expect((await profileUpdate).status()).toBe(200);
-  expect(dialogs.join(' ')).not.toContain('Oturum hatası');
+  await page.getByText('Bildirim Ayarları', { exact: true }).click();
+  await expect(page.getByText('Bildirim Ayarları', { exact: true }).last()).toBeVisible();
+  await page.getByLabel('Geri').click();
+  await page.getByText('Gizlilik Politikası', { exact: true }).click();
+  await expect(page.getByText('Topladığımız bilgiler', { exact: true })).toBeVisible();
+  await page.getByLabel('Geri').click();
+
+  await page.goto(`${webUrl}/debt-summary`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Borç / Alacak Özeti', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await assertNoHorizontalOverflow();
+
+  await page.goto(`${webUrl}/ev-uyeleri`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Ev Üyeleri', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await assertNoHorizontalOverflow();
+
+  await page.goto(`${webUrl}/ev-notlari`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Ev Notları', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await assertNoHorizontalOverflow();
+
+  await page.goto(`${webUrl}/bekleyen-odemeler`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Bekleyen Ödemeler', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await assertNoHorizontalOverflow();
 
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);

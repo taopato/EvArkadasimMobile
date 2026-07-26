@@ -1,233 +1,189 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, Text, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Platform, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  RefreshControl,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import useScrollRestore from '../hooks/useScrollRestore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { houseApi } from '../services/api';
-import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
+import {
+  EmptyState,
+  LoadingState,
+  PageHeader,
+  PrimaryButton,
+} from '../shared/ui/roomora/CanonicalUI';
+import { shadow } from '../shared/ui/shadow';
+import { resolveMediaUrl } from '../shared/config/env';
 
 export default function GroupListScreen({ navigation, route }) {
+  const { user, setDefaultHouseId } = useAuth();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const [houses, setHouses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { user, setDefaultHouseId } = useAuth();
-  const { listRef, handleScroll } = useScrollRestore('GroupListScreen');
-  const CommonStyles = useCommonStyles();
-  const { theme } = useTheme();
-  const ColorThemes = makeColorThemes(theme);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-    fetchHouses();
-  }, [user?.id]);
-
-  const fetchHouses = async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (!user?.id) return;
+    refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const response = await houseApi.getUserHouses(user.id);
-      
-      if (response.data && Array.isArray(response.data)) {
-        setHouses(response.data);
-        if (!user?.defaultHouseId && response.data.length > 0) {
-          await setDefaultHouseId(response.data[0].id, response.data[0].name);
-        }
-      } else {
-        console.error('Gelen veri array değil:', typeof response.data);
-        setHouses([]);
+      const response = await houseApi.getUserHouses(Number(user.id));
+      const list = Array.isArray(response?.data) ? response.data : [];
+      setHouses(list);
+      if (!user?.defaultHouseId && list[0]) {
+        await setDefaultHouseId(list[0].id, list[0].name);
       }
-    } catch (error) {
-      console.error('Ev grupları alınamadı:', error);
-      setHouses([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [setDefaultHouseId, user?.defaultHouseId, user?.id]);
 
-  const handleCreateHouse = () => {
-    navigation.navigate('YeniEvGrubu');
-  };
+  useEffect(() => { load(false); }, [load]);
 
-  const handleHousePress = async (house) => {
-    await setDefaultHouseId(house.id, house.name);
+  const continueTo = (house) => {
     const redirectTo = route?.params?.redirectTo;
-    
-    if (redirectTo === 'BillsOverviewScreen') {
-      navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId: house.id, houseName: house.name } });
+    const params = { houseId: house.id, houseName: house.name };
+    if (!redirectTo) {
+      navigation.navigate('EvUyeleri', params);
       return;
     }
     if (redirectTo === 'TumHarcamalar') {
-      navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params: { houseId: house.id, houseName: house.name } });
+      navigation.navigate('MainTabs', { screen: 'TumHarcamalar', params });
       return;
     }
-    if (redirectTo === 'HarcamaOzeti') {
-      navigation.navigate('HarcamaOzeti', { houseId: house.id, houseName: house.name });
+    if (redirectTo === 'BillsOverviewScreen' || redirectTo === 'FaturaEkle') {
+      navigation.navigate(redirectTo === 'FaturaEkle' ? 'FaturaEkle' : 'MainTabs', redirectTo === 'FaturaEkle'
+        ? params
+        : { screen: 'Faturalar', params });
       return;
     }
-    
-    // Mevcut ekranlar
-    if (redirectTo === 'ExpensesScreen' || redirectTo === 'Harcamalar') {
-      navigation.replace('Harcamalar', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'BillsOverviewScreen' || redirectTo === 'Faturalar') {
-      navigation.navigate('MainTabs', { screen: 'Faturalar', params: { houseId: house.id, houseName: house.name } });
-      return;
-    }
-    if (redirectTo === 'NewRecurringChargeScreen' || redirectTo === 'DuzenliGiderEkle') {
-      navigation.replace('DuzenliGiderEkle', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'UtilityBillCreate' || redirectTo === 'FaturaOlustur') {
-      navigation.replace('DuzenliGiderEkle', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'CreatePaymentScreen' || redirectTo === 'OdemeEkle') {
-      navigation.replace('OdemeEkle', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'DebtSummaryScreen') {
-      navigation.navigate('DebtSummaryScreen', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'HarcamaEkle') {
-      navigation.navigate('HarcamaEkle', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    if (redirectTo === 'DuzenliGiderEkle') {
-      navigation.navigate('DuzenliGiderEkle', { houseId: house.id, houseName: house.name });
-      return;
-    }
-    
-    // Varsayılan: Ev üyeleri ekranına git
-    navigation.navigate('EvUyeleri', {
-      houseId: house.id,
-      houseName: house.name
-    });
+    navigation.navigate(redirectTo, params);
   };
 
-  const safeFormatDate = (v) => {
-    const raw = v || v === 0 ? v : (typeof v === 'string' ? v : undefined);
-    const d = raw ? new Date(raw) : null;
-    if (!d || isNaN(d.getTime())) return '—';
-    try { return d.toLocaleDateString('tr-TR'); } catch { return '—'; }
+  const selectHouse = async (house) => {
+    await setDefaultHouseId(house.id, house.name);
+    continueTo(house);
   };
-
-  const renderHouseItem = ({ item }) => (
-    <TouchableOpacity
-      style={[CommonStyles.menuButton]}
-      onPress={() => handleHousePress(item)}
-      activeOpacity={0.8}
-    >
-      <View style={[CommonStyles.buttonContent, { backgroundColor: Number(user?.defaultHouseId) === Number(item.id) ? ColorThemes.success.background : ColorThemes.primary.background }]}>
-        <Ionicons name="home-outline" size={24} color={Number(user?.defaultHouseId) === Number(item.id) ? ColorThemes.success.foreground : ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
-        <Text style={CommonStyles.buttonText}>{item.name}</Text>
-        <Text style={CommonStyles.buttonSubtext}>
-          Oluşturulma: {safeFormatDate(item.createdAt || item.created_date || item.createdDate)}
-        </Text>
-        {Number(user?.defaultHouseId) === Number(item.id) && (
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>Aktif ev</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
-    <View style={[CommonStyles.container, { backgroundColor: theme.colors.surface }]}>
-      <ScrollView style={[CommonStyles.content, { backgroundColor: theme.colors.surface }]} ref={listRef} onScroll={handleScroll} scrollEventThrottle={16}>
-        <View style={CommonStyles.header}>
-          <Text style={[CommonStyles.title, { color: theme.colors.text.primary }]}>Ev Gruplarım</Text>
-          <Text style={[CommonStyles.subtitle, { color: theme.colors.text.secondary }]}>Ev gruplarınızı görüntüleyin ve yönetin</Text>
-        </View>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+      >
+        <PageHeader
+          title="Evlerim"
+          subtitle="Ortak yaşam alanlarını yönet"
+          onBack={() => navigation.goBack()}
+        />
 
-        {!!user?.defaultHouseId && (
-          <View style={styles.activeInfoCard}>
-            <Text style={styles.activeInfoEyebrow}>Şu anda aktif</Text>
-            <Text style={styles.activeInfoTitle}>{user?.defaultHouseName || `Ev #${user.defaultHouseId}`}</Text>
-            <Text style={styles.activeInfoText}>Diğer tüm işlemler bu ev grubu üzerinden devam eder.</Text>
-          </View>
-        )}
-        
-        <TouchableOpacity
-          style={[CommonStyles.menuButton]}
-          onPress={handleCreateHouse}
-          activeOpacity={0.8}
-        >
-          <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
-            <Ionicons name="add-circle-outline" size={24} color={ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
-            <Text style={CommonStyles.buttonText}>Yeni Ev Grubu Oluştur</Text>
-            <Text style={CommonStyles.buttonSubtext}>Yeni bir ev grubu oluşturun</Text>
-          </View>
-        </TouchableOpacity>
-        
         {loading ? (
-          <View style={CommonStyles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary[500]} />
-            <Text style={CommonStyles.loadingText}>Ev grupları yükleniyor...</Text>
-          </View>
-        ) : houses.length > 0 ? (
-          <View style={CommonStyles.listContainer}>
-            {houses.map((item) => (
-              <View key={item.id.toString()}>
-                {renderHouseItem({ item })}
-              </View>
-            ))}
-          </View>
+          <LoadingState label="Evlerin yükleniyor..." />
+        ) : houses.length === 0 ? (
+          <EmptyState
+            icon="home-outline"
+            title="Henüz bir evin yok"
+            description="Ev arkadaşlarınla harcamaları yönetmek için ilk evini oluştur."
+            action="Yeni Ev Oluştur"
+            onAction={() => navigation.navigate('YeniEvGrubu')}
+          />
         ) : (
-          <View style={CommonStyles.emptyContainer}>
-            <Ionicons name="home-outline" size={40} color={theme.colors.primary[400] || theme.colors.primary[600]} style={{ marginBottom: 8 }} />
-            <Text style={CommonStyles.emptyText}>Henüz bir ev grubunuz bulunmamaktadır.</Text>
-            <Text style={CommonStyles.emptyText}>İlk ev grubunuzu oluşturmak için yukarıdaki butona tıklayın.</Text>
-          </View>
+          <>
+            <View style={styles.list}>
+              {houses.map((house) => {
+                const active = Number(house.id) === Number(user?.defaultHouseId);
+                return (
+                  <TouchableOpacity
+                    key={String(house.id)}
+                    style={[styles.houseCard, active && styles.houseCardActive]}
+                    onPress={() => selectHouse(house)}
+                    activeOpacity={0.86}
+                  >
+                    <View style={styles.houseCover}>
+                      {house.coverImageUrl ? (
+                        <Image source={{ uri: resolveMediaUrl(house.coverImageUrl) }} style={styles.houseImage} />
+                      ) : (
+                        <Ionicons name="home" size={34} color={theme.colors.primary[700]} />
+                      )}
+                    </View>
+                    <View style={styles.houseBody}>
+                      <View style={styles.houseTitleRow}>
+                        <Text style={styles.houseName}>{house.name}</Text>
+                        {active && (
+                          <View style={styles.activeBadge}>
+                            <Text style={styles.activeText}>AKTİF</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.houseSub}>Üyeleri ve ev bilgilerini görüntüle</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={theme.colors.neutral[400]} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <PrimaryButton label="Yeni Ev Oluştur" icon="add" onPress={() => navigation.navigate('YeniEvGrubu')} />
+          </>
         )}
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  activeInfoCard: {
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
-    backgroundColor: '#EEF8F2',
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: 32 },
+  list: { gap: 12, marginTop: 14, marginBottom: 16 },
+  houseCard: {
+    minHeight: 104,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#B8E3C6',
+    borderColor: theme.colors.neutral[200],
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    ...shadow(1, 'rgba(23,40,57,0.08)'),
   },
-  activeInfoEyebrow: {
+  houseCardActive: { borderColor: theme.colors.primary[300], backgroundColor: theme.colors.primary[50] },
+  houseCover: {
+    width: 68,
+    height: 68,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary[100],
+    overflow: 'hidden',
+  },
+  houseImage: { width: '100%', height: '100%' },
+  houseBody: { flex: 1 },
+  houseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  houseName: {
+    color: theme.colors.text.primary,
+    fontFamily: theme.typography.bold,
+    fontSize: 17,
+  },
+  houseSub: {
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.regular,
     fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-    color: '#1E7A42',
-  },
-  activeInfoTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  activeInfoText: {
-    marginTop: 6,
-    color: '#35506B',
-    lineHeight: 19,
+    marginTop: 5,
   },
   activeBadge: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: theme.colors.primary[600],
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
-  activeBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-  },
+  activeText: { color: '#fff', fontFamily: theme.typography.bold, fontSize: 9 },
 });
-
-

@@ -8,8 +8,8 @@ import { shadow } from './shadow';
 const META = {
   Home: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
   TumHarcamalar: { label: 'Giderler', icon: 'wallet-outline', activeIcon: 'wallet' },
+  Notlar: { label: 'Notlar', icon: 'document-text-outline', activeIcon: 'document-text' },
   Faturalar: { label: 'Faturalar', icon: 'receipt-outline', activeIcon: 'receipt' },
-  Odemeler: { label: 'Ödemeler', icon: 'card-outline', activeIcon: 'card' },
   Ayarlar: { label: 'Ayarlar', icon: 'settings-outline', activeIcon: 'settings' },
 };
 
@@ -61,9 +61,9 @@ export default function MainTabBar({ state, navigation }) {
 const makeStyles = (theme, bottomInset) =>
   StyleSheet.create({
     wrap: {
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: Math.max(bottomInset, 10),
+      paddingHorizontal: 5,
+      paddingTop: 7,
+      paddingBottom: Math.max(bottomInset, 8),
       borderTopWidth: 1,
       borderTopColor: theme.colors.neutral[200],
       backgroundColor: theme.colors.surface,
@@ -74,11 +74,12 @@ const makeStyles = (theme, bottomInset) =>
     },
     item: {
       flex: 1,
-      height: 54,
-      borderRadius: 28,
+      minWidth: 0,
+      height: 55,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      marginHorizontal: 2,
+      marginHorizontal: 1,
     },
     itemActive: {
       backgroundColor: theme.colors.primary[50],
@@ -88,11 +89,12 @@ const makeStyles = (theme, bottomInset) =>
     },
     label: {
       color: theme.colors.text.secondary,
+      fontFamily: theme.typography?.semibold,
       fontSize: 10,
-      fontWeight: '700',
+      letterSpacing: 0,
     },
     labelActive: {
       color: theme.colors.primary[700],
-      fontWeight: '900',
+      fontFamily: theme.typography?.bold,
     },
   });

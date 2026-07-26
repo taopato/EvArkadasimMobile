@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "web:build": "expo export --platform web",
     "doctor": "expo-doctor",
-    "test": "node --experimental-default-type=module scripts/test-domain.mjs",
+    "test": "node scripts/test-domain.mjs",
     "test:e2e:web": "playwright test tests/web-smoke.spec.js",
     "export:android": "expo export --platform android",
     "export:ios": "expo export --platform ios"
@@ -19,6 +19,7 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -141,11 +141,11 @@ export const PALETTES = [
     label: 'Gökyüzü Mavisi',
     swatch: '#2f6fa8',
     light: {
-      background: '#eef4fa',
+      background: '#f7f9fc',
       surface: '#ffffff',
-      neutral: { 50: '#eef4fa', 100: '#dde8f2', 200: '#c0d7ea', 300: '#9cbfda', 500: '#6e88a0', 600: '#425566', 900: '#182229' },
-      primary: { 50: '#eaf3fb', 100: '#cde3f6', 200: '#9cc7ec', 300: '#69a8de', 500: '#3a80bd', 600: '#2f6fa8', 700: '#24567f', 800: '#193c59', 900: '#0f2536' },
-      info: { 50: '#eaf3fb', 100: '#cde3f6', 200: '#9cc7ec', 500: '#3a80bd', 600: '#2f6fa8', 700: '#24567f' },
+      neutral: { 50: '#f7f9fc', 100: '#f0f4f8', 200: '#d8e0e8', 300: '#bdc8d3', 400: '#95a3b1', 500: '#71808e', 600: '#5e6b78', 900: '#172839' },
+      primary: { 50: '#eaf3fb', 100: '#d7e9f8', 200: '#b8d7ef', 300: '#8fbee1', 500: '#3a80bd', 600: '#2f6fa8', 700: '#24567f', 800: '#1b4262', 900: '#172839' },
+      info: { 50: '#eaf3fb', 100: '#d7e9f8', 200: '#b8d7ef', 500: '#3a80bd', 600: '#2f6fa8', 700: '#24567f' },
     },
     dark: {
       background: '#12181d',

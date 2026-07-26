@@ -287,7 +287,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   emptyTitle: { color: theme.colors.text.primary, fontSize: 17, fontWeight: '700', marginTop: 12 },
   content: { padding: 18, paddingBottom: insets.bottom + 36 },
   heroCard: {
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: theme.colors.primary[900],
     padding: 18,
     marginBottom: 14,
@@ -302,7 +302,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   datePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   datePillText: { color: theme.colors.primary[100], fontSize: 13, fontWeight: '600' },
   detailCard: {
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
@@ -313,14 +313,14 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   sectionTitle: { color: theme.colors.text.primary, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   detailRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.neutral[100] },
   detailRowLast: { borderBottomWidth: 0 },
-  detailIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
+  detailIcon: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
   detailBody: { flex: 1, marginLeft: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   detailLabel: { color: theme.colors.text.secondary, fontSize: 13 },
   detailValue: { flex: 1, color: theme.colors.text.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    borderRadius: 14,
+    borderRadius: 8,
     backgroundColor: theme.colors.success[50],
     borderWidth: 1,
     borderColor: theme.colors.success[100],
@@ -334,7 +334,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   editButton: {
     flex: 1,
     minHeight: 50,
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: theme.colors.primary[900],
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,7 +345,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   deleteButton: {
     flex: 1,
     minHeight: 50,
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: theme.colors.error[50],
     borderWidth: 1,
     borderColor: theme.colors.error[100],

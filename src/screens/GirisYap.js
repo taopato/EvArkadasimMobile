@@ -400,13 +400,13 @@ const GirisYap = ({ navigation, route }) => {
         >
           <View style={styles.hero}>
             <View style={[styles.logoTile, shadow(3, 'rgba(23,40,57,0.28)')]}>
-              <Image source={require('../assets/mark-navy.png')} style={{ width: 192, height: 192 }} resizeMode="contain" />
+              <Image source={require('../assets/mark-navy.png')} style={{ width: 84, height: 84 }} resizeMode="contain" />
             </View>
             <Text style={[styles.heading, { color: theme.colors.text.primary }]}>
               Roomora
             </Text>
             <Text style={[styles.subheading, { color: theme.colors.text.secondary }]}>
-              Harcamaları paylaş, borçları gör, ödemeleri tek yerden yönet.
+              Ortak yaşamın kolay hali.
             </Text>
             {!!invitationEmail && (
               <Text style={[styles.inviteNote, { color: theme.colors.success[700], backgroundColor: theme.colors.success[50] }]}>
@@ -470,19 +470,19 @@ const styles = StyleSheet.create({
   },
   content: {
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 24,
   },
   hero: {
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 24,
   },
   logoTile: {
-    width: 192,
-    height: 192,
-    borderRadius: 96,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   heading: {
     fontSize: 30,
@@ -507,12 +507,12 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 8,
   },
   googleButton: {
     marginTop: 12,
     minHeight: 48,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',

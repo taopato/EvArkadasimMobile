@@ -32,9 +32,9 @@ export const HeroHeader: React.FC<Props> = ({
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ color: theme.colors.text.primary, fontSize: 26, fontWeight: '900', letterSpacing: 0 }}>{title}</Text>
+          <Text style={{ color: theme.colors.text.primary, fontFamily: theme.typography?.extrabold, fontSize: 24, letterSpacing: 0 }}>{title}</Text>
           {!!subtitle && (
-            <Text style={{ color: theme.colors.text.secondary, marginTop: 4, fontSize: 15 }}>
+            <Text style={{ color: theme.colors.text.secondary, fontFamily: theme.typography?.regular, marginTop: 4, fontSize: 14, letterSpacing: 0 }}>
               {subtitle}
             </Text>
           )}
@@ -44,8 +44,8 @@ export const HeroHeader: React.FC<Props> = ({
       <View
         style={{
           marginTop: 16,
-          borderRadius: 20,
-          padding: 18,
+          borderRadius: 12,
+          padding: 16,
           backgroundColor: theme.colors.surface,
           borderWidth: 1,
           borderColor: theme.colors.neutral[200],
@@ -54,8 +54,8 @@ export const HeroHeader: React.FC<Props> = ({
       >
         {!!amount && (
           <View>
-            <Text style={{ color: theme.colors.text.primary, opacity: 0.82, fontSize: 15, fontWeight: '700' }}>Toplam</Text>
-            <Text style={{ color: theme.colors.text.primary, fontSize: 34, fontWeight: '900', marginTop: 6, letterSpacing: 0 }}>
+            <Text style={{ color: theme.colors.text.primary, opacity: 0.82, fontFamily: theme.typography?.semibold, fontSize: 14 }}>Toplam</Text>
+            <Text style={{ color: theme.colors.text.primary, fontFamily: theme.typography?.extrabold, fontSize: 32, marginTop: 6, letterSpacing: 0 }}>
               {amount}
             </Text>
           </View>
@@ -71,5 +71,4 @@ export const HeroHeader: React.FC<Props> = ({
     </View>
   );
 };
-
 
