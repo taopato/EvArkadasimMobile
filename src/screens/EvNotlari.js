@@ -2,21 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../shared/theme/ThemeProvider';
-import { houseNotesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { houseNotesApi } from '../services/api';
+import { useTheme } from '../shared/theme/ThemeProvider';
 import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
+import { shadow } from '../shared/ui/shadow';
 
 const normalizeBoard = (payload) => {
   const sections = Array.isArray(payload?.sections) ? payload.sections : [];
@@ -30,21 +31,20 @@ const normalizeBoard = (payload) => {
 export default function EvNotlari({ route, navigation }) {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const { width } = useWindowDimensions();
-  const isCompact = width < 520;
-  const styles = useMemo(() => makeStyles(theme, isCompact), [theme, isCompact]);
   const insets = useSafeAreaInsets();
-
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const isMainTab = route?.name === 'Notlar';
   const houseId = Number(route?.params?.houseId || user?.defaultHouseId || 0);
-  const houseName = route?.params?.houseName || user?.defaultHouseName || 'Ev Notları';
+  const houseName = route?.params?.houseName || user?.defaultHouseName || 'Aktif Ev';
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [sections, setSections] = useState([]);
+  const [selectedSectionId, setSelectedSectionId] = useState(null);
+  const [mode, setMode] = useState('active');
   const [newSectionTitle, setNewSectionTitle] = useState('');
-  const [itemDrafts, setItemDrafts] = useState({});
-  const [activeTab, setActiveTab] = useState('active');
+  const [itemDraft, setItemDraft] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
 
   const loadBoard = async () => {
     if (!houseId) {
@@ -53,69 +53,74 @@ export default function EvNotlari({ route, navigation }) {
       return;
     }
 
-    setLoading(true);
     try {
       const response = await houseNotesApi.getBoard(houseId);
-      setSections(normalizeBoard(response?.data));
+      const next = normalizeBoard(response?.data);
+      setSections(next);
+      setSelectedSectionId((current) => (
+        next.some((section) => Number(section.id) === Number(current))
+          ? current
+          : next[0]?.id ?? null
+      ));
+      if (next.length === 0) setShowCreate(true);
     } catch (error) {
-      Alert.alert('Hata', error?.response?.data?.message || 'Ev notları yüklenemedi.');
+      Alert.alert('Hata', error?.response?.data?.message || 'Notlar yüklenemedi.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setLoading(true);
     loadBoard();
   }, [houseId]);
 
-  const activeItemCount = sections.reduce((sum, section) => sum + section.items.length, 0);
-  const completedItemCount = sections.reduce((sum, section) => sum + section.completedItems.length, 0);
-  const activeSections = sections.filter((section) => section.items.length > 0 || section.completedItems.length === 0);
-  const historySections = sections.filter((section) => section.completedItems.length > 0);
+  const selectedSection = sections.find(
+    (section) => Number(section.id) === Number(selectedSectionId)
+  ) || sections[0] || null;
+  const activeCount = sections.reduce((total, section) => total + section.items.length, 0);
+  const historyCount = sections.reduce((total, section) => total + section.completedItems.length, 0);
+  const visibleItems = mode === 'active'
+    ? selectedSection?.items || []
+    : selectedSection?.completedItems || [];
 
-  const askConfirm = (title, message) => {
+  const confirmAction = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       return Promise.resolve(window.confirm(`${title}\n\n${message}`));
     }
-
     return new Promise((resolve) => {
       Alert.alert(title, message, [
         { text: 'Vazgeç', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Onayla', style: 'destructive', onPress: () => resolve(true) },
+        { text: 'Sil', style: 'destructive', onPress: () => resolve(true) },
       ]);
     });
   };
 
-  const handleCreateSection = async () => {
+  const createSection = async () => {
     const title = newSectionTitle.trim();
-    if (!title) {
-      Alert.alert('Hata', 'Önce bir başlık girin.');
-      return;
-    }
-
+    if (!title) return;
     setSubmitting(true);
     try {
-      await houseNotesApi.createSection(houseId, title);
+      const response = await houseNotesApi.createSection(houseId, title);
       setNewSectionTitle('');
+      setShowCreate(false);
       await loadBoard();
+      const createdId = response?.data?.id ?? response?.data?.data?.id;
+      if (createdId) setSelectedSectionId(createdId);
     } catch (error) {
-      Alert.alert('Hata', error?.response?.data?.message || 'Başlık eklenemedi.');
+      Alert.alert('Hata', error?.response?.data?.message || 'Liste oluşturulamadı.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAddItem = async (sectionId) => {
-    const content = String(itemDrafts[sectionId] || '').trim();
-    if (!content) {
-      Alert.alert('Hata', 'Listeye eklenecek maddeyi yazın.');
-      return;
-    }
-
+  const addItem = async () => {
+    const content = itemDraft.trim();
+    if (!selectedSection?.id || !content) return;
     setSubmitting(true);
     try {
-      await houseNotesApi.createItem(sectionId, content);
-      setItemDrafts((prev) => ({ ...prev, [sectionId]: '' }));
+      await houseNotesApi.createItem(selectedSection.id, content);
+      setItemDraft('');
       await loadBoard();
     } catch (error) {
       Alert.alert('Hata', error?.response?.data?.message || 'Madde eklenemedi.');
@@ -124,7 +129,7 @@ export default function EvNotlari({ route, navigation }) {
     }
   };
 
-  const handleCompleteItem = async (itemId) => {
+  const completeItem = async (itemId) => {
     try {
       await houseNotesApi.completeItem(itemId);
       await loadBoard();
@@ -133,379 +138,412 @@ export default function EvNotlari({ route, navigation }) {
     }
   };
 
-  const handleDeleteItem = async (itemId, mode = 'active') => {
-    const confirmed = await askConfirm(
-      mode === 'active' ? 'Notu sil' : 'Geçmiş notu kaldır',
-      mode === 'active'
-        ? 'Bu madde görünümden kaldırılacak, veritabanında saklanmaya devam edecek.'
-        : 'Bu geçmiş not görünümden kaldırılacak, veritabanında saklanmaya devam edecek.'
-    );
-
-    if (!confirmed) return;
-
+  const deleteItem = async (itemId) => {
     try {
       await houseNotesApi.deleteItem(itemId);
-      setSections((prev) =>
-        prev.map((section) => ({
-          ...section,
-          items: section.items.filter((item) => item.id !== itemId),
-          completedItems: section.completedItems.filter((item) => item.id !== itemId),
-        }))
-      );
       await loadBoard();
     } catch (error) {
-      Alert.alert('Hata', error?.response?.data?.message || 'Madde silinemedi.');
+      Alert.alert('Hata', error?.response?.data?.message || 'Madde kaldırılamadı.');
     }
   };
 
-  const handleDeleteSection = async (sectionId, title) => {
-    const confirmed = await askConfirm(
-      'Başlığı sil',
-      `"${title}" başlığı kaldırılacak. Notlar saklanmaya devam edecek.`
+  const deleteSection = async () => {
+    if (!selectedSection) return;
+    const confirmed = await confirmAction(
+      'Listeyi sil',
+      `"${selectedSection.title}" listesini kaldırmak istediğine emin misin?`
     );
-
     if (!confirmed) return;
-
     try {
-      await houseNotesApi.deleteSection(sectionId);
-      setSections((prev) => prev.filter((section) => section.id !== sectionId));
+      await houseNotesApi.deleteSection(selectedSection.id);
+      setSelectedSectionId(null);
       await loadBoard();
     } catch (error) {
-      Alert.alert('Hata', error?.response?.data?.message || 'Başlık silinemedi.');
+      Alert.alert('Hata', error?.response?.data?.message || 'Liste silinemedi.');
     }
   };
-
-  const renderActiveSection = (section) => (
-    <View
-      key={section.id}
-      style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}
-    >
-      <View style={styles.sectionHeaderRow}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>{section.title}</Text>
-        <TouchableOpacity
-          style={[
-            styles.headerDeleteBtn,
-            { backgroundColor: theme.colors.error[50], borderColor: theme.colors.error[100] },
-          ]}
-          onPress={() => handleDeleteSection(section.id, section.title)}
-        >
-          <Text style={[styles.headerDeleteText, { color: theme.colors.error[700] }]}>Başlığı sil</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.inlineRow}>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              flex: 1,
-              borderColor: theme.colors.neutral[300],
-              backgroundColor: theme.colors.background,
-              color: theme.colors.text.primary,
-            },
-          ]}
-          placeholder="Listeye yeni madde ekle"
-          placeholderTextColor={theme.colors.text.disabled}
-          value={itemDrafts[section.id] || ''}
-          onChangeText={(value) => setItemDrafts((prev) => ({ ...prev, [section.id]: value }))}
-        />
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: theme.colors.success[600] }]}
-          onPress={() => handleAddItem(section.id)}
-          disabled={submitting}
-        >
-          <Text style={[styles.addBtnText, { color: theme.colors.text.onPrimary }]}>Ekle</Text>
-        </TouchableOpacity>
-      </View>
-
-      {section.items.length === 0 ? (
-        <Text style={[styles.sectionHint, { color: theme.colors.text.secondary }]}>
-          Bu başlık altında bekleyen madde yok.
-        </Text>
-      ) : (
-        section.items.map((item) => (
-          <View key={item.id} style={styles.itemRow}>
-            <TouchableOpacity
-              style={[styles.circleBtn, { borderColor: theme.colors.primary[400] }]}
-              onPress={() => handleCompleteItem(item.id)}
-            >
-              <Ionicons name="checkmark" size={16} color={theme.colors.primary[700]} />
-            </TouchableOpacity>
-            <Text style={[styles.itemText, { color: theme.colors.text.primary }]}>{item.content}</Text>
-            <TouchableOpacity
-              style={[styles.deleteBtn, { backgroundColor: theme.colors.error[50] }]}
-              onPress={() => handleDeleteItem(item.id, 'active')}
-            >
-              <Text style={[styles.deleteBtnText, { color: theme.colors.error[700] }]}>Sil</Text>
-            </TouchableOpacity>
-          </View>
-        ))
-      )}
-    </View>
-  );
-
-  const renderHistorySection = (section) => (
-    <View
-      key={`history-${section.id}`}
-      style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}
-    >
-      <View style={styles.sectionHeaderRow}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>{section.title}</Text>
-      </View>
-      <Text style={[styles.sectionHint, { color: theme.colors.text.secondary }]}>
-        Tamamlanan maddeler aktif listeden kalkar, burada arşivlenir. Buradan kaldırılanlar artık
-        görünmez.
-      </Text>
-
-      {section.completedItems.map((item) => (
-        <View key={`done-${item.id}`} style={styles.itemRow}>
-          <View
-            style={[
-              styles.circleBtn,
-              { borderColor: theme.colors.success[400], backgroundColor: theme.colors.success[50] },
-            ]}
-          >
-            <Ionicons name="checkmark-circle" size={16} color={theme.colors.success[700]} />
-          </View>
-          <Text style={[styles.itemText, styles.completedText, { color: theme.colors.text.secondary }]}>
-            {item.content}
-          </Text>
-          <TouchableOpacity
-            style={[styles.deleteBtn, { backgroundColor: theme.colors.neutral[100] }]}
-            onPress={() => handleDeleteItem(item.id, 'history')}
-          >
-            <Text style={[styles.deleteBtnText, { color: theme.colors.text.secondary }]}>Kaldır</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-    </View>
-  );
-
-  const visibleSections = activeTab === 'active' ? activeSections : historySections;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <KeyboardAwareScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={isMainTab ? 72 : 12}
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        enableOnAndroid
-        extraScrollHeight={Platform.OS === 'ios' ? 20 : 40}
-        keyboardOpeningTime={0}
+        keyboardDismissMode="interactive"
+        contentInsetAdjustmentBehavior="never"
       >
         <PageHeader
           title="Notlar"
           subtitle={houseName}
           onBack={isMainTab ? undefined : () => navigation.goBack()}
         />
-        <View style={styles.hero}>
-          <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-            Market, ev içi işler ve alınacaklar listesi tüm ev üyeleri tarafından görülüp
-            yönetilebilir.
-          </Text>
-        </View>
-
-        <View style={styles.summaryRow}>
-          <View
-            style={[
-              styles.summaryBox,
-              { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[100] },
-            ]}
-          >
-            <Text style={[styles.summaryLabel, { color: theme.colors.text.secondary }]}>Aktif</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.text.primary }]}>{activeItemCount}</Text>
-          </View>
-          <View
-            style={[
-              styles.summaryBox,
-              { backgroundColor: theme.colors.success[50], borderColor: theme.colors.success[100] },
-            ]}
-          >
-            <Text style={[styles.summaryLabel, { color: theme.colors.text.secondary }]}>Geçmiş</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.text.primary }]}>{completedItemCount}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Yeni bir not listesi oluştur</Text>
-          <View style={styles.inlineRow}>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  flex: 1,
-                  borderColor: theme.colors.neutral[300],
-                  backgroundColor: theme.colors.background,
-                  color: theme.colors.text.primary,
-                },
-              ]}
-              placeholder="Örnek: Market, Ev, Banyo"
-              placeholderTextColor={theme.colors.text.disabled}
-              value={newSectionTitle}
-              onChangeText={setNewSectionTitle}
-            />
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: theme.colors.primary[600] }]}
-              onPress={handleCreateSection}
-              disabled={submitting}
-            >
-              <Text style={[styles.addBtnText, { color: theme.colors.text.onPrimary }]}>Ekle</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={[styles.tabWrap, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'active' && { backgroundColor: theme.colors.primary[600] }]}
-            onPress={() => setActiveTab('active')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === 'active' ? theme.colors.text.onPrimary : theme.colors.text.secondary },
-              ]}
-            >
-              Aktif Notlar
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'history' && { backgroundColor: theme.colors.success[600] }]}
-            onPress={() => setActiveTab('history')}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                { color: activeTab === 'history' ? theme.colors.text.onPrimary : theme.colors.text.secondary },
-              ]}
-            >
-              Geçmiş Notlar
-            </Text>
-          </TouchableOpacity>
-        </View>
 
         {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={theme.colors.primary[600]} />
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.colors.primary[600]} />
           </View>
-        ) : visibleSections.length === 0 ? (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.neutral[200] }]}>
-            <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
-              {activeTab === 'active' ? 'Henüz aktif not yok' : 'Geçmişte gösterilecek not yok'}
-            </Text>
-            <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
-              {activeTab === 'active'
-                ? 'Önce bir başlık oluşturun, sonra ev üyelerinin göreceği maddeleri ekleyin.'
-                : 'Tamamlanan maddeler burada toplanır. Gizlenenler artık bu listede de görünmez.'}
-            </Text>
+        ) : sections.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="list-outline" size={26} color={theme.colors.primary[700]} />
+            </View>
+            <Text style={styles.emptyTitle}>İlk not listeni oluştur</Text>
+            <Text style={styles.emptyText}>Market, ev işleri veya alınacaklar için ortak bir liste aç.</Text>
+            <View style={styles.createRow}>
+              <TextInput
+                style={styles.input}
+                value={newSectionTitle}
+                onChangeText={setNewSectionTitle}
+                placeholder="Örn. Market"
+                placeholderTextColor={theme.colors.text.disabled}
+                returnKeyType="done"
+                onSubmitEditing={createSection}
+              />
+              <TouchableOpacity style={styles.iconAction} onPress={createSection} disabled={submitting}>
+                <Ionicons name="arrow-forward" size={20} color={theme.colors.text.onPrimary} />
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
-          visibleSections.map((section) =>
-            activeTab === 'active' ? renderActiveSection(section) : renderHistorySection(section)
-          )
+          <>
+            <View style={styles.listSelectorHeader}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.listSelector}
+                keyboardShouldPersistTaps="handled"
+              >
+                {sections.map((section) => {
+                  const selected = Number(section.id) === Number(selectedSection?.id);
+                  return (
+                    <TouchableOpacity
+                      key={String(section.id)}
+                      style={[styles.listChip, selected && styles.listChipActive]}
+                      onPress={() => {
+                        setSelectedSectionId(section.id);
+                        setItemDraft('');
+                      }}
+                    >
+                      <Text style={[styles.listChipText, selected && styles.listChipTextActive]}>
+                        {section.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TouchableOpacity
+                accessibilityLabel="Yeni liste oluştur"
+                style={styles.addListButton}
+                onPress={() => setShowCreate((value) => !value)}
+              >
+                <Ionicons name={showCreate ? 'close' : 'add'} size={20} color={theme.colors.primary[700]} />
+              </TouchableOpacity>
+            </View>
+
+            {showCreate ? (
+              <View style={styles.compactCreate}>
+                <TextInput
+                  autoFocus
+                  style={styles.input}
+                  value={newSectionTitle}
+                  onChangeText={setNewSectionTitle}
+                  placeholder="Yeni liste adı"
+                  placeholderTextColor={theme.colors.text.disabled}
+                  returnKeyType="done"
+                  onSubmitEditing={createSection}
+                />
+                <TouchableOpacity style={styles.iconAction} onPress={createSection} disabled={submitting}>
+                  <Ionicons name="checkmark" size={20} color={theme.colors.text.onPrimary} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <View style={styles.noteCard}>
+              <View style={styles.noteHeader}>
+                <View style={styles.noteHeading}>
+                  <Text style={styles.noteTitle}>{selectedSection?.title}</Text>
+                  <Text style={styles.noteMeta}>
+                    {selectedSection?.items.length || 0} açık madde
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityLabel="Listeyi sil"
+                  style={styles.deleteListButton}
+                  onPress={deleteSection}
+                >
+                  <Ionicons name="trash-outline" size={18} color={theme.colors.error[600]} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.itemComposer}>
+                <TextInput
+                  style={styles.itemInput}
+                  value={itemDraft}
+                  onChangeText={setItemDraft}
+                  placeholder="Yeni madde ekle"
+                  placeholderTextColor={theme.colors.text.disabled}
+                  returnKeyType="done"
+                  blurOnSubmit={false}
+                  onSubmitEditing={addItem}
+                />
+                <TouchableOpacity
+                  accessibilityLabel="Maddeyi ekle"
+                  style={[styles.addItemButton, !itemDraft.trim() && styles.disabled]}
+                  onPress={addItem}
+                  disabled={!itemDraft.trim() || submitting}
+                >
+                  <Ionicons name="add" size={22} color={theme.colors.text.onPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.segment}>
+                <TouchableOpacity
+                  style={[styles.segmentButton, mode === 'active' && styles.segmentActive]}
+                  onPress={() => setMode('active')}
+                >
+                  <Text style={[styles.segmentText, mode === 'active' && styles.segmentTextActive]}>
+                    Aktif {activeCount}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segmentButton, mode === 'history' && styles.segmentActive]}
+                  onPress={() => setMode('history')}
+                >
+                  <Text style={[styles.segmentText, mode === 'history' && styles.segmentTextActive]}>
+                    Geçmiş {historyCount}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {visibleItems.length === 0 ? (
+                <Text style={styles.noItems}>
+                  {mode === 'active' ? 'Bu listede bekleyen madde yok.' : 'Henüz tamamlanan madde yok.'}
+                </Text>
+              ) : visibleItems.map((item) => (
+                <View key={String(item.id)} style={styles.itemRow}>
+                  {mode === 'active' ? (
+                    <TouchableOpacity
+                      accessibilityLabel="Tamamlandı"
+                      style={styles.checkButton}
+                      onPress={() => completeItem(item.id)}
+                    >
+                      <Ionicons name="checkmark" size={16} color={theme.colors.primary[700]} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.checkButton, styles.completedCheck]}>
+                      <Ionicons name="checkmark" size={16} color={theme.colors.success[700]} />
+                    </View>
+                  )}
+                  <Text style={[styles.itemText, mode === 'history' && styles.completedText]}>
+                    {item.content}
+                  </Text>
+                  <TouchableOpacity
+                    accessibilityLabel="Maddeyi kaldır"
+                    style={styles.removeItem}
+                    onPress={() => deleteItem(item.id)}
+                  >
+                    <Ionicons name="close" size={18} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </>
         )}
-      </KeyboardAwareScrollView>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const makeStyles = (theme, isCompact) =>
-  StyleSheet.create({
-    container: { flex: 1 },
-    content: { padding: 12, paddingBottom: 28 },
-    hero: { marginBottom: 12 },
-    title: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
-    subtitle: { fontSize: 12, lineHeight: 18 },
-    summaryRow: { flexDirection: isCompact ? 'column' : 'row', gap: 10, marginBottom: 12 },
-    summaryBox: {
-      flex: 1,
-      borderRadius: 14,
-      padding: 12,
-      borderWidth: 1,
-    },
-    summaryLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
-    summaryValue: { fontSize: 18, fontWeight: '900' },
-    card: {
-      borderRadius: 16,
-      borderWidth: 1,
-      padding: 12,
-      marginBottom: 12,
-    },
-    sectionHeaderRow: {
-      flexDirection: isCompact ? 'column' : 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 8,
-      marginBottom: 10,
-    },
-    sectionTitle: { fontSize: 14, fontWeight: '800' },
-    inlineRow: { flexDirection: isCompact ? 'column' : 'row', gap: 8, alignItems: 'center' },
-    input: {
-      borderWidth: 1,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-    },
-    addBtn: {
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      minWidth: 66,
-      alignItems: 'center',
-      width: isCompact ? '100%' : undefined,
-    },
-    addBtnText: { fontWeight: '800', fontSize: 13 },
-    loadingWrap: { paddingVertical: 28, alignItems: 'center' },
-    emptyTitle: { fontSize: 15, fontWeight: '800', marginBottom: 6 },
-    emptyText: { lineHeight: 18, fontSize: 12 },
-    sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 6 },
-    itemRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingVertical: 7,
-    },
-    circleBtn: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      borderWidth: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    itemText: { flex: 1, fontSize: 13, lineHeight: 18 },
-    deleteBtn: {
-      borderRadius: 9,
-      paddingHorizontal: 9,
-      paddingVertical: 7,
-    },
-    deleteBtnText: { fontWeight: '700', fontSize: 11 },
-    completedText: { textDecorationLine: 'line-through' },
-    tabWrap: {
-      flexDirection: 'row',
-      borderWidth: 1,
-      borderRadius: 14,
-      padding: 5,
-      marginBottom: 12,
-      gap: 6,
-    },
-    tabBtn: {
-      flex: 1,
-      borderRadius: 10,
-      paddingVertical: 10,
-      alignItems: 'center',
-    },
-    tabText: { fontWeight: '800', fontSize: 13 },
-    headerDeleteBtn: {
-      borderWidth: 1,
-      borderRadius: 9,
-      paddingHorizontal: 8,
-      paddingVertical: 7,
-    },
-    headerDeleteText: {
-      fontSize: 11,
-      fontWeight: '700',
-    },
-  });
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: {
+    flexGrow: 1,
+    paddingTop: insets.top + 6,
+    paddingHorizontal: 18,
+    paddingBottom: 32,
+  },
+  loading: { paddingVertical: 80, alignItems: 'center' },
+  emptyCard: {
+    marginTop: 18,
+    padding: 20,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    ...shadow(1, 'rgba(23,40,57,0.08)'),
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 18 },
+  emptyText: {
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 5,
+    marginBottom: 16,
+  },
+  createRow: { flexDirection: 'row', gap: 8 },
+  compactCreate: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text.primary,
+    paddingHorizontal: 12,
+    fontFamily: theme.typography.regular,
+    fontSize: 15,
+  },
+  iconAction: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listSelectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  listSelector: { gap: 7, paddingRight: 2 },
+  listChip: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.surface,
+  },
+  listChipActive: { backgroundColor: theme.colors.primary[600], borderColor: theme.colors.primary[600] },
+  listChipText: { color: theme.colors.text.secondary, fontFamily: theme.typography.semibold, fontSize: 13 },
+  listChipTextActive: { color: theme.colors.text.onPrimary },
+  addListButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  noteCard: {
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    overflow: 'hidden',
+    ...shadow(1, 'rgba(23,40,57,0.08)'),
+  },
+  noteHeader: {
+    minHeight: 60,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.neutral[100],
+  },
+  noteHeading: { flex: 1 },
+  noteTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 17 },
+  noteMeta: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 11, marginTop: 2 },
+  deleteListButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.error[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemComposer: { flexDirection: 'row', gap: 8, padding: 12 },
+  itemInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text.primary,
+    paddingHorizontal: 12,
+    fontFamily: theme.typography.regular,
+    fontSize: 15,
+  },
+  addItemButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabled: { opacity: 0.42 },
+  segment: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    marginHorizontal: 12,
+    marginBottom: 6,
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: theme.colors.neutral[100],
+  },
+  segmentButton: { minHeight: 30, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  segmentActive: { backgroundColor: theme.colors.surface },
+  segmentText: { color: theme.colors.text.secondary, fontFamily: theme.typography.semibold, fontSize: 12 },
+  segmentTextActive: { color: theme.colors.primary[700] },
+  noItems: {
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.regular,
+    fontSize: 13,
+    padding: 18,
+    textAlign: 'center',
+  },
+  itemRow: {
+    minHeight: 52,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.neutral[100],
+  },
+  checkButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary[400],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completedCheck: { borderColor: theme.colors.success[300], backgroundColor: theme.colors.success[50] },
+  itemText: { flex: 1, color: theme.colors.text.primary, fontFamily: theme.typography.regular, fontSize: 14 },
+  completedText: { color: theme.colors.text.secondary, textDecorationLine: 'line-through' },
+  removeItem: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+});

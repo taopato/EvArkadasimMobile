@@ -21,7 +21,7 @@ const sections = [
     title: 'Hesap',
     rows: [
       { icon: 'person-outline', label: 'Profil Düzenle', route: 'ProfilDuzenle' },
-      { icon: 'home-outline', label: 'Ev Yönetimi', route: 'GrupListesi' },
+      { icon: 'home-outline', label: 'Evlerim ve Favori Ev', route: 'GrupListesi', showsFavorite: true },
       { icon: 'card-outline', label: 'IBAN Bilgileri', route: 'IbanBilgileri' },
     ],
   },
@@ -96,7 +96,14 @@ export default function RoomoraSettings({ navigation }) {
                   <View style={styles.rowIcon}>
                     <Ionicons name={row.icon} size={20} color={theme.colors.primary[700]} />
                   </View>
-                  <Text style={styles.rowLabel}>{row.label}</Text>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowLabel}>{row.label}</Text>
+                    {row.showsFavorite && (
+                      <Text style={styles.rowValue}>
+                        {user?.defaultHouseName || 'Favori evini seç'}
+                      </Text>
+                    )}
+                  </View>
                   <Ionicons name="chevron-forward" size={19} color={theme.colors.neutral[400]} />
                 </TouchableOpacity>
               ))}
@@ -174,10 +181,16 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     backgroundColor: theme.colors.primary[50],
   },
   rowLabel: {
-    flex: 1,
     color: theme.colors.text.primary,
     fontFamily: theme.typography.semibold,
     fontSize: 15,
+  },
+  rowBody: { flex: 1 },
+  rowValue: {
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.regular,
+    fontSize: 12,
+    marginTop: 2,
   },
   logout: {
     height: 52,
