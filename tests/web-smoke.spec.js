@@ -56,12 +56,19 @@ test('Roomora mobile critical flows render without runtime errors', async ({ pag
   await expect(page.getByText('Ekmek', { exact: true })).toBeVisible();
   await page.getByText('Ekmek', { exact: true }).click();
   await expect(page.getByPlaceholder('Örn. Ekmek')).toHaveValue('Ekmek');
+  await expect(page.getByLabel('Tarık Çetintürk katılımcı')).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('participant-25').click();
+  await page.getByText('Kişisel kalem ekle', { exact: true }).click();
+  await expect(page.getByTestId('personal-disabled-25')).toBeVisible();
+  await expect(page.getByTestId('personal-input-25')).toHaveCount(0);
+  await expect(page.getByLabel('Tufan Çalışkan kişisel kalem tutarı')).toBeEditable();
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('quick-expense.png'), fullPage: true });
   await page.goBack();
 
   await page.getByText('Notlar', { exact: true }).last().click();
   await expect(page.getByText('Notlar', { exact: true }).first()).toBeVisible();
+  await expect(page.getByPlaceholder('Yeni madde ekle')).toBeVisible({ timeout: 15_000 });
   await assertNoHorizontalOverflow();
   await page.screenshot({ path: testInfo.outputPath('notes.png'), fullPage: true });
 

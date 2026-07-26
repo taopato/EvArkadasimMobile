@@ -1,46 +1,54 @@
-# Ev Arkadaşım Mobile
+# Roomora Mobile
 
-Expo tabanlı mobil istemci. Uygulama; ev grupları, ortak harcamalar, düzenli giderler, borç/alacak özeti ve ödeme onayı akışlarını yönetir.
+Roomora, ev arkadaşlarının ortak harcamaları, faturaları, notları ve ödemeleri tek yerde yönetmesini sağlayan Expo tabanlı mobil uygulamadır.
 
-## Başlatma
+> Ortak yaşamın kolay hali.
+
+## Uygulama
+
+| Ana Sayfa | Giderler | Faturalar |
+| --- | --- | --- |
+| ![Ana Sayfa](docs/implemented-screens/home.png) | ![Giderler](docs/implemented-screens/expenses.png) | ![Faturalar](docs/implemented-screens/bills.png) |
+
+## Öne Çıkanlar
+
+- Hızlı ortak harcama ve kişisel kalem girişi
+- Üye bazlı borç, alacak ve kısmi ödeme takibi
+- Fatura, kira, düzenli gider ve kalan taksit planları
+- Paylaşımlı alışveriş ve ev notları
+- Fiş tarama ve manuel düzeltme akışı
+- Kalıcı favori ev, profil ve ev fotoğrafı
+- Açık/koyu tema ve Türkçe/İngilizce dil altyapısı
+
+## Yerel Çalıştırma
 
 ```bash
 npm install
 npm start
 ```
 
-Alternatif:
+Telefon ve bilgisayar aynı ağdayken Expo Go ile terminaldeki QR kodu okutun. API varsayılan olarak yerel ağdaki `5118` portunu kullanır; adresi `.env` veya `app.json` üzerinden yapılandırın.
 
 ```bash
-npx expo start --lan
+npm test
+npm run web:build
+npm run export:android
+npm run export:ios
 ```
 
-## Gereksinimler
+## Yapı
 
-- Node.js 20+
-- Expo Go
-- Aynı ağda çalışan backend API
+- `App.js`: Navigation ve provider yapısı
+- `src/screens`: Ürün ekranları
+- `src/services/api.js`: Backend istemcisi
+- `src/context/AuthContext.js`: Oturum ve favori ev
+- `src/shared/theme`: Roomora tasarım sistemi
+- `docs/store`: App Store ve Google Play hazırlıkları
 
-## Önemli Dosyalar
+## Bağlı Projeler
 
-- `App.js`: Ana navigation ve provider yapısı
-- `src/services/api.js`: Aktif frontend API katmanı
-- `src/context/AuthContext.js`: Oturum ve varsayılan ev yönetimi
-- `src/shared/theme/`: Tema sistemi
-- `app.json`: Expo config ve Google client ID alanları
+- Roomora Backend: ASP.NET Core API
+- Roomora Web: Web istemcisi
+- Roomora OCR: Fiş okuma servisi
 
-## Google Login
-
-Google giriş akışı kod tarafında hazırdır. Çalıştırmak için aşağıdaki alanların doldurulması gerekir:
-
-- `app.json > expo.extra.GOOGLE_WEB_CLIENT_ID`
-- `app.json > expo.extra.GOOGLE_IOS_CLIENT_ID`
-- `app.json > expo.extra.GOOGLE_ANDROID_CLIENT_ID`
-- backend `appsettings.json > GoogleAuth:ClientIds`
-
-## Durum
-
-- Auth akışı aktif
-- Borç/alacak ekranları backend ile hizalı
-- Tema sistemi aktif
-- QR ile Expo Go üzerinden test edilebilir
+Üretim paketinden önce [yayın kontrol listesini](docs/store/RELEASE_CHECKLIST.md) tamamlayın.

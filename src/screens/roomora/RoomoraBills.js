@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,8 +33,20 @@ export default function RoomoraBills({ navigation }) {
   const [filter, setFilter] = useState('all');
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
 
+  const now = new Date();
   const bills = useMemo(() => data.expenses
     .filter((item) => BILL_KEYS.includes(item.key))
+    .filter((item) => {
+      const raw = item?._raw || {};
+      const isPlannedPeriod = (raw.parentExpenseId ?? raw.ParentExpenseId) != null;
+      if (!isPlannedPeriod) return true;
+
+      const visibleFrom = new Date(raw.postDate ?? raw.PostDate ?? item.date);
+      const dueDate = new Date(raw.dueDate ?? raw.DueDate ?? item.date);
+      if (Number.isNaN(visibleFrom.getTime()) || Number.isNaN(dueDate.getTime())) return false;
+      dueDate.setHours(23, 59, 59, 999);
+      return now >= visibleFrom && now <= dueDate;
+    })
     .filter((item) => filter === 'all' || item.key === filter), [data.expenses, filter]);
   const total = bills.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
@@ -71,6 +84,16 @@ export default function RoomoraBills({ navigation }) {
         </View>
 
         <PrimaryButton label="Yeni Fatura Ekle" icon="add" onPress={openCreate} />
+        <TouchableOpacity
+          style={styles.plannedAction}
+          onPress={() => navigation.navigate('DuzenliGiderEkle', {
+            houseId: data.houseId,
+            houseName: data.houseName,
+          })}
+          activeOpacity={0.84}
+        >
+          <Text style={styles.plannedActionText}>Düzenli veya taksitli gider ekle</Text>
+        </TouchableOpacity>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           <Pill label="Tümü" active={filter === 'all'} onPress={() => setFilter('all')} />
@@ -141,7 +164,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   content: { paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: 32 },
   summary: {
     borderRadius: 8,
-    backgroundColor: theme.colors.primary[900],
+    backgroundColor: theme.colors.primary[600],
     padding: 20,
     marginTop: 14,
     marginBottom: 12,
@@ -160,6 +183,20 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   summaryStats: { flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 18 },
   statLabel: { color: '#d8e0e8', fontFamily: theme.typography.regular, fontSize: 12 },
   statValue: { color: '#fff', fontFamily: theme.typography.bold, fontSize: 18, marginTop: 2 },
-  statDivider: { width: 1, height: 35, backgroundColor: '#496176' },
+  statDivider: { width: 1, height: 35, backgroundColor: theme.colors.primary[400] },
+  plannedAction: {
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[300],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  plannedActionText: {
+    color: theme.colors.primary[700],
+    fontFamily: theme.typography.bold,
+    fontSize: 14,
+  },
   filters: { gap: 8, paddingVertical: 14 },
 });

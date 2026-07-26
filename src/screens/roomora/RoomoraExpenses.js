@@ -80,6 +80,21 @@ export default function RoomoraExpenses({ navigation }) {
       >
         <PageHeader title="Giderler" subtitle={data.houseName} />
 
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>Bu ay görüntülenen gider</Text>
+          <View style={styles.totalRow}>
+            <View>
+              <Text style={styles.totalValue}>{money(total)}</Text>
+              <Text style={styles.totalSub}>{items.length} işlem</Text>
+            </View>
+            <View style={styles.totalIcon}>
+              <Ionicons name="wallet-outline" size={28} color={theme.colors.primary[700]} />
+            </View>
+          </View>
+        </View>
+
+        <PrimaryButton label="Yeni Harcama Ekle" icon="add" onPress={openCreate} />
+
         <View style={styles.search}>
           <Ionicons name="search-outline" size={20} color={theme.colors.text.secondary} />
           <TextInput
@@ -112,20 +127,6 @@ export default function RoomoraExpenses({ navigation }) {
           <Pill label="Tüm Zamanlar" active={period === 'all'} onPress={() => { setPeriod('all'); setVisibleCount(10); }} />
         </View>
 
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Bu ay görüntülenen gider</Text>
-          <View style={styles.totalRow}>
-            <View>
-              <Text style={styles.totalValue}>{money(total)}</Text>
-              <Text style={styles.totalSub}>{items.length} işlem</Text>
-            </View>
-            <View style={styles.totalIcon}>
-              <Ionicons name="wallet-outline" size={28} color={theme.colors.primary[700]} />
-            </View>
-          </View>
-        </View>
-
-        <PrimaryButton label="Yeni Harcama Ekle" icon="add" onPress={openCreate} />
         <SectionHeader
           title="Harcama Geçmişi"
           action={items.length > visibleCount ? 'Daha Fazla' : undefined}
@@ -198,6 +199,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     backgroundColor: theme.colors.primary[50],
     borderWidth: 1,
     borderColor: theme.colors.primary[100],
+    marginTop: 14,
     marginBottom: 12,
   },
   totalLabel: {

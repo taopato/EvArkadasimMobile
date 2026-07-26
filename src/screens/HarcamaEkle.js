@@ -159,7 +159,13 @@ export default function AddExpenseScreen({ navigation, route }) {
     const id = String(memberId);
     setParticipantIds((current) => {
       if (current.includes(id)) {
-        return current.length > 1 ? current.filter((item) => item !== id) : current;
+        if (current.length <= 1) return current;
+        setPersonal((previous) => {
+          const next = { ...previous };
+          delete next[id];
+          return next;
+        });
+        return current.filter((item) => item !== id);
       }
       return [...current, id];
     });
@@ -191,6 +197,7 @@ export default function AddExpenseScreen({ navigation, route }) {
     const personalItems = [];
 
     Object.entries(personal).forEach(([userId, value]) => {
+      if (!participantIds.includes(String(userId))) return;
       const numeric = parseMoneyInput(value) || 0;
       if (numeric > 0) {
         personalTotal += numeric;
@@ -396,7 +403,6 @@ export default function AddExpenseScreen({ navigation, route }) {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <Text style={styles.quickHint}>Dokunarak formu doldurabilir, basılı tutarak kaldırabilirsin.</Text>
         </View>
 
         <View style={styles.fieldBlock} ref={noteWrapRef}>
@@ -440,6 +446,7 @@ export default function AddExpenseScreen({ navigation, route }) {
               return (
                 <TouchableOpacity
                   key={String(member.id)}
+                  accessibilityLabel={`${member.fullName} ödeyen kişi`}
                   style={[styles.chip, active && styles.chipActive]}
                   onPress={() => setPayerId(String(member.id))}
                   activeOpacity={0.8}
@@ -472,6 +479,8 @@ export default function AddExpenseScreen({ navigation, route }) {
               return (
                 <TouchableOpacity
                   key={String(member.id)}
+                  accessibilityLabel={`${member.fullName} katılımcı`}
+                  testID={`participant-${member.id}`}
                   style={[styles.chip, active && styles.chipActive]}
                   onPress={() => toggleParticipant(member.id)}
                   activeOpacity={0.8}
@@ -490,21 +499,42 @@ export default function AddExpenseScreen({ navigation, route }) {
         {showPersonal ? (
           <View style={styles.card}>
             <Text style={styles.label}>Kişisel Kalemler</Text>
-            {members.map((member) => (
-              <View key={String(member.id)} style={styles.personalRow}>
-                <Text style={styles.personalName}>{member.fullName}</Text>
-                <TextInput
-                  style={styles.personalInput}
-                  placeholder="0"
-                  keyboardType="decimal-pad"
-                  value={personal[String(member.id)] || ''}
-                  onChangeText={(value) => setPersonal((prev) => ({
-                    ...prev,
-                    [String(member.id)]: formatMoneyInput(value),
-                  }))}
-                />
-              </View>
-            ))}
+            {members.map((member) => {
+              const isParticipant = participantIds.includes(String(member.id));
+              return (
+                <View
+                  key={String(member.id)}
+                  style={[styles.personalRow, !isParticipant && styles.personalRowDisabled]}
+                >
+                  <Text style={[styles.personalName, !isParticipant && styles.personalNameDisabled]}>
+                    {member.fullName}
+                  </Text>
+                  {isParticipant ? (
+                    <TextInput
+                      accessibilityLabel={`${member.fullName} kişisel kalem tutarı`}
+                      testID={`personal-input-${member.id}`}
+                      style={styles.personalInput}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      value={personal[String(member.id)] || ''}
+                      onChangeText={(value) => setPersonal((prev) => ({
+                        ...prev,
+                        [String(member.id)]: formatMoneyInput(value),
+                      }))}
+                    />
+                  ) : (
+                    <View
+                      accessibilityLabel={`${member.fullName} kişisel kalem seçilemez`}
+                      accessibilityState={{ disabled: true }}
+                      testID={`personal-disabled-${member.id}`}
+                      style={styles.personalDisabledValue}
+                    >
+                      <Text style={styles.personalDisabledText}>Seçilmedi</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
             <Text style={styles.info}>Kişisel kalemler toplamdan düşülür, kalan kısım ortak paylaştırılır.</Text>
           </View>
         ) : null}
@@ -612,14 +642,13 @@ const makeStyles = (theme) => StyleSheet.create({
   selectionBody: { flex: 1, minWidth: 110 },
   selectionLabel: { color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 12 },
   selectionValue: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 15, marginTop: 2 },
-  quickSection: { marginBottom: 14 },
+  quickSection: { marginBottom: 9 },
   quickHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   quickAddButton: { minHeight: 36, flexDirection: 'row', gap: 4, alignItems: 'center', paddingHorizontal: 10, borderRadius: 8, backgroundColor: theme.colors.primary[50] },
   quickAddText: { color: theme.colors.primary[700], fontFamily: theme.typography?.bold, fontSize: 13 },
-  quickList: { gap: 8, paddingVertical: 6 },
-  quickChoice: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 18, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200] },
-  quickChoiceText: { color: theme.colors.text.primary, fontFamily: theme.typography?.semibold, fontSize: 13 },
-  quickHint: { color: theme.colors.text.secondary, fontFamily: theme.typography?.regular, fontSize: 11, lineHeight: 16 },
+  quickList: { gap: 7, paddingTop: 4, paddingBottom: 2 },
+  quickChoice: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 16, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200] },
+  quickChoiceText: { color: theme.colors.text.primary, fontFamily: theme.typography?.semibold, fontSize: 12 },
   receiptCard: {
     backgroundColor: theme.colors.surface,
     padding: 16,
@@ -698,6 +727,17 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   personalName: { fontSize: 15, color: theme.colors.text.primary, flex: 1, marginRight: 10 },
   personalInput: { width: 100, borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 8, padding: 8, textAlign: 'right', color: theme.colors.text.primary },
+  personalRowDisabled: { opacity: 0.48, backgroundColor: theme.colors.neutral[100] },
+  personalNameDisabled: { color: theme.colors.text.disabled },
+  personalDisabledValue: {
+    width: 100,
+    minHeight: 38,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.neutral[100],
+  },
+  personalDisabledText: { color: theme.colors.text.disabled, fontSize: 12 },
   splitSummary: { minHeight: 42, borderRadius: 8, backgroundColor: theme.colors.primary[50], paddingHorizontal: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   splitSummaryText: { color: theme.colors.primary[700], fontFamily: theme.typography.medium, fontSize: 12 },
   splitSummaryValue: { color: theme.colors.primary[800], fontFamily: theme.typography.bold, fontSize: 12 },

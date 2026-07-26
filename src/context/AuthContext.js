@@ -5,6 +5,28 @@ import eventBus from '../shared/events/bus';
 import { isTokenExpired, normalizeAuthUser } from '../shared/auth/session';
 
 const AuthContext = createContext();
+const favoriteHouseStorageKey = (userId) => `roomora:favorite-house:${userId}`;
+
+const restoreFavoriteHouse = async (nextUser) => {
+  if (!nextUser?.id) return nextUser;
+
+  const storedFavorite = await AsyncStorage.getItem(favoriteHouseStorageKey(nextUser.id));
+  if (!storedFavorite) return nextUser;
+
+  try {
+    const favorite = JSON.parse(storedFavorite);
+    const houseId = Number(favorite?.id);
+    if (!houseId) return nextUser;
+    return {
+      ...nextUser,
+      defaultHouseId: houseId,
+      ...(favorite?.name ? { defaultHouseName: favorite.name } : {}),
+    };
+  } catch {
+    await AsyncStorage.removeItem(favoriteHouseStorageKey(nextUser.id));
+    return nextUser;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -44,7 +66,8 @@ export const AuthProvider = ({ children }) => {
         }
 
         try {
-          const userData = normalizeAuthUser(JSON.parse(storedUser), storedToken);
+          const normalizedUser = normalizeAuthUser(JSON.parse(storedUser), storedToken);
+          const userData = await restoreFavoriteHouse(normalizedUser);
           if (!userData?.id) {
             await AsyncStorage.multiRemove(['authToken', 'user']);
             applySession(null, null);
@@ -80,7 +103,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Geçersiz veya süresi dolmuş oturum belirteci.');
       }
 
-      const normalizedUser = normalizeAuthUser(userData, authToken);
+      const normalizedUser = await restoreFavoriteHouse(normalizeAuthUser(userData, authToken));
       if (!normalizedUser?.id) {
         throw new Error('Oturum yanıtında kullanıcı kimliği bulunamadı.');
       }
@@ -115,6 +138,13 @@ export const AuthProvider = ({ children }) => {
   const setDefaultHouseId = useCallback(async (houseId, houseName) => {
     const hid = Number(houseId);
     if (!hid) return;
+    const currentUser = userRef.current;
+    if (!currentUser?.id) return;
+
+    await AsyncStorage.setItem(
+      favoriteHouseStorageKey(currentUser.id),
+      JSON.stringify({ id: hid, name: houseName || '' })
+    );
 
     await updateUser((prev) => ({
       ...(prev || {}),

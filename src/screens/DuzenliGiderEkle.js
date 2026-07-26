@@ -251,7 +251,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
           {mode === 'installment' && (
             <>
-              <Text style={styles.label}>Toplam tutar (TL)</Text>
+              <Text style={styles.label}>Kalan toplam tutar (TL)</Text>
               <TextInput
                 style={styles.input}
                 value={totalAmount}
@@ -266,7 +266,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
           {mode === 'installment' && (
             <>
-              <Text style={styles.label}>Süre</Text>
+              <Text style={styles.label}>Kalan taksit sayısı</Text>
               <View style={styles.rowWrap}>
                 {['3', '6', '12'].map((count) => (
                   <Chip
@@ -302,6 +302,9 @@ export default function DuzenliGiderEkle({ navigation, route }) {
                   <Text style={styles.customMonthLabel}>ay boyunca sürsün</Text>
                 </View>
               )}
+              <Text style={styles.helperText}>
+                Plan daha önce başladıysa yalnızca kalan tutarı ve kalan ay sayısını gir.
+              </Text>
             </>
           )}
 
@@ -418,6 +421,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   customMonthRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   customMonthInput: { width: 80, marginBottom: 0, textAlign: 'center' },
   customMonthLabel: { color: theme.colors.text.secondary, fontWeight: '600' },
+  helperText: { color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17, marginTop: -2, marginBottom: 8 },
   collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   collectionPrefix: { color: theme.colors.text.secondary, fontWeight: '700' },
   collectionHint: { flex: 1, color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17 },

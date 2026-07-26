@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  InputAccessoryView,
   Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -32,6 +34,7 @@ const BILL_TYPES = [
   { key: 'Rent', icon: 'home-outline', label: 'Kira', hint: 'Düzenli ödeme' },
   { key: 'Other', icon: 'document-text-outline', label: 'Diğer', hint: 'Başka bir fatura' },
 ];
+const AMOUNT_ACCESSORY_ID = 'roomora-bill-amount-accessory';
 
 const todayISO = () => {
   const date = new Date();
@@ -236,7 +239,7 @@ export default function FaturaEkle({ route, navigation }) {
                 placeholderTextColor={theme.colors.primary[300]}
                 keyboardType="decimal-pad"
                 inputMode="decimal"
-                returnKeyType="done"
+                inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
                 maxLength={12}
               />
             </View>
@@ -257,7 +260,7 @@ export default function FaturaEkle({ route, navigation }) {
                     <Ionicons
                       name={type.icon}
                       size={21}
-                      color={selected ? theme.colors.success[700] : theme.colors.text.secondary}
+                      color={selected ? theme.colors.primary[700] : theme.colors.text.secondary}
                     />
                     <Text style={[styles.typeLabel, selected && styles.typeLabelSelected]} numberOfLines={1}>
                       {type.label}
@@ -293,7 +296,7 @@ export default function FaturaEkle({ route, navigation }) {
                     <Text style={[styles.memberText, selected && styles.memberTextSelected]} numberOfLines={1}>
                       {member.fullName}
                     </Text>
-                    {selected && <Ionicons name="checkmark-circle" size={18} color={theme.colors.success[600]} />}
+                    {selected && <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary[600]} />}
                   </TouchableOpacity>
                 );
               })}
@@ -338,6 +341,15 @@ export default function FaturaEkle({ route, navigation }) {
         type={toast.type}
         onHide={() => setToast((current) => ({ ...current, visible: false }))}
       />
+      {Platform.OS === 'ios' ? (
+        <InputAccessoryView nativeID={AMOUNT_ACCESSORY_ID}>
+          <View style={styles.keyboardToolbar}>
+            <TouchableOpacity style={styles.keyboardDone} onPress={Keyboard.dismiss}>
+              <Text style={styles.keyboardDoneText}>Bitti</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      ) : null}
     </View>
   );
 }
@@ -366,7 +378,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     borderRadius: 8,
     padding: 18,
     marginBottom: 14,
-    backgroundColor: theme.colors.primary[900],
+    backgroundColor: theme.colors.primary[600],
     ...shadow(2, 'rgba(10,29,45,0.20)'),
   },
   amountLabel: { color: theme.colors.primary[200], fontSize: 13, fontWeight: '700' },
@@ -398,9 +410,9 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     paddingHorizontal: 8,
     gap: 5,
   },
-  typeButtonSelected: { borderColor: theme.colors.success[500], backgroundColor: theme.colors.success[50] },
+  typeButtonSelected: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[50] },
   typeLabel: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '700' },
-  typeLabelSelected: { color: theme.colors.success[700] },
+  typeLabelSelected: { color: theme.colors.primary[700] },
   selectionHint: { color: theme.colors.text.secondary, fontSize: 12, marginTop: 10 },
   memberWrap: { gap: 8 },
   memberChip: {
@@ -414,13 +426,13 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
-  memberChipSelected: { borderColor: theme.colors.success[500], backgroundColor: theme.colors.success[50] },
+  memberChipSelected: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[50] },
   memberInitial: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.neutral[200] },
-  memberInitialSelected: { backgroundColor: theme.colors.success[100] },
+  memberInitialSelected: { backgroundColor: theme.colors.primary[100] },
   memberInitialText: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '800' },
-  memberInitialTextSelected: { color: theme.colors.success[700] },
+  memberInitialTextSelected: { color: theme.colors.primary[700] },
   memberText: { flex: 1, color: theme.colors.text.primary, fontSize: 14, fontWeight: '600' },
-  memberTextSelected: { color: theme.colors.success[700], fontWeight: '800' },
+  memberTextSelected: { color: theme.colors.primary[700], fontWeight: '800' },
   noteInput: {
     minHeight: 84,
     borderRadius: 8,
@@ -434,7 +446,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   saveButton: {
     minHeight: 52,
     borderRadius: 8,
-    backgroundColor: theme.colors.success[600],
+    backgroundColor: theme.colors.primary[600],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -443,4 +455,15 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   },
   saveButtonText: { color: theme.colors.text.onPrimary, fontSize: 15, fontWeight: '800' },
   buttonDisabled: { opacity: 0.65 },
+  keyboardToolbar: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.neutral[200],
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  keyboardDone: { minWidth: 60, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  keyboardDoneText: { color: theme.colors.primary[700], fontSize: 15, fontWeight: '700' },
 });

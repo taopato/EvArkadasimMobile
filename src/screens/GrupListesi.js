@@ -120,11 +120,13 @@ export default function GroupListScreen({ navigation, route }) {
                         <Text style={styles.houseName}>{house.name}</Text>
                         {active && (
                           <View style={styles.activeBadge}>
-                            <Text style={styles.activeText}>AKTİF</Text>
+                            <Text style={styles.activeText}>FAVORİ</Text>
                           </View>
                         )}
                       </View>
-                      <Text style={styles.houseSub}>Üyeleri ve ev bilgilerini görüntüle</Text>
+                      <Text style={styles.houseSub}>
+                        {active ? 'Her girişte bu ev açılır' : 'Favori yap ve ev bilgilerini görüntüle'}
+                      </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={theme.colors.neutral[400]} />
                   </TouchableOpacity>
