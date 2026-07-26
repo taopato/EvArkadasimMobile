@@ -57,7 +57,7 @@ export default function DavetEt({ navigation, route }) {
           </TouchableOpacity>
           <Text style={styles.topTitle}>Arkadaş Davet Et</Text>
           <View style={styles.avatar}>
-            <Ionicons name="person-add" size={20} color={theme.colors.success[700]} />
+            <Ionicons name="person-add" size={20} color={theme.colors.primary[700]} />
           </View>
         </View>
 
@@ -99,7 +99,7 @@ const makeStyles = (theme, insets) =>
       backgroundColor: theme.colors.background,
     },
     content: {
-      padding: 24,
+      padding: 18,
       paddingTop: insets.top + 14,
       paddingBottom: 36,
     },
@@ -122,7 +122,7 @@ const makeStyles = (theme, insets) =>
     },
     avatar: {
       alignItems: 'center',
-      backgroundColor: theme.colors.success[100],
+      backgroundColor: theme.colors.primary[50],
       borderRadius: 22,
       height: 44,
       justifyContent: 'center',
@@ -134,37 +134,39 @@ const makeStyles = (theme, insets) =>
       fontWeight: '900',
     },
     heroCard: {
-      backgroundColor: theme.colors.primary[900],
-      borderRadius: 28,
+      backgroundColor: theme.colors.primary[50],
+      borderColor: theme.colors.primary[200],
+      borderWidth: 1,
+      borderRadius: 8,
       marginBottom: 18,
-      padding: 24,
-      ...shadow(4, 'rgba(23,40,57,0.24)'),
+      padding: 18,
+      ...shadow(1, 'rgba(23,40,57,0.08)'),
     },
     eyebrow: {
-      color: theme.colors.primary[200],
+      color: theme.colors.primary[700],
       fontSize: 13,
       fontWeight: '800',
       marginBottom: 10,
     },
     title: {
-      color: '#ffffff',
-      fontSize: 30,
+      color: theme.colors.text.primary,
+      fontSize: 24,
       fontWeight: '900',
       lineHeight: 36,
       marginBottom: 10,
     },
     subtitle: {
-      color: theme.colors.primary[100],
+      color: theme.colors.text.secondary,
       fontSize: 15,
       lineHeight: 22,
     },
     card: {
       backgroundColor: theme.colors.surface,
       borderColor: theme.colors.neutral[200],
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       padding: 20,
-      ...shadow(3, 'rgba(23,40,57,0.12)'),
+      ...shadow(1, 'rgba(23,40,57,0.08)'),
     },
     label: {
       color: theme.colors.text.primary,
@@ -175,7 +177,7 @@ const makeStyles = (theme, insets) =>
     input: {
       backgroundColor: theme.colors.background,
       borderColor: theme.colors.neutral[300],
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       color: theme.colors.text.primary,
       fontSize: 16,
@@ -185,8 +187,8 @@ const makeStyles = (theme, insets) =>
     },
     primaryButton: {
       alignItems: 'center',
-      backgroundColor: theme.colors.primary[900],
-      borderRadius: 18,
+      backgroundColor: theme.colors.primary[600],
+      borderRadius: 8,
       justifyContent: 'center',
       minHeight: 54,
       marginBottom: 12,
@@ -199,7 +201,7 @@ const makeStyles = (theme, insets) =>
     secondaryButton: {
       alignItems: 'center',
       backgroundColor: theme.colors.neutral[100],
-      borderRadius: 18,
+      borderRadius: 8,
       justifyContent: 'center',
       minHeight: 54,
     },

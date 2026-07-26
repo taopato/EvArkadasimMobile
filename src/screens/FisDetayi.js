@@ -17,10 +17,11 @@ import {
 } from 'react-native';
 import { PanGestureHandler, PinchGestureHandler, State as GestureState } from 'react-native-gesture-handler';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, receiptsApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { useCommonStyles } from '../shared/ui/CommonStyles';
+import { LoadingState, PageHeader } from '../shared/ui/roomora/CanonicalUI';
 import { BASE_URL } from '../shared/config/env';
 
 const CATEGORY_OPTIONS = [
@@ -282,7 +283,7 @@ const getRenderMetrics = (imageFrame, imageSourceSize) => {
 function FisDetayiInner({ route, navigation }) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const CommonStyles = useCommonStyles();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const receiptId = route?.params?.receiptId;
   const houseId = route?.params?.houseId || user?.defaultHouseId;
@@ -1015,24 +1016,27 @@ function FisDetayiInner({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={CommonStyles.container}>
-        <View style={CommonStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary[600]} />
-          <Text style={CommonStyles.loadingText}>Fiş okunuyor...</Text>
-        </View>
+      <View style={[styles.screen, { paddingTop: insets.top + 4 }]}>
+        <PageHeader title="Fiş Tarama Sonucu" onBack={() => navigation.goBack()} />
+        <LoadingState label="Fiş okunuyor..." />
       </View>
     );
   }
 
   return (
-    <View style={CommonStyles.container}>
+    <View style={styles.screen}>
       <ScrollView
-        style={CommonStyles.content}
-        contentContainerStyle={styles.content}
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
         scrollEnabled={canPageScroll}
         directionalLockEnabled
         keyboardShouldPersistTaps="handled"
       >
+        <PageHeader
+          title={isConverted ? 'Fiş Detayı' : 'Fiş Tarama Sonucu'}
+          subtitle={isConverted ? 'Kaydedilmiş fiş' : 'Bilgileri kontrol edip kaydet'}
+          onBack={() => navigation.goBack()}
+        />
         {imageUri ? (
           <>
             <View style={styles.zoomToolbar}>
@@ -1563,8 +1567,9 @@ export default function FisDetayi(props) {
 }
 
 const makeStyles = (theme) => StyleSheet.create({
-  content: { padding: 16, paddingBottom: 28 },
-  previewFrame: { width: '100%', height: 260, borderRadius: 18, backgroundColor: theme.colors.neutral[100], marginBottom: 14, overflow: 'hidden', position: 'relative' },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { paddingHorizontal: 20, paddingBottom: 36 },
+  previewFrame: { width: '100%', height: 260, borderRadius: 8, backgroundColor: theme.colors.neutral[100], marginBottom: 14, overflow: 'hidden', position: 'relative' },
   previewCanvas: { position: 'relative', backgroundColor: theme.colors.neutral[100], width: '100%', height: '100%' },
   preview: { width: '100%', height: '100%' },
   zoomToolbar: {

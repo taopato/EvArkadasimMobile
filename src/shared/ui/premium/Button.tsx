@@ -40,7 +40,7 @@ export const PremiumButton: React.FC<ButtonProps> = ({
       case 'error':
         return { bg: t.error[600], border: t.error[600], fg: t.text.onPrimary };
       default:
-        return { bg: t.primary[900], border: t.primary[900], fg: t.text.onPrimary };
+        return { bg: t.primary[600], border: t.primary[600], fg: t.text.onPrimary };
     }
   };
 
@@ -85,9 +85,9 @@ export const PremiumButton: React.FC<ButtonProps> = ({
         <Text
           style={{
             color: fg,
-            fontWeight: (typo as any).weight,
+            fontFamily: theme.typography?.bold,
             fontSize: (typo as any).size,
-            letterSpacing: (typo as any).letterSpacing ?? 0.3,
+            letterSpacing: 0,
           }}
         >
           {title}

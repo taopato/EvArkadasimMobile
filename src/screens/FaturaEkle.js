@@ -363,7 +363,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   contextRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
   contextText: { flex: 1, color: theme.colors.text.secondary, fontSize: 14, fontWeight: '600' },
   amountCard: {
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 18,
     marginBottom: 14,
     backgroundColor: theme.colors.primary[900],
@@ -375,7 +375,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   amountInput: { flex: 1, color: theme.colors.text.onPrimary, fontSize: 36, fontWeight: '800', paddingVertical: 4 },
   section: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     padding: 16,
@@ -389,7 +389,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     flexGrow: 1,
     minWidth: 90,
     minHeight: 72,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.background,
@@ -405,7 +405,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   memberWrap: { gap: 8 },
   memberChip: {
     minHeight: 48,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.background,
@@ -423,7 +423,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   memberTextSelected: { color: theme.colors.success[700], fontWeight: '800' },
   noteInput: {
     minHeight: 84,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[300],
     backgroundColor: theme.colors.background,
@@ -433,7 +433,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   },
   saveButton: {
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: theme.colors.success[600],
     flexDirection: 'row',
     alignItems: 'center',

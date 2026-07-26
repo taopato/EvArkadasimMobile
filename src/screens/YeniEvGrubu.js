@@ -1,94 +1,125 @@
-// src/screens/NewGroupScreen.js
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
-import { useTheme } from '../shared/theme/ThemeProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { houseApi } from '../services/api';
+import { useTheme } from '../shared/theme/ThemeProvider';
+import { PageHeader, PrimaryButton } from '../shared/ui/roomora/CanonicalUI';
 
-const NewGroupScreen = ({ navigation }) => {
-  const [houseName, setHouseName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
-  const CommonStyles = useCommonStyles();
+export default function YeniEvGrubu({ navigation }) {
+  const { user, setDefaultHouseId } = useAuth();
   const { theme } = useTheme();
-  const ColorThemes = makeColorThemes(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleCreateGroup = async () => {
-    if (!houseName.trim()) {
-      Alert.alert('Hata', 'Lütfen ev grubu adını giriniz.');
+  const create = async () => {
+    const value = name.trim();
+    if (value.length < 2) {
+      Alert.alert('Ev adı gerekli', 'Ev için en az iki karakterlik bir ad yaz.');
       return;
     }
-    setLoading(true);
+    setSaving(true);
     try {
-      await houseApi.createHouse({ name: houseName.trim(), description: '', createdBy: user?.id });
-      Alert.alert('Başarılı', 'Ev grubu oluşturuldu.', [
-        { text: 'Tamam', onPress: () => navigation.goBack() },
+      const response = await houseApi.createHouse({ name: value, creatorUserId: Number(user.id) });
+      const house = response?.data?.data ?? response?.data ?? {};
+      if (house?.id) await setDefaultHouseId(house.id, house.name || value);
+      Alert.alert('Ev oluşturuldu', `${value} artık kullanıma hazır.`, [
+        { text: 'Tamam', onPress: () => navigation.navigate('MainTabs') },
       ]);
-    } catch (e) {
-      Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Oluşturulamadı');
+    } catch (error) {
+      Alert.alert('Ev oluşturulamadı', error?.response?.data?.message || 'Lütfen tekrar dene.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <View style={CommonStyles.container}>
-      <View style={CommonStyles.content}>
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Yeni Ev Grubu</Text>
-          <Text style={CommonStyles.subtitle}>Ev arkadaşlarınla harcamaları yönet</Text>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.content}>
+        <PageHeader
+          title="Yeni Ev Oluştur"
+          subtitle="Ev arkadaşlarını daha sonra davet edebilirsin"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.heroIcon}>
+          <Ionicons name="home-outline" size={42} color={theme.colors.primary[700]} />
         </View>
-
-        <View style={CommonStyles.card}>
-          <Text style={[styles.label, { color: theme.colors.text.primary }]}>Ev Grubu Adı</Text>
-          <TextInput
-            style={[styles.input, { borderColor: theme.colors.neutral?.[300], backgroundColor: theme.colors.background, color: theme.colors.text.primary }]}
-            placeholder="Örn: 3. Kat 5 No Daire"
-            value={houseName}
-            onChangeText={setHouseName}
-            placeholderTextColor={theme.colors.text.secondary}
+        <Text style={styles.label}>Ev Adı</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="Örn. Kadıköy Evi"
+          placeholderTextColor={theme.colors.neutral[400]}
+          style={styles.input}
+          maxLength={60}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={create}
+        />
+        <Text style={styles.hint}>Bu ad yalnızca ev üyeleri tarafından görülecek.</Text>
+        <View style={styles.footer}>
+          <PrimaryButton
+            label={saving ? 'Oluşturuluyor...' : 'Evi Oluştur'}
+            icon="checkmark"
+            onPress={create}
+            disabled={saving}
           />
-
-          <TouchableOpacity
-            style={[CommonStyles.menuButton, (!houseName.trim() || loading) && { opacity: 0.5 }]}
-            onPress={handleCreateGroup}
-            disabled={!houseName.trim() || loading}
-            activeOpacity={0.8}
-          >
-            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.primary.background }]}>
-              {loading ? (
-                <ActivityIndicator color={theme.colors.text.onPrimary} />
-              ) : (
-                <>
-                  <Ionicons name="home-outline" size={24} color={ColorThemes.primary.foreground} style={{ marginBottom: 6 }} />
-                  <Text style={CommonStyles.buttonText}>Oluştur</Text>
-                  <Text style={CommonStyles.buttonSubtext}>Yeni ev grubunu kaydet</Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={CommonStyles.menuButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <View style={[CommonStyles.buttonContent, { backgroundColor: ColorThemes.neutral.background }]}>
-              <Ionicons name="arrow-back-outline" size={24} color={ColorThemes.neutral.foreground} style={{ marginBottom: 6 }} />
-              <Text style={CommonStyles.buttonText}>Geri Dön</Text>
-              <Text style={CommonStyles.buttonSubtext}>Önceki sayfa</Text>
-            </View>
-          </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  input: {
-    borderWidth: 1, borderRadius: 8,
-    padding: 12, fontSize: 16, marginBottom: 16,
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { flex: 1, paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: insets.bottom + 18 },
+  heroIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginTop: 42,
+    marginBottom: 36,
   },
+  label: {
+    color: theme.colors.text.primary,
+    fontFamily: theme.typography.bold,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  input: {
+    height: 54,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text.primary,
+    fontFamily: theme.typography.regular,
+    fontSize: 16,
+    paddingHorizontal: 15,
+  },
+  hint: {
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.regular,
+    fontSize: 12,
+    marginTop: 8,
+  },
+  footer: { marginTop: 'auto' },
 });
-
-export default NewGroupScreen;

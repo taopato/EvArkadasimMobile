@@ -24,12 +24,14 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: (theme.typography?.title?.size ?? 22) + 4,
-    fontWeight: theme.typography?.title?.weight ?? '900',
+    fontFamily: theme.typography?.extrabold,
+    fontSize: theme.typography?.title?.size ?? 24,
     color: theme.colors.text.primary,
+    letterSpacing: 0,
     marginBottom: 6,
   },
   subtitle: {
+    fontFamily: theme.typography?.regular,
     fontSize: theme.typography?.subtitle?.size ?? 14,
     color: theme.colors.text.secondary,
   },
@@ -37,14 +39,14 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
   // Cards
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 20,
+    borderRadius: 8,
     padding: theme.spacing?.lg ?? 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
     borderWidth: 1,
     borderColor: theme.colors.neutral?.[200],
   },
@@ -54,6 +56,7 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
     marginBottom: theme.spacing?.md ?? 14,
   },
   label: {
+    fontFamily: theme.typography?.semibold,
     fontSize: theme.typography?.label?.size ?? 12,
     fontWeight: theme.typography?.label?.weight ?? '600',
     color: theme.colors.text.primary,
@@ -62,13 +65,13 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
 
   // Buttons (menu style)
   menuButton: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: 'hidden',
     marginBottom: 12,
   },
   buttonContent: {
     padding: theme.spacing?.md ?? 14,
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'flex-start',
   },
   buttonIcon: {
@@ -97,7 +100,7 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 14,
-    borderRadius: 16,
+    borderRadius: 8,
     marginBottom: 10,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
@@ -107,11 +110,13 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
     flex: 1,
   },
   listItemTitle: {
+    fontFamily: theme.typography?.bold,
     fontSize: theme.typography?.body?.size ?? 16,
     fontWeight: '700',
     color: theme.colors.text.primary,
   },
   listItemSubtitle: {
+    fontFamily: theme.typography?.regular,
     fontSize: theme.typography?.subtitle?.size ?? 12,
     color: theme.colors.text.secondary,
     marginTop: 2,

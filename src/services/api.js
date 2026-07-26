@@ -227,6 +227,14 @@ export const houseApi = {
     return api.post('/Houses/AcceptInvitation', { userId: userIdOrInvitationCode, invitationCode });
   },
   getMembers: (houseId) => api.get(`/Houses/${houseId}/members`),
+  uploadCoverImage: (houseId, image) => {
+    const formData = new FormData();
+    formData.append('image', image);
+    return api.post(`/Houses/${houseId}/CoverImage`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+  },
 
   // Debts
   getUserDebts: (userId, houseId) => api.get(`/Houses/GetUserDebts/${userId}/${houseId}`),

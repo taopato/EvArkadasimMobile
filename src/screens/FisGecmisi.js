@@ -1,22 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Image,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { receiptsApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { useCommonStyles } from '../shared/ui/CommonStyles';
-import { resolveMediaUrl } from '../shared/config/env';
+import { EmptyState, ListRow, LoadingState, PageHeader, SectionHeader } from '../shared/ui/roomora/CanonicalUI';
 
-const STATUS_LABELS = {
+const statusLabel = {
   Uploaded: 'Yüklendi',
-  Parsed: 'Kalemler çıkarıldı',
+  Parsed: 'Kontrol bekliyor',
   Reviewed: 'Düzenlendi',
   Converted: 'Harcamaya dönüştü',
 };
@@ -24,98 +16,54 @@ const STATUS_LABELS = {
 export default function FisGecmisi({ navigation, route }) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const CommonStyles = useCommonStyles();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const houseId = route?.params?.houseId || user?.defaultHouseId;
-
+  const houseId = Number(route?.params?.houseId || user?.defaultHouseId || 0);
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const load = async () => {
-    if (!houseId) return;
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await receiptsApi.getByHouse(houseId);
-      const data = Array.isArray(res?.data) ? res.data : [];
-      setItems(data);
+      const response = await receiptsApi.getByHouse(houseId);
+      const raw = response?.data?.data ?? response?.data ?? [];
+      setItems(Array.isArray(raw) ? raw : []);
     } catch {
       setItems([]);
     } finally {
       setLoading(false);
     }
-  };
-
+  }, [houseId]);
   useEffect(() => {
     load();
-    const unsubscribe = navigation.addListener('focus', load);
-    return unsubscribe;
-  }, [houseId, navigation]);
-
-  const renderItem = ({ item }) => {
-    const imageUri = resolveMediaUrl(item.imageUrl);
-
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.88}
-        onPress={() => navigation.navigate('FisDetayi', { receiptId: item.id, houseId })}
-      >
-        <Image source={{ uri: imageUri }} style={styles.thumb} />
-        <View style={styles.meta}>
-          <Text style={styles.title} numberOfLines={1}>{item.storeName || 'Fiş'}</Text>
-          <Text style={styles.sub}>
-            {item.receiptDate ? new Date(item.receiptDate).toLocaleDateString('tr-TR') : 'Tarih yok'}
-          </Text>
-          <Text style={styles.sub}>{item.itemCount || 0} kalem</Text>
-        </View>
-        <View style={styles.right}>
-          <Text style={styles.amount}>
-            {Number(item.detectedTotalAmount || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-          </Text>
-          <Text style={styles.status}>{STATUS_LABELS[item.status] || String(item.status)}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
+    return navigation.addListener('focus', load);
+  }, [load, navigation]);
   return (
-    <View style={CommonStyles.container}>
-      <FlatList
-        data={items}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
-        contentContainerStyle={styles.content}
-        ListHeaderComponent={(
-          <Text style={styles.headerNote}>
-            Taslak fişleri düzenleyebilir veya harcamaya dönüştürebilirsin. Dönüştürülen fişler salt okunur saklanır.
-          </Text>
-        )}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>Henüz kaydedilmiş fiş yok.</Text> : null}
-      />
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme.colors.primary[600]} />}
+      >
+        <PageHeader title="Fiş Geçmişi" subtitle="Taranan ve kaydedilen fişler" onBack={() => navigation.goBack()} />
+        <SectionHeader title="Fişler" />
+        {loading ? <LoadingState label="Fişler yükleniyor..." /> : items.map((item) => (
+          <ListRow
+            key={String(item.id)}
+            icon="scan-outline"
+            title={item.storeName || 'İsimsiz fiş'}
+            subtitle={`${item.receiptDate ? new Date(item.receiptDate).toLocaleDateString('tr-TR') : 'Tarih yok'} · ${item.itemCount || 0} kalem`}
+            amount={item.detectedTotalAmount || 0}
+            badge={statusLabel[item.status] || String(item.status || 'Taslak')}
+            badgeTone={item.status === 'Converted' ? 'success' : 'info'}
+            onPress={() => navigation.navigate('FisDetayi', { receiptId: item.id, houseId })}
+          />
+        ))}
+        {!loading && !items.length && <EmptyState icon="scan-outline" title="Henüz fiş yok" description="Harcama eklerken kamerayı kullanarak ilk fişini tarayabilirsin." action="Harcama Ekle" onAction={() => navigation.navigate('HarcamaEkle', { houseId })} />}
+      </ScrollView>
     </View>
   );
 }
 
 const makeStyles = (theme) => StyleSheet.create({
-  content: { padding: 16 },
-  headerNote: { color: theme.colors.text.secondary, marginBottom: 12, lineHeight: 19 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.neutral[200],
-    marginBottom: 10,
-  },
-  thumb: { width: 62, height: 62, borderRadius: 12, backgroundColor: theme.colors.neutral[100] },
-  meta: { flex: 1, marginLeft: 12 },
-  title: { color: theme.colors.text.primary, fontWeight: '800', fontSize: 15 },
-  sub: { color: theme.colors.text.secondary, marginTop: 2, fontSize: 12 },
-  right: { alignItems: 'flex-end', marginLeft: 10 },
-  amount: { color: theme.colors.text.primary, fontWeight: '800' },
-  status: { color: theme.colors.primary[700], marginTop: 4, fontSize: 12, textAlign: 'right' },
-  empty: { textAlign: 'center', paddingVertical: 40, color: theme.colors.text.secondary },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { paddingHorizontal: 20, paddingBottom: 36 },
 });

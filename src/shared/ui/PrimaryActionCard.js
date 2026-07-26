@@ -37,8 +37,8 @@ export default function PrimaryActionCard({
 
 const makeStyles = (theme) => StyleSheet.create({
   container: {
-    minHeight: 72,
-    borderRadius: 18,
+    minHeight: 60,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -48,9 +48,9 @@ const makeStyles = (theme) => StyleSheet.create({
     ...shadow(2, 'rgba(23,40,57,0.18)'),
   },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
@@ -58,13 +58,15 @@ const makeStyles = (theme) => StyleSheet.create({
   copy: { flex: 1 },
   title: {
     color: theme.colors.text.onPrimary,
-    fontSize: 16,
-    fontWeight: '800',
+    fontFamily: theme.typography?.bold,
+    fontSize: 15,
+    letterSpacing: 0,
   },
   subtitle: {
     marginTop: 2,
     color: theme.colors.text.onPrimary,
     opacity: 0.9,
+    fontFamily: theme.typography?.regular,
     fontSize: 12,
     lineHeight: 17,
   },

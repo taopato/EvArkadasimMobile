@@ -2,10 +2,12 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi } from '../services/api';
 import BrandMark from '../components/BrandMark';
+import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat('tr-TR', {
@@ -19,6 +21,7 @@ export default function Bildirimler({ navigation }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,11 +69,11 @@ export default function Bildirimler({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary[500]]} />}
       >
-        <Text style={styles.title}>Bildirimler</Text>
+        <PageHeader title="Bildirimler" onBack={() => navigation.goBack()} />
         <Text style={styles.subtitle}>Onay bekleyen ödemeler ve hatırlatmalar burada listelenir.</Text>
 
         {items.length === 0 ? (
@@ -123,14 +126,14 @@ const makeStyles = (theme) =>
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
-      borderRadius: 18,
+      borderRadius: 8,
       padding: 14,
       marginBottom: 12,
     },
     rowIcon: {
       width: 42,
       height: 42,
-      borderRadius: 12,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
@@ -146,7 +149,7 @@ const makeStyles = (theme) =>
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.neutral[200],
-      borderRadius: 22,
+      borderRadius: 8,
     },
     emptyState: { position: 'relative', overflow: 'hidden' },
     emptyWatermark: {

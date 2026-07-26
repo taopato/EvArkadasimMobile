@@ -5,7 +5,7 @@
     "owner": "takopato4",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "icon": "./src/assets/icon.png",
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Fiş taramak ve profil fotoğrafı çekmek için kameraya erişim gerekir.",
-        "NSPhotoLibraryUsageDescription": "Fiş, dekont veya profil fotoğrafı seçebilmek için galeriye erişim gerekir."
+        "NSPhotoLibraryUsageDescription": "Fiş veya profil fotoğrafı seçebilmek için galeriye erişim gerekir."
       }
     },
     "android": {
@@ -26,7 +26,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
-        "backgroundColor": "#eef4fa"
+        "backgroundColor": "#F7F9FC"
       }
     },
     "scheme": "roomora",

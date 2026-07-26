@@ -1,704 +1,272 @@
-// HarcamaDetayi.js
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { expensesApi, houseApi, ledgerApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { expensesApi, ledgerApi } from '../services/api';
-import { houseApi } from '../services/api';
-import eventBus from '../shared/events/bus';
-import { useAuth } from '../context/AuthContext';
+import { EmptyState, LoadingState, PageHeader, PrimaryButton, money } from '../shared/ui/roomora/CanonicalUI';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
+import eventBus from '../shared/events/bus';
 
-const HarcamaDetayi = ({ navigation, route }) => {
-  const { expenseId: expenseIdParam, billId: billIdParam, houseId, houseName } = route.params || {};
-  const expenseId = expenseIdParam ?? billIdParam;
-  const { user } = useAuth();
-  const CommonStyles = useCommonStyles();
+const pick = (value, keys, fallback = undefined) =>
+  keys.map((key) => value?.[key]).find((item) => item !== undefined && item !== null) ?? fallback;
+
+export default function HarcamaDetayi({ navigation, route }) {
+  const expenseId = route?.params?.expenseId ?? route?.params?.billId;
+  const houseId = route?.params?.houseId;
   const { theme } = useTheme();
-  const ColorThemes = makeColorThemes(theme);
-  const styles = useMemo(() => makeStyles(theme), [theme]);
-
-  const [expense, setExpense] = useState(null);
-  const [ledgerLines, setLedgerLines] = useState([]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [expense, setExpense] = useState(null);
+  const [members, setMembers] = useState({});
+  const [shares, setShares] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [shared, setShared] = useState('');
+  const [note, setNote] = useState('');
 
-  // Düzenleme modu
-  const [isEditing, setIsEditing] = useState(false);
-  const [formTitle, setFormTitle] = useState('');
-  const [formTotal, setFormTotal] = useState('');
-  const [formShared, setFormShared] = useState('');
-  const [formPersonal, setFormPersonal] = useState({}); // { userId: '1000.00' }
-  const [formNote, setFormNote] = useState('');
-  // Kullanıcı adları (ev üyeleri)
-  const [membersMap, setMembersMap] = useState({});
+  const hydrateForm = useCallback((item) => {
+    setTitle(String(pick(item, ['tur', 'Tur', 'description', 'Description'], 'Harcama')));
+    setAmount(formatMoneyInput(String(pick(item, ['tutar', 'Tutar', 'amount', 'Amount'], 0))));
+    setShared(formatMoneyInput(String(pick(item, ['ortakHarcamaTutari', 'OrtakHarcamaTutari'], 0))));
+    setNote(String(pick(item, ['note', 'Note', 'aciklama', 'Aciklama', 'description', 'Description'], '')));
+  }, []);
 
-  // Plan özeti
-  const [planStats, setPlanStats] = useState({
-    isChild: false,
-    parentId: null,
-    totalMonths: 0,
-    maturedMonths: 0,
-    remainingMonths: 0,
-    dueDay: null,
-    monthlyAmount: 0,
-    planStartMonth: null,
-    type: null, // "installment" | "recurring" | null
-  });
-
-  useEffect(() => {
-    if (expenseId) fetchExpenseDetail();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expenseId]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!houseId) return;
-        const res = await houseApi.getMembers(houseId);
-        const raw = res?.data?.data || res?.data || [];
-        const map = {};
-        (Array.isArray(raw) ? raw : []).forEach((m) => {
-          const uid = Number(m?.userId ?? m?.UserId ?? m?.id ?? m?.user?.id);
-          const name = m?.fullName ?? m?.FullName ?? m?.name ?? m?.Name ?? m?.user?.fullName ?? `Kullanıcı ${uid}`;
-          if (Number.isFinite(uid)) map[uid] = name;
-        });
-        setMembersMap(map);
-      } catch {}
-    })();
-  }, [houseId]);
-
-  const parseDate = (v) => {
-    const d = v ? new Date(v) : null;
-    return d && !Number.isNaN(d.getTime()) ? d : null;
-  };
-
-  const safeDateForUI = (v) => {
-    const d = parseDate(v);
-    if (!d) return '—';
-    return d.toLocaleDateString('tr-TR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // Para formatlaması - Türk Lirası standardı
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(Number(amount || 0));
-  };
-
-  const fetchExpenseDetail = async () => {
+  const load = useCallback(async () => {
+    if (!expenseId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      setLoading(true);
-
-      const [expenseResponse, ledgerResponse] = await Promise.all([
+      const [expenseResult, ledgerResult, memberResult] = await Promise.allSettled([
         expensesApi.getById(expenseId),
         ledgerApi.byExpense(expenseId),
+        houseId ? houseApi.getMembers(houseId) : Promise.resolve({ data: [] }),
       ]);
-
-      const expenseData = expenseResponse?.data?.data || expenseResponse?.data;
-      const ledgerData = ledgerResponse?.data?.data || ledgerResponse?.data || [];
-
-      setExpense(expenseData);
-      setLedgerLines(Array.isArray(ledgerData) ? ledgerData : []);
-
-      // Edit formunu doldur (read-only görüntülemeden bağımsız)
-      try {
-        const title = expenseData?.tur || expenseData?.category || '';
-        const totalRaw = String(expenseData?.tutar ?? expenseData?.amount ?? '');
-        const sharedRaw = String(expenseData?.ortakHarcamaTutari ?? '');
-        const personalArr = Array.isArray(expenseData?.sahsiHarcamalar) ? expenseData.sahsiHarcamalar : [];
-        const pMap = {};
-        for (const it of personalArr) {
-          const uid = Number(it?.userId ?? it?.UserId);
-          const val = Number(it?.tutar ?? it?.Tutar ?? it?.amount ?? 0);
-          if (Number.isFinite(uid)) pMap[String(uid)] = String(val);
-        }
-        setFormTitle(title);
-        setFormTotal(formatMoneyInput(totalRaw));
-        setFormShared(formatMoneyInput(sharedRaw));
-        setFormPersonal(pMap);
-        setFormNote(String(expenseData?.note ?? expenseData?.Note ?? expenseData?.description ?? expenseData?.Description ?? expenseData?.aciklama ?? expenseData?.Aciklama ?? ''));
-      } catch {}
-
-      // Plan özeti (kardeşler)
-      if (houseId && expenseData) {
-        const listRes = await expensesApi.getByHouse(Number(houseId));
-        const all = listRes?.data?.data || listRes?.data || [];
-
-        const parentId = expenseData?.parentExpenseId ?? expenseData?.ParentExpenseId ?? null;
-        const isChild = parentId != null;
-
-        let siblings = [];
-        if (isChild) {
-          siblings = all.filter(
-            (x) => (x?.parentExpenseId ?? x?.ParentExpenseId ?? null) === parentId
-          );
-        } else {
-          const thisId = expenseData?.id ?? expenseData?.Id;
-          siblings = all.filter(
-            (x) => (x?.parentExpenseId ?? x?.ParentExpenseId ?? null) === thisId
-          );
-        }
-
-        const dueDay = expenseData?.dueDay ?? expenseData?.DueDay ?? null;
-        const planStartMonth = expenseData?.planStartMonth ?? expenseData?.PlanStartMonth ?? null;
-
-        const now = new Date();
-        const matured = siblings.filter((c) => {
-          const ds = c?.kayitTarihi || c?.postDate || c?.createdDate || c?.createdAt;
-          const d = parseDate(ds);
-          return d && d <= now;
-        });
-
-        const anyChild = siblings[0] || {};
-        const installCount =
-          anyChild?.installmentCount ??
-          anyChild?.InstallmentCount ??
-          expenseData?.installmentCount ??
-          expenseData?.InstallmentCount ??
-          null;
-
-        const monthlyAmount = Number(
-          (expenseData?.ortakHarcamaTutari ?? expenseData?.tutar ?? 0)
-        );
-
-        const totalMonths = installCount ? Number(installCount) : siblings.length;
-        const maturedMonths = matured.length;
-        const remainingMonths = Math.max(0, totalMonths - maturedMonths);
-
-        setPlanStats({
-          isChild,
-          parentId: isChild ? parentId : (expenseData?.id ?? expenseData?.Id ?? null),
-          totalMonths,
-          maturedMonths,
-          remainingMonths,
-          dueDay: dueDay ? Number(dueDay) : null,
-          monthlyAmount,
-          planStartMonth,
-          type: installCount ? 'installment' : (siblings.length > 0 ? 'recurring' : null),
-        });
-      }
-    } catch (error) {
-      console.error('❌ Expense detail fetch error:', error);
-      Alert.alert('Hata', 'Harcama detayları alınırken bir hata oluştu');
+      const item = expenseResult.status === 'fulfilled'
+        ? expenseResult.value?.data?.data ?? expenseResult.value?.data
+        : null;
+      const ledger = ledgerResult.status === 'fulfilled'
+        ? ledgerResult.value?.data?.data ?? ledgerResult.value?.data ?? []
+        : [];
+      const memberList = memberResult.status === 'fulfilled'
+        ? memberResult.value?.data?.data ?? memberResult.value?.data ?? []
+        : [];
+      const names = {};
+      (Array.isArray(memberList) ? memberList : []).forEach((member) => {
+        const id = Number(pick(member, ['userId', 'UserId', 'id'], 0));
+        names[id] = pick(member, ['fullName', 'FullName', 'name', 'Name'], `Kullanıcı ${id}`);
+      });
+      const totals = new Map();
+      (Array.isArray(ledger) ? ledger : []).forEach((line) => {
+        const id = Number(pick(line, ['fromUserId', 'FromUserId'], 0));
+        const value = Number(pick(line, ['amount', 'Amount'], 0));
+        if (id) totals.set(id, (totals.get(id) || 0) + value);
+      });
+      setMembers(names);
+      setShares(Array.from(totals, ([userId, value]) => ({ userId, value })));
+      setExpense(item);
+      if (item) hydrateForm(item);
+    } catch {
+      setExpense(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [expenseId, houseId, hydrateForm]);
 
-  const handleStartEdit = () => {
-    setIsEditing(true);
-  };
+  useEffect(() => { load(); }, [load]);
 
-  const handleCancelEdit = () => {
-    // Formu mevcut expense verisine geri al
-    if (expense) {
-      setFormTitle(expense?.tur || expense?.category || '');
-      setFormTotal(formatMoneyInput(String(expense?.tutar ?? expense?.amount ?? '')));
-      setFormShared(formatMoneyInput(String(expense?.ortakHarcamaTutari ?? '')));
-      const pMap = {};
-      (expense?.sahsiHarcamalar || []).forEach(it => {
-        const uid = Number(it?.userId ?? it?.UserId);
-        const val = Number(it?.tutar ?? it?.Tutar ?? it?.amount ?? 0);
-        if (Number.isFinite(uid)) pMap[String(uid)] = String(val);
-      });
-      setFormPersonal(pMap);
-      setFormNote(String(expense?.note ?? expense?.Note ?? expense?.description ?? expense?.Description ?? expense?.aciklama ?? expense?.Aciklama ?? ''));
+  const save = async () => {
+    const totalValue = parseMoneyInput(amount);
+    const sharedValue = parseMoneyInput(shared);
+    if (!title.trim() || totalValue <= 0 || sharedValue < 0 || sharedValue > totalValue) {
+      Alert.alert('Bilgileri kontrol et', 'Başlık, toplam tutar ve ortak tutar alanlarını kontrol et.');
+      return;
     }
-    setIsEditing(false);
-  };
-
-  const handleSaveEdit = async () => {
+    setSaving(true);
     try {
-      const dto = {
-        Tur: String(formTitle || '').trim(),
-        Tutar: parseMoneyInput(formTotal),
-        OrtakHarcamaTutari: parseMoneyInput(formShared),
-        SahsiHarcamalar: Object.entries(formPersonal)
-          .map(([uid, val]) => ({ UserId: Number(uid), Tutar: parseMoneyInput(val) }))
-          .filter(x => Number.isFinite(x.UserId) && x.Tutar >= 0),
-        Aciklama: String(formNote || '').trim(),
-        Note: String(formNote || '').trim(),
-        // 🔹 Backend'in üçüncü fallback'i de garanti olsun
-        Description: String(formNote || '').trim(),
-      };
-
-      if (!dto.Tur) return Alert.alert('Hata', 'Başlık/Tür boş olamaz');
-      if (!(dto.Tutar > 0)) return Alert.alert('Hata', 'Toplam tutar > 0 olmalı');
-      if (dto.OrtakHarcamaTutari < 0) return Alert.alert('Hata', 'Ortak tutar 0 veya daha büyük olmalı');
-      const personalTotal = dto.SahsiHarcamalar.reduce((sum, item) => sum + item.Tutar, 0);
-      if (Math.abs(dto.OrtakHarcamaTutari + personalTotal - dto.Tutar) > 0.01) {
-        return Alert.alert('Tutarları kontrol et', 'Ortak tutar ile kişisel tutarların toplamı genel tutara eşit olmalı.');
-      }
-
-      await expensesApi.update(expenseId, dto);
-      Alert.alert('Başarılı', 'Harcama güncellendi');
-      setIsEditing(false);
-      await fetchExpenseDetail();
+      await expensesApi.update(expenseId, {
+        Tur: title.trim(),
+        Tutar: totalValue,
+        OrtakHarcamaTutari: sharedValue,
+        Aciklama: note.trim(),
+        Note: note.trim(),
+        Description: note.trim(),
+        SahsiHarcamalar: pick(expense, ['sahsiHarcamalar', 'SahsiHarcamalar'], []),
+      });
+      eventBus.emit('expenses:updated', { houseId: Number(houseId) });
+      setEditing(false);
+      await load();
+      Alert.alert('Harcama güncellendi');
     } catch (error) {
-      const msg = error?.response?.data?.message || error?.message || 'Güncelleme başarısız';
-      Alert.alert('Hata', msg);
+      Alert.alert('Güncellenemedi', error?.response?.data?.message || 'Lütfen tekrar dene.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteExpense = () => {
-    Alert.alert(
-      'Harcamayı Sil',
-      'Bu harcamayı silmek istediğinizden emin misiniz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Sil',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('🗑️ Deleting expense:', expenseId);
-              const response = await expensesApi.remove(expenseId);
-              console.log('✅ Delete response:', response?.data);
-              Alert.alert('Başarılı', 'Harcama silindi');
-              try { eventBus.emit('expenses:updated', { houseId: Number(houseId) }); } catch {}
-              navigation.goBack();
-            } catch (error) {
-              console.error('❌ Delete expense error:', error);
-              console.error('❌ Delete error response:', error?.response?.data);
-              Alert.alert('Hata', `Harcama silinirken bir hata oluştu:\n\n${error?.response?.data?.message || error?.message || 'Bilinmeyen hata'}`);
-            }
-          },
+  const remove = () => Alert.alert(
+    'Harcamayı sil',
+    'Bu işlem geri alınamaz.',
+    [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await expensesApi.remove(expenseId);
+            eventBus.emit('expenses:updated', { houseId: Number(houseId) });
+            navigation.goBack();
+          } catch {
+            Alert.alert('Silinemedi', 'Harcama silinirken bir sorun oluştu.');
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
 
   if (loading) {
-    return (
-      <View style={CommonStyles.container}>
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Harcama Detayı</Text>
-        </View>
-        <View style={[CommonStyles.card, { alignItems: 'center', padding: 40 }]}>
-          <ActivityIndicator size="large" color={theme.colors.primary?.[600]} />
-          <Text style={{ color: theme.colors.text.secondary, marginTop: 16 }}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <View style={styles.screen}><LoadingState label="Harcama yükleniyor..." /></View>;
   }
-
   if (!expense) {
     return (
-      <View style={CommonStyles.container}>
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Harcama Detayı</Text>
-        </View>
-        <View style={CommonStyles.card}>
-          <Text style={styles.errorText}>Harcama bulunamadı</Text>
+      <View style={styles.screen}>
+        <View style={styles.content}>
+          <PageHeader title="Harcama Detayı" onBack={() => navigation.goBack()} />
+          <EmptyState title="Harcama bulunamadı" description="Kayıt silinmiş veya artık erişilemiyor olabilir." />
         </View>
       </View>
     );
   }
 
-  const titleText = expense?.tur || expense?.category || 'Harcama';
-
-  // Ledger → kullanıcı bazlı özet (kişi başı)
-  const userShares = (() => {
-    const map = new Map(); // key: fromUserId, val: toplam borç
-    (ledgerLines || []).forEach((l) => {
-      const uid = Number(l?.fromUserId);
-      const amt = Number(l?.amount || 0);
-      if (!uid || !amt) return;
-      map.set(uid, Number((map.get(uid) || 0) + amt));
-    });
-    return Array.from(map.entries())
-      .map(([uid, total]) => ({ uid, total }))
-      .sort((a, b) => b.total - a.total);
-  })();
+  const total = Number(pick(expense, ['tutar', 'Tutar', 'amount', 'Amount'], 0));
+  const payer = pick(expense, ['odeyenKullaniciAdi', 'OdeyenKullaniciAdi'], 'Bilinmiyor');
+  const dateRaw = pick(expense, ['postDate', 'PostDate', 'kayitTarihi', 'KayitTarihi', 'createdAt', 'CreatedAt']);
+  const date = dateRaw ? new Date(dateRaw) : null;
 
   return (
-    <View style={CommonStyles.container}>
-      <KeyboardAwareScrollView
-        style={CommonStyles.content}
-        keyboardShouldPersistTaps="handled"
-        enableOnAndroid
-        extraScrollHeight={110}
-      >
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Harcama Detayı</Text>
-          <Text style={CommonStyles.subtitle}>{houseName || ''}</Text>
-        </View>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <PageHeader
+          title={editing ? 'Harcamayı Düzenle' : 'Harcama Detayı'}
+          subtitle={route?.params?.houseName}
+          onBack={() => editing ? setEditing(false) : navigation.goBack()}
+          rightIcon={editing ? undefined : 'trash-outline'}
+          onRightPress={remove}
+        />
 
-        {/* Harcama Bilgileri */}
-        <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>Harcama Bilgileri</Text>
-
-          {!isEditing ? (
-            <>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Kategori/Başlık:</Text>
-                <Text style={styles.detailValue}>{titleText}</Text>
+        {!editing ? (
+          <>
+            <View style={styles.hero}>
+              <View style={styles.heroIcon}>
+                <Ionicons name="cart-outline" size={30} color="#fff" />
               </View>
+              <Text style={styles.heroAmount}>{money(total)}</Text>
+              <Text style={styles.heroTitle}>{title}</Text>
+              <Text style={styles.heroDate}>{date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('tr-TR') : 'Tarih yok'}</Text>
+            </View>
 
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Tutar (kalem):</Text>
-                <Text style={[styles.detailValue, styles.amountText]}>
-                  {formatAmount(expense?.tutar ?? expense?.amount ?? 0)}
-                </Text>
-              </View>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Harcama Bilgileri</Text>
+              <InfoRow icon="person-outline" label="Ödeyen" value={payer} styles={styles} theme={theme} />
+              <InfoRow icon="people-outline" label="Bölüşüm" value={`${Math.max(shares.length, 1)} kişi`} styles={styles} theme={theme} />
+              {!!note && <InfoRow icon="document-text-outline" label="Not" value={note} styles={styles} theme={theme} />}
+            </View>
 
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Ortak Harcama:</Text>
-                <Text style={styles.detailValue}>
-                  {formatAmount(expense?.ortakHarcamaTutari ?? 0)}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Tarih:</Text>
-                <Text style={styles.detailValue}>
-                  {safeDateForUI(expense?.postDate || expense?.kayitTarihi || expense?.createdAt || expense?.createdDate)}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Ödeyen:</Text>
-                <Text style={styles.detailValue}>
-                  {expense?.odeyenKullaniciAdi || expense?.odeyenUser?.fullName || 'Bilinmiyor'}
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Kaydeden:</Text>
-                <Text style={styles.detailValue}>
-                  {expense?.kaydedenKullaniciAdi || expense?.kaydedenUser?.fullName || 'Bilinmiyor'}
-                </Text>
-              </View>
-
-              <View style={[styles.detailRow, { alignItems: 'flex-start' }]}>
-                <Text style={styles.detailLabel}>Açıklama:</Text>
-                <Text style={[styles.detailValue, { textAlign: 'left' }]}>
-                  {String(expense?.note ?? expense?.Note ?? expense?.description ?? expense?.Description ?? expense?.aciklama ?? expense?.Aciklama ?? '—')}
-                </Text>
-              </View>
-              {!(expense?.note || expense?.Note || expense?.description || expense?.Description || expense?.aciklama || expense?.Aciklama) ? (
-                <View style={[styles.detailRow, { alignItems: 'flex-start' }]}>
-                  <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Teşhis:</Text>
-                  <Text style={[styles.detailValue, { textAlign: 'left', color: theme.colors.text.secondary }]}>
-                    Not alanı bulunamadı. Lütfen yeni bir notla kaydedip tekrar deneyin.
-                  </Text>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Nasıl Bölüşüldü?</Text>
+              {shares.length ? shares.map((item) => (
+                <View key={String(item.userId)} style={styles.shareRow}>
+                  <View style={styles.avatar}><Text style={styles.avatarText}>{String(members[item.userId] || 'K').charAt(0)}</Text></View>
+                  <Text style={styles.shareName}>{members[item.userId] || `Kullanıcı ${item.userId}`}</Text>
+                  <Text style={styles.shareValue}>{money(item.value)}</Text>
                 </View>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <View style={styles.editRow}>
-                <Text style={styles.detailLabel}>Başlık</Text>
-                <TextInput style={styles.input} value={formTitle} onChangeText={setFormTitle} placeholder="Örn: Market" />
-              </View>
-              <View style={styles.editRow}>
-                <Text style={styles.detailLabel}>Toplam Tutar</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formTotal}
-                  onChangeText={(t) => setFormTotal(formatMoneyInput(t))}
-                  keyboardType="numeric"
-                  placeholder="2.500"
-                />
-              </View>
-              <View style={styles.editRow}>
-                <Text style={styles.detailLabel}>Ortak Tutar</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formShared}
-                  onChangeText={(t) => setFormShared(formatMoneyInput(t))}
-                  keyboardType="numeric"
-                  placeholder="2.000"
-                />
-              </View>
-              <View style={[styles.editRow, { alignItems: 'flex-start' }]}>
-                <Text style={styles.detailLabel}>Açıklama</Text>
-                <TextInput
-                  style={[styles.input, { height: 80, textAlignVertical: 'top', flex: 1 }]}
-                  value={formNote}
-                  onChangeText={setFormNote}
-                  placeholder="Not / açıklama"
-                  multiline
-                />
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Plan Özeti (varsa) */}
-        {(planStats?.totalMonths || 0) > 0 && (
-          <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>
-              {planStats.type === 'installment' ? 'Taksit Planı Özeti' : 'Düzenli Gider Özeti'}
-            </Text>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Aylık Tutar:</Text>
-              <Text style={[styles.detailValue, styles.amountText]}>
-                {formatAmount(planStats.monthlyAmount)}
-              </Text>
+              )) : <Text style={styles.muted}>Bu harcama için paylaşım satırı bulunmuyor.</Text>}
             </View>
 
-            {planStats.dueDay ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Vade Günü:</Text>
-                <Text style={styles.detailValue}>{planStats.dueDay}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Toplam Ay:</Text>
-              <Text style={styles.detailValue}>{planStats.totalMonths}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tamamlanan:</Text>
-              <Text style={styles.detailValue}>{planStats.maturedMonths}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Kalan:</Text>
-              <Text style={styles.detailValue}>{planStats.remainingMonths}</Text>
-            </View>
+            <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+              <Ionicons name="pencil-outline" size={19} color={theme.colors.primary[700]} />
+              <Text style={styles.editText}>Düzenle</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.formCard}>
+            <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} />
+            <Field label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
+            <Field label="Ortak tutar" value={shared} onChangeText={(value) => setShared(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
+            <Field label="Not" value={note} onChangeText={setNote} multiline styles={styles} />
+            <PrimaryButton label={saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'} icon="checkmark" onPress={save} disabled={saving} />
           </View>
         )}
-
-        {/* Kişisel Harcamalar (varsa) */}
-        {expense?.sahsiHarcamalar && expense.sahsiHarcamalar.length > 0 && (
-          <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>Kişisel Harcamalar</Text>
-            {(!isEditing ? expense.sahsiHarcamalar : expense.sahsiHarcamalar).map((item, index) => {
-              const uid = String(item?.userId ?? item?.UserId);
-              const name = item?.kullaniciAdi || `Kullanıcı ${uid}`;
-              const val = formPersonal[uid] ?? String(item?.tutar || item?.amount || 0);
-              return (
-                <View key={index} style={styles.personalItem}>
-                  <Text style={styles.personalName}>{name}</Text>
-                  {!isEditing ? (
-                    <Text style={styles.personalAmount}>{formatAmount(Number(val))}</Text>
-                  ) : (
-                    <TextInput
-                      style={[styles.input, { width: 120, textAlign: 'right' }]}
-                      value={val}
-                      onChangeText={(t) => setFormPersonal((p) => ({ ...p, [uid]: formatMoneyInput(t) }))}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                    />
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Ledger Satırları (Bu kalem için kişi başı paylar) */}
-        <View style={CommonStyles.card}>
-          <Text style={styles.sectionTitle}>Bu Kalem İçin Paylaşım</Text>
-
-          {userShares.length > 0 ? (
-            userShares.map((u) => (
-              <View key={u.uid} style={styles.ledgerItem}>
-                <View style={styles.ledgerInfo}>
-                  <Text style={styles.ledgerFrom}>{membersMap[u.uid] || (u.uid === user?.id ? 'Sen' : `Kullanıcı ${u.uid}`)}</Text>
-                  <Text style={[styles.ledgerArrow, { marginLeft: 6, marginRight: 6 }]}>→</Text>
-                  <Text style={styles.ledgerTo}>{expense?.odeyenKullaniciAdi || expense?.odeyenUser?.fullName || membersMap[Number(expense?.odeyenUserId)] || 'Ödeyen'}</Text>
-                </View>
-                <Text style={styles.ledgerAmount}>{formatAmount(u.total)}</Text>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Ledger kaydı yok</Text>
-              <Text style={styles.emptySubtext}>Bu kalem için tahakkuk/borç satırı oluşmamış ya da gizli.</Text>
-            </View>
-          )}
-        </View>
-
-        {/* İşlem Butonları */}
-        <View style={styles.actionButtons}>
-          {!isEditing ? (
-            <>
-              <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.primary.background }]}
-                onPress={handleStartEdit}
-                activeOpacity={0.8}
-              >
-                <View style={CommonStyles.buttonContent}>
-                  <Ionicons name="create-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
-                  <Text style={CommonStyles.buttonText}>Düzenle</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.error.background }]}
-                onPress={handleDeleteExpense}
-                activeOpacity={0.8}
-              >
-                <View style={CommonStyles.buttonContent}>
-                  <Ionicons name="trash-outline" size={22} color={ColorThemes.error.foreground} style={{ marginBottom: 4 }} />
-                  <Text style={CommonStyles.buttonText}>Harcamayı Sil</Text>
-                </View>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.primary.background }]}
-                onPress={handleSaveEdit}
-                activeOpacity={0.8}
-              >
-                <View style={CommonStyles.buttonContent}>
-                  <Ionicons name="checkmark-circle-outline" size={22} color={ColorThemes.primary.foreground} style={{ marginBottom: 4 }} />
-                  <Text style={CommonStyles.buttonText}>Kaydet</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[CommonStyles.menuButton, { backgroundColor: ColorThemes.neutral.background }]}
-                onPress={handleCancelEdit}
-                activeOpacity={0.8}
-              >
-                <View style={CommonStyles.buttonContent}>
-                  <Ionicons name="close-outline" size={22} color={ColorThemes.neutral.foreground} style={{ marginBottom: 4 }} />
-                  <Text style={CommonStyles.buttonText}>İptal</Text>
-                </View>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </KeyboardAwareScrollView>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
-};
-
-function makeStyles(theme) {
-  return StyleSheet.create({
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.colors.text.primary,
-      marginBottom: 16,
-    },
-    detailRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.neutral[200],
-    },
-    detailLabel: {
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-      fontWeight: '500',
-    },
-    detailValue: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-      textAlign: 'right',
-      flex: 1,
-      marginLeft: 16,
-    },
-    amountText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.colors.primary[600],
-    },
-    personalItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.neutral[200],
-    },
-    personalName: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-    },
-    personalAmount: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: theme.colors.primary[600],
-    },
-    ledgerItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.neutral[200],
-    },
-    ledgerInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    ledgerFrom: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-    },
-    ledgerArrow: {
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-    },
-    ledgerTo: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-    },
-    ledgerAmount: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: theme.colors.primary[600],
-    },
-    actionButtons: { marginTop: 20 },
-    emptyState: { padding: 20, alignItems: 'center' },
-    emptyText: {
-      fontSize: 16,
-      color: theme.colors.text.secondary,
-      textAlign: 'center',
-      marginBottom: 8,
-    },
-    emptySubtext: {
-      fontSize: 14,
-      color: theme.colors.text.disabled,
-      textAlign: 'center',
-    },
-    errorText: {
-      fontSize: 16,
-      color: theme.colors.text.secondary,
-      textAlign: 'center',
-      padding: 20,
-    },
-    editRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingVertical: 8,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: theme.colors.neutral[300],
-      borderRadius: 10,
-      padding: 12,
-      fontSize: 16,
-      backgroundColor: theme.colors.background,
-      color: theme.colors.text.primary,
-      flex: 1,
-    },
-  });
 }
 
-export default HarcamaDetayi;
+function InfoRow({ icon, label, value, styles, theme }) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIcon}><Ionicons name={icon} size={19} color={theme.colors.primary[700]} /></View>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+function Field({ label, styles, multiline, ...props }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        {...props}
+        placeholderTextColor="#95a3b1"
+        style={[styles.input, multiline && styles.multiline]}
+        textAlignVertical={multiline ? 'top' : 'center'}
+      />
+    </View>
+  );
+}
+
+const makeStyles = (theme, insets) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: insets.bottom + 28 },
+  hero: { alignItems: 'center', paddingVertical: 28 },
+  heroIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.primary[600], alignItems: 'center', justifyContent: 'center' },
+  heroAmount: { color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 34, marginTop: 14 },
+  heroTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 17, marginTop: 6 },
+  heroDate: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 12, marginTop: 4 },
+  card: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, padding: 16, marginBottom: 14 },
+  sectionTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 17, marginBottom: 10 },
+  infoRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  infoIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: theme.colors.primary[50], alignItems: 'center', justifyContent: 'center' },
+  infoLabel: { flex: 1, color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 13 },
+  infoValue: { maxWidth: '48%', color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 13, textAlign: 'right' },
+  shareRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.primary[100], alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: theme.colors.primary[700], fontFamily: theme.typography.bold },
+  shareName: { flex: 1, color: theme.colors.text.primary, fontFamily: theme.typography.medium, fontSize: 14 },
+  shareValue: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 14 },
+  muted: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 13, paddingVertical: 8 },
+  editButton: { minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.primary[300], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.surface },
+  editText: { color: theme.colors.primary[700], fontFamily: theme.typography.bold, fontSize: 15 },
+  formCard: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, padding: 16, marginTop: 14 },
+  field: { marginBottom: 15 },
+  fieldLabel: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 13, marginBottom: 7 },
+  input: { minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[300], backgroundColor: theme.colors.background, color: theme.colors.text.primary, fontFamily: theme.typography.regular, fontSize: 15, paddingHorizontal: 13 },
+  multiline: { height: 88, paddingTop: 12 },
+});

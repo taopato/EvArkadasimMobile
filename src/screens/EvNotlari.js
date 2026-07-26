@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { houseNotesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 
 const normalizeBoard = (payload) => {
   const sections = Array.isArray(payload?.sections) ? payload.sections : [];
@@ -25,13 +27,15 @@ const normalizeBoard = (payload) => {
   }));
 };
 
-export default function EvNotlari({ route }) {
+export default function EvNotlari({ route, navigation }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isCompact = width < 520;
   const styles = useMemo(() => makeStyles(theme, isCompact), [theme, isCompact]);
+  const insets = useSafeAreaInsets();
 
+  const isMainTab = route?.name === 'Notlar';
   const houseId = Number(route?.params?.houseId || user?.defaultHouseId || 0);
   const houseName = route?.params?.houseName || user?.defaultHouseName || 'Ev Notları';
 
@@ -282,7 +286,7 @@ export default function EvNotlari({ route }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAwareScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -290,8 +294,12 @@ export default function EvNotlari({ route }) {
         extraScrollHeight={Platform.OS === 'ios' ? 20 : 40}
         keyboardOpeningTime={0}
       >
+        <PageHeader
+          title="Notlar"
+          subtitle={houseName}
+          onBack={isMainTab ? undefined : () => navigation.goBack()}
+        />
         <View style={styles.hero}>
-          <Text style={[styles.title, { color: theme.colors.text.primary }]}>{houseName}</Text>
           <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
             Market, ev içi işler ve alınacaklar listesi tüm ev üyeleri tarafından görülüp
             yönetilebilir.

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,12 +12,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, expensesApi, receiptsApi } from '../services/api';
-import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
+import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
@@ -27,11 +31,19 @@ const QUICK_EXPENSES = [
   { key: 'Other', label: 'Diğer' },
 ];
 
+const DEFAULT_QUICK_CHOICES = [
+  { id: 'bread', label: 'Ekmek', category: 'Market' },
+  { id: 'market', label: 'Market', category: 'Market' },
+  { id: 'water', label: 'Su', category: 'Market' },
+  { id: 'transport', label: 'Ulaşım', category: 'Other' },
+];
+const QUICK_CHOICES_KEY = 'roomora_quick_expense_choices';
+
 export default function AddExpenseScreen({ navigation, route }) {
   const { user } = useAuth();
   const activeHouseId = Number(route?.params?.houseId || user?.defaultHouseId || 0);
-  const CommonStyles = useCommonStyles();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const scrollRef = useRef(null);
   const noteWrapRef = useRef(null);
@@ -51,14 +63,55 @@ export default function AddExpenseScreen({ navigation, route }) {
   const [note, setNote] = useState('');
   const [members, setMembers] = useState([]);
   const [payerId, setPayerId] = useState('');
+  const [participantIds, setParticipantIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showPersonal, setShowPersonal] = useState(false);
   const [personal, setPersonal] = useState({});
   const [scanningReceipt, setScanningReceipt] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [quickChoices, setQuickChoices] = useState(DEFAULT_QUICK_CHOICES);
+  const [quickModalVisible, setQuickModalVisible] = useState(false);
+  const [quickLabel, setQuickLabel] = useState('');
+  const [quickCategory, setQuickCategory] = useState('Market');
 
   const showToast = (message, type = 'success') => setToast({ visible: true, message, type });
   const hideToast = () => setToast((prev) => ({ ...prev, visible: false }));
+
+  useEffect(() => {
+    AsyncStorage.getItem(QUICK_CHOICES_KEY)
+      .then((raw) => {
+        const saved = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(saved) && saved.length > 0) setQuickChoices(saved);
+      })
+      .catch(() => {});
+  }, []);
+
+  const persistQuickChoices = (next) => {
+    setQuickChoices(next);
+    AsyncStorage.setItem(QUICK_CHOICES_KEY, JSON.stringify(next)).catch(() => {});
+  };
+
+  const selectQuickChoice = (choice) => {
+    setNote(choice.label);
+    setCategoryKey(choice.category);
+  };
+
+  const addQuickChoice = () => {
+    const label = quickLabel.trim();
+    if (!label) return;
+    const next = [
+      ...quickChoices,
+      { id: `${Date.now()}`, label, category: quickCategory },
+    ].slice(-8);
+    persistQuickChoices(next);
+    setQuickLabel('');
+    setQuickCategory('Market');
+    setQuickModalVisible(false);
+  };
+
+  const removeQuickChoice = (id) => {
+    persistQuickChoices(quickChoices.filter((item) => item.id !== id));
+  };
 
   useEffect(() => {
     if (!activeHouseId) {
@@ -82,6 +135,7 @@ export default function AddExpenseScreen({ navigation, route }) {
         .filter((member) => Number.isFinite(member.id));
 
       setMembers(list);
+      setParticipantIds(list.map((member) => String(member.id)));
       const me = list.find((item) => item.id === Number(user?.id));
       if (me) setPayerId(String(me.id));
 
@@ -99,6 +153,21 @@ export default function AddExpenseScreen({ navigation, route }) {
   };
 
   const amountNum = parseMoneyInput(amount) || 0;
+  const allSelected = members.length > 0 && participantIds.length === members.length;
+
+  const toggleParticipant = (memberId) => {
+    const id = String(memberId);
+    setParticipantIds((current) => {
+      if (current.includes(id)) {
+        return current.length > 1 ? current.filter((item) => item !== id) : current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const selectAllParticipants = () => {
+    setParticipantIds(members.map((member) => String(member.id)));
+  };
 
   const save = async () => {
     if (!amountNum || amountNum <= 0) {
@@ -111,6 +180,10 @@ export default function AddExpenseScreen({ navigation, route }) {
     }
     if (!payerId) {
       Alert.alert('Hata', 'Ödemeyi yapan kişiyi seçin.');
+      return;
+    }
+    if (!participantIds.length) {
+      Alert.alert('Hata', 'En az bir katılımcı seçin.');
       return;
     }
 
@@ -132,7 +205,9 @@ export default function AddExpenseScreen({ navigation, route }) {
 
     const sharedAmount = Number((amountNum - personalTotal).toFixed(2));
     const categoryId = toExpenseCategory(categoryKey);
-    const expenseTitle = QUICK_EXPENSES.find((item) => item.key === categoryKey)?.label || 'Harcama';
+    const expenseTitle = note.trim()
+      || QUICK_EXPENSES.find((item) => item.key === categoryKey)?.label
+      || 'Harcama';
 
     const payload = {
       tur: expenseTitle,
@@ -152,6 +227,7 @@ export default function AddExpenseScreen({ navigation, route }) {
       Description: note,
       ortakHarcamaTutari: sharedAmount,
       sahsiHarcamalar: personalItems,
+      participants: participantIds.map(Number),
     };
 
     try {
@@ -263,61 +339,82 @@ export default function AddExpenseScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView
-      style={CommonStyles.container}
+      style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
     >
       <ScrollView
         ref={scrollRef}
-        style={CommonStyles.content}
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
         keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="always"
+        contentInsetAdjustmentBehavior="never"
       >
-        <View style={CommonStyles.header}>
-          <Text style={CommonStyles.title}>Harcama Ekle</Text>
-          <Text style={CommonStyles.subtitle}>Düzensiz harcamalar için hızlı kayıt veya fiş okutma.</Text>
+        <PageHeader title="Harcama Ekle" onBack={() => navigation.goBack()} />
+
+        <View style={styles.amountHero}>
+          <Text style={styles.amountLabel}>TUTAR</Text>
+          <View style={styles.amountRow}>
+            <Text style={styles.amountCurrency}>₺</Text>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0,00"
+              placeholderTextColor={theme.colors.text.disabled}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+              value={amount}
+              onChangeText={(text) => setAmount(formatMoneyInput(text))}
+            />
+          </View>
         </View>
 
-        <View style={styles.receiptCard}>
-          <View style={styles.receiptHeader}>
-            <Text style={styles.receiptTitle}>Fiş veya fatura okut</Text>
-            <Text style={styles.receiptSubtitle}>
-              Fotoğrafı yükle, kalemleri tek tek düzenle ve mevcut harcama sistemine dönüştür.
-            </Text>
-          </View>
-          <View style={styles.receiptActions}>
-            <TouchableOpacity style={styles.receiptPrimaryButton} onPress={openCamera} disabled={scanningReceipt} activeOpacity={0.9}>
-              {scanningReceipt ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <Text style={styles.receiptPrimaryButtonText}>Kameradan çek</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.receiptSecondaryButton} onPress={openGallery} disabled={scanningReceipt} activeOpacity={0.9}>
-              <Text style={styles.receiptSecondaryButtonText}>Galeriden seç</Text>
+        <View style={styles.quickSection}>
+          <View style={styles.quickHeader}>
+            <Text style={styles.label}>Hızlı seçimler</Text>
+            <TouchableOpacity onPress={() => setQuickModalVisible(true)} style={styles.quickAddButton}>
+              <Ionicons name="add" size={17} color={theme.colors.primary[700]} />
+              <Text style={styles.quickAddText}>Yeni</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.receiptGhostButton}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('FisGecmisi', { houseId: activeHouseId })}
-          >
-            <Text style={styles.receiptGhostButtonText}>Kayıtlı fişleri gör</Text>
-          </TouchableOpacity>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickList}>
+            {quickChoices.map((choice) => (
+              <TouchableOpacity
+                key={choice.id}
+                style={styles.quickChoice}
+                onPress={() => selectQuickChoice(choice)}
+                onLongPress={() => removeQuickChoice(choice.id)}
+                delayLongPress={500}
+              >
+                <Text style={styles.quickChoiceText}>{choice.label}</Text>
+                <TouchableOpacity
+                  accessibilityLabel={`${choice.label} hızlı seçimini kaldır`}
+                  hitSlop={8}
+                  onPress={() => removeQuickChoice(choice.id)}
+                >
+                  <Ionicons name="close" size={15} color={theme.colors.text.secondary} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Text style={styles.quickHint}>Dokunarak formu doldurabilir, basılı tutarak kaldırabilirsin.</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Tutar (TL)</Text>
+        <View style={styles.fieldBlock} ref={noteWrapRef}>
+          <Text style={styles.label}>Harcama adı</Text>
           <TextInput
             style={styles.input}
-            placeholder="1.000"
-            keyboardType="decimal-pad"
-            inputMode="decimal"
-            value={amount}
-            onChangeText={(text) => setAmount(formatMoneyInput(text))}
+            placeholder="Örn. Ekmek"
+            placeholderTextColor={theme.colors.text.disabled}
+            value={note}
+            onChangeText={setNote}
+            onFocus={scrollToNoteField}
           />
-          <Text style={styles.hint}>Örnek: 1.000</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Kategori</Text>
-          <View style={styles.chips}>
+        <View style={styles.selectionCard}>
+          <View style={styles.selectionIcon}><Ionicons name="cart-outline" size={21} color={theme.colors.primary[700]} /></View>
+          <View style={styles.selectionBody}><Text style={styles.selectionLabel}>Kategori</Text><Text style={styles.selectionValue}>{QUICK_EXPENSES.find((item) => item.key === categoryKey)?.label || 'Seç'}</Text></View>
+          <View style={[styles.chips, styles.selectionChips]}>
             {QUICK_EXPENSES.map((option) => {
               const active = categoryKey === option.key;
               return (
@@ -334,9 +431,10 @@ export default function AddExpenseScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Ödeyen</Text>
-          <View style={styles.chips}>
+        <View style={styles.selectionCard}>
+          <View style={styles.selectionIcon}><Ionicons name="person-outline" size={21} color={theme.colors.primary[700]} /></View>
+          <View style={styles.selectionBody}><Text style={styles.selectionLabel}>Ödeyen</Text><Text style={styles.selectionValue}>{members.find((member) => String(member.id) === String(payerId))?.fullName || 'Seç'}</Text></View>
+          <View style={[styles.chips, styles.selectionChips]}>
             {members.map((member) => {
               const active = String(member.id) === String(payerId);
               return (
@@ -353,16 +451,36 @@ export default function AddExpenseScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.card} ref={noteWrapRef}>
-          <Text style={styles.label}>Açıklama (opsiyonel)</Text>
-          <TextInput
-            style={[styles.input, styles.noteInput]}
-            placeholder="Kısa bir not..."
-            value={note}
-            onChangeText={setNote}
-            onFocus={scrollToNoteField}
-            multiline
-          />
+        <View style={styles.selectionCard}>
+          <View style={styles.selectionIcon}><Ionicons name="people-outline" size={21} color={theme.colors.primary[700]} /></View>
+          <View style={styles.selectionBody}>
+            <Text style={styles.selectionLabel}>Kimin için?</Text>
+            <Text style={styles.selectionValue}>
+              {allSelected ? 'Ortak' : `${participantIds.length} kişi · Eşit`}
+            </Text>
+          </View>
+          <View style={[styles.chips, styles.selectionChips]}>
+            <TouchableOpacity
+              style={[styles.chip, allSelected && styles.chipActive]}
+              onPress={selectAllParticipants}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.chipText, allSelected && styles.chipTextActive]}>Ortak</Text>
+            </TouchableOpacity>
+            {members.map((member) => {
+              const active = participantIds.includes(String(member.id));
+              return (
+                <TouchableOpacity
+                  key={String(member.id)}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleParticipant(member.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{member.fullName}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         <TouchableOpacity style={styles.toggle} onPress={() => setShowPersonal((prev) => !prev)} activeOpacity={0.8}>
@@ -391,51 +509,145 @@ export default function AddExpenseScreen({ navigation, route }) {
           </View>
         ) : null}
 
+        <View style={styles.splitSummary}>
+          <Text style={styles.splitSummaryText}>{allSelected ? 'Ortak' : `${participantIds.length} kişi`} · Eşit bölüşüm</Text>
+          <Text style={styles.splitSummaryValue}>Kişi başı {participantIds.length ? formatMoneyInput(String(amountNum / participantIds.length)) : '0,00'} TL</Text>
+        </View>
+
         <TouchableOpacity
           style={[styles.saveButton, (!amountNum || !categoryKey || !payerId || loading) && styles.disabledButton]}
           onPress={save}
           disabled={!amountNum || !categoryKey || !payerId || loading}
           activeOpacity={0.9}
         >
-          {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <Text style={styles.saveButtonText}>Kaydet</Text>}
+          {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.saveButtonText}>Harcamayı Kaydet</Text></>}
         </TouchableOpacity>
+
+        <View style={styles.receiptCard}>
+          <View style={styles.receiptHeader}>
+            <Text style={styles.receiptTitle}>Fiş ile eklemek ister misin?</Text>
+            <Text style={styles.receiptSubtitle}>
+              Fişi taratarak harcama bilgilerini otomatik doldurabilirsin.
+            </Text>
+          </View>
+          <View style={styles.receiptActions}>
+            <TouchableOpacity style={styles.receiptPrimaryButton} onPress={openCamera} disabled={scanningReceipt} activeOpacity={0.9}>
+              {scanningReceipt ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <Text style={styles.receiptPrimaryButtonText}>Kamerayı Aç</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.receiptSecondaryButton} onPress={openGallery} disabled={scanningReceipt} activeOpacity={0.9}>
+              <Text style={styles.receiptSecondaryButtonText}>Galeriden Seç</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.receiptGhostButton}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('FisGecmisi', { houseId: activeHouseId })}
+          >
+            <Text style={styles.receiptGhostButtonText}>Fiş Geçmişi</Text>
+          </TouchableOpacity>
+        </View>
 
         <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
       </ScrollView>
+
+      <Modal visible={quickModalVisible} transparent animationType="fade" onRequestClose={() => setQuickModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKeyboard}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Hızlı Seçim Ekle</Text>
+                <TouchableOpacity accessibilityLabel="Kapat" onPress={() => setQuickModalVisible(false)} style={styles.modalClose}>
+                  <Ionicons name="close" size={22} color={theme.colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.label}>Harcama adı</Text>
+              <TextInput
+                autoFocus
+                value={quickLabel}
+                onChangeText={setQuickLabel}
+                placeholder="Örn. Sigara"
+                placeholderTextColor={theme.colors.text.disabled}
+                style={styles.input}
+              />
+              <Text style={[styles.label, { marginTop: 16 }]}>Kategori</Text>
+              <View style={styles.chips}>
+                {QUICK_EXPENSES.map((option) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.chip, quickCategory === option.key && styles.chipActive]}
+                    onPress={() => setQuickCategory(option.key)}
+                  >
+                    <Text style={[styles.chipText, quickCategory === option.key && styles.chipTextActive]}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.modalSave, !quickLabel.trim() && styles.disabledButton]}
+                disabled={!quickLabel.trim()}
+                onPress={addQuickChoice}
+              >
+                <Text style={styles.saveButtonText}>Hızlı Seçimi Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const makeStyles = (theme) => StyleSheet.create({
-  card: { backgroundColor: theme.colors.background, padding: 16, borderRadius: 12, marginBottom: 14 },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingBottom: 36 },
+  amountHero: { alignItems: 'center', paddingTop: 6, paddingBottom: 14, marginBottom: 6 },
+  amountLabel: { color: theme.colors.text.secondary, fontFamily: theme.typography.semibold, fontSize: 11 },
+  amountRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: theme.colors.primary[200] },
+  amountCurrency: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 26 },
+  amountInput: { minWidth: 120, maxWidth: 230, color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 34, textAlign: 'center', paddingHorizontal: 8 },
+  card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200], padding: 16, borderRadius: 8, marginBottom: 12 },
+  fieldBlock: { marginBottom: 12 },
+  selectionCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200], padding: 14, borderRadius: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
+  selectionIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.colors.primary[50], alignItems: 'center', justifyContent: 'center' },
+  selectionBody: { flex: 1, minWidth: 110 },
+  selectionLabel: { color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 12 },
+  selectionValue: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 15, marginTop: 2 },
+  quickSection: { marginBottom: 14 },
+  quickHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  quickAddButton: { minHeight: 36, flexDirection: 'row', gap: 4, alignItems: 'center', paddingHorizontal: 10, borderRadius: 8, backgroundColor: theme.colors.primary[50] },
+  quickAddText: { color: theme.colors.primary[700], fontFamily: theme.typography?.bold, fontSize: 13 },
+  quickList: { gap: 8, paddingVertical: 6 },
+  quickChoice: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 18, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200] },
+  quickChoiceText: { color: theme.colors.text.primary, fontFamily: theme.typography?.semibold, fontSize: 13 },
+  quickHint: { color: theme.colors.text.secondary, fontFamily: theme.typography?.regular, fontSize: 11, lineHeight: 16 },
   receiptCard: {
     backgroundColor: theme.colors.surface,
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 8,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
   },
   receiptHeader: { marginBottom: 14 },
-  receiptTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text.primary },
-  receiptSubtitle: { fontSize: 13, color: theme.colors.text.secondary, marginTop: 4, lineHeight: 18 },
+  receiptTitle: { fontFamily: theme.typography?.bold, fontSize: 17, color: theme.colors.text.primary },
+  receiptSubtitle: { fontFamily: theme.typography?.regular, fontSize: 13, color: theme.colors.text.secondary, marginTop: 4, lineHeight: 18 },
   receiptActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   receiptPrimaryButton: {
     flex: 1,
     backgroundColor: theme.colors.primary[600],
-    borderRadius: 14,
+    borderRadius: 8,
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
   },
-  receiptPrimaryButtonText: { color: theme.colors.text.onPrimary, fontWeight: '800' },
+  receiptPrimaryButtonText: { color: theme.colors.text.onPrimary, fontFamily: theme.typography?.bold },
   receiptSecondaryButton: {
     flex: 1,
     backgroundColor: theme.colors.primary[50],
     borderWidth: 1,
     borderColor: theme.colors.primary[200],
-    borderRadius: 14,
+    borderRadius: 8,
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
@@ -446,30 +658,31 @@ const makeStyles = (theme) => StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: theme.colors.background,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
   },
   receiptGhostButtonText: { color: theme.colors.text.primary, fontWeight: '700' },
-  label: { fontSize: 14, fontWeight: '600', color: theme.colors.text.primary, marginBottom: 8 },
+  label: { fontFamily: theme.typography?.semibold, fontSize: 14, color: theme.colors.text.primary, marginBottom: 8 },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.neutral[300],
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.surface,
     color: theme.colors.text.primary,
   },
   noteInput: { height: 80, textAlignVertical: 'top' },
   hint: { marginTop: 6, color: theme.colors.text.secondary, fontSize: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectionChips: { width: '100%' },
   chip: { paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 20, backgroundColor: theme.colors.background },
   chipActive: { borderColor: theme.colors.primary[600], backgroundColor: theme.colors.primary[50] },
   chipText: { color: theme.colors.text.primary, fontWeight: '500' },
   chipTextActive: { color: theme.colors.primary[700], fontWeight: '700' },
-  toggle: { backgroundColor: theme.colors.primary[100], borderColor: theme.colors.primary[300], borderWidth: 1, padding: 12, borderRadius: 10, marginBottom: 12, alignItems: 'center' },
+  toggle: { backgroundColor: theme.colors.primary[50], borderColor: theme.colors.primary[200], borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
   toggleText: { color: theme.colors.primary[800], fontWeight: '600' },
   personalRow: {
     flexDirection: 'row',
@@ -485,8 +698,18 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   personalName: { fontSize: 15, color: theme.colors.text.primary, flex: 1, marginRight: 10 },
   personalInput: { width: 100, borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 8, padding: 8, textAlign: 'right', color: theme.colors.text.primary },
-  saveButton: { backgroundColor: theme.colors.success[600], padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 28 },
+  splitSummary: { minHeight: 42, borderRadius: 8, backgroundColor: theme.colors.primary[50], paddingHorizontal: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  splitSummaryText: { color: theme.colors.primary[700], fontFamily: theme.typography.medium, fontSize: 12 },
+  splitSummaryValue: { color: theme.colors.primary[800], fontFamily: theme.typography.bold, fontSize: 12 },
+  saveButton: { flexDirection: 'row', gap: 8, backgroundColor: theme.colors.primary[600], minHeight: 52, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
   disabledButton: { opacity: 0.5 },
-  saveButtonText: { color: theme.colors.text.onPrimary, fontWeight: '700', fontSize: 16 },
+  saveButtonText: { color: theme.colors.text.onPrimary, fontFamily: theme.typography?.bold, fontSize: 15 },
   info: { marginTop: 8, color: theme.colors.text.secondary, fontSize: 12 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(10,29,45,0.38)', justifyContent: 'flex-end' },
+  modalKeyboard: { width: '100%' },
+  modalCard: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: Platform.OS === 'ios' ? 34 : 22 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  modalTitle: { color: theme.colors.text.primary, fontFamily: theme.typography?.bold, fontSize: 19 },
+  modalClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  modalSave: { minHeight: 52, marginTop: 22, borderRadius: 12, backgroundColor: theme.colors.primary[600], alignItems: 'center', justifyContent: 'center' },
 });
