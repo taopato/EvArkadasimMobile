@@ -1,15 +1,20 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": true
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "environment": "development"
+    },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.evarkadasim.co"
-      },
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
@@ -17,11 +22,17 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.evarkadasim.co"
-      },
+      "environment": "production",
       "android": {
         "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
       }
     }
   }

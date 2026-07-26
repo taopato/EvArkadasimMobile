@@ -1,9 +1,15 @@
 {
   "expo": {
     "name": "Roomora",
-    "slug": "roomora",
+    "slug": "ev-arkadasim",
     "owner": "takopato4",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8fe79228-2598-461f-ba30-83843385bbc7"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./src/assets/icon.png",

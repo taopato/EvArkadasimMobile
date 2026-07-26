@@ -1,5 +1,8 @@
 # Roomora Mobile
 
+Mobil build, TestFlight, Google Play Internal Testing, OTA ve sürüm yükseltme
+akışı için [Mobil Sürüm Akışı](docs/MOBILE_RELEASE_FLOW.md) belgesine bakın.
+
 Roomora, ev arkadaşlarının ortak harcamaları, faturaları, notları ve ödemeleri tek yerde yönetmesini sağlayan Expo tabanlı mobil uygulamadır.
 
 > Ortak yaşamın kolay hali.
