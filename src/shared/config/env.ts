@@ -24,7 +24,7 @@ const HOST_DEV_IOS = 'localhost';
 // Backend portun
 const DEV_PORT = 7118;
 const DEV_HTTP_PORT = 5118;
-const DEFAULT_WEB_PROD_API = 'https://api.roomora.com';
+const DEFAULT_WEB_PROD_API = 'https://api.roomora.builtwhys.space';
 
 // HTTP/HTTPS tercihi (lokal geliştirmede genelde HTTP)
 const USE_HTTPS = false;
