@@ -15,6 +15,7 @@ export default function useRoomoraDashboard(user) {
     loading: true,
     refreshing: false,
     error: '',
+    errors: {},
     expenses: [],
     scheduled: [],
     pendingPayments: [],
@@ -29,6 +30,7 @@ export default function useRoomoraDashboard(user) {
         loading: false,
         refreshing: false,
         error: '',
+        errors: {},
         expenses: [],
         scheduled: [],
         pendingPayments: [],
@@ -43,6 +45,7 @@ export default function useRoomoraDashboard(user) {
       loading: !refreshing && prev.expenses.length === 0,
       refreshing,
       error: '',
+      errors: {},
     }));
     const results = await Promise.allSettled([
       expensesApi.getByHouse(houseId),
@@ -55,6 +58,12 @@ export default function useRoomoraDashboard(user) {
     const debtResponse = results[1].status === 'fulfilled' ? results[1].value : null;
     const pendingResponse = results[2].status === 'fulfilled' ? results[2].value : null;
     const scheduledResponse = results[3].status === 'fulfilled' ? results[3].value : null;
+    const errors = {
+      expenses: results[0].status === 'rejected' ? 'Giderler şu anda alınamıyor.' : '',
+      debt: results[1].status === 'rejected' ? 'Borç ve alacak bilgileri şu anda alınamıyor.' : '',
+      pendingPayments: results[2].status === 'rejected' ? 'Bekleyen ödemeler şu anda alınamıyor.' : '',
+      scheduled: results[3].status === 'rejected' ? 'Planlı ödemeler şu anda alınamıyor.' : '',
+    };
 
     const expenses = sortByDateDesc(
       deduplicateMonthlyPlans(arrayFrom(expenseResponse).map(normalizeExpense))
@@ -66,9 +75,8 @@ export default function useRoomoraDashboard(user) {
     setState({
       loading: false,
       refreshing: false,
-      error: results.every((item) => item.status === 'rejected')
-        ? 'Veriler şu anda alınamıyor. Bağlantını kontrol edip tekrar dene.'
-        : '',
+      error: Object.values(errors).find(Boolean) || '',
+      errors,
       expenses,
       scheduled: arrayFrom(scheduledResponse),
       pendingPayments: arrayFrom(pendingResponse),

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import useRoomoraDashboard from '../../hooks/useRoomoraDashboard';
 import {
   EmptyState,
+  ErrorState,
   ListRow,
   LoadingState,
   PageHeader,
@@ -24,13 +26,18 @@ import {
 import { BILL_KEYS } from '../../utils/expenseClassifier';
 import { getCategoryIconName } from '../../constants/ExpenseEnums';
 import { getExpenseDisplayTitle, getItemDate } from '../../utils/expenseHelpers';
+import ScheduledChargeCard from '../../components/ScheduledChargeCard';
+import { scheduledChargesApi } from '../../services/api';
+import eventBus from '../../shared/events/bus';
 
 export default function RoomoraBills({ navigation }) {
   const { user } = useAuth();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const data = useRoomoraDashboard(user);
+  const screenError = data.errors?.expenses || data.errors?.scheduled;
   const [filter, setFilter] = useState('all');
+  const [busyCycleId, setBusyCycleId] = useState(null);
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
 
   const now = new Date();
@@ -58,6 +65,34 @@ export default function RoomoraBills({ navigation }) {
     navigation.navigate('FaturaEkle', { houseId: data.houseId, houseName: data.houseName });
   };
 
+  const toggleShare = async (plan, share, isPaid) => {
+    if (!plan?.cycle?.id || !share?.userId || busyCycleId) return;
+    setBusyCycleId(plan.cycle.id);
+    try {
+      await scheduledChargesApi.setSharePaid(plan.cycle.id, share.userId, isPaid);
+      eventBus.emit('scheduled-charges:updated', { houseId: data.houseId });
+      await data.refresh();
+    } catch (error) {
+      Alert.alert('İşlem tamamlanamadı', error?.response?.data?.message || 'Lütfen tekrar deneyin.');
+    } finally {
+      setBusyCycleId(null);
+    }
+  };
+
+  const toggleExternal = async (plan, isPaid) => {
+    if (!plan?.cycle?.id || busyCycleId) return;
+    setBusyCycleId(plan.cycle.id);
+    try {
+      await scheduledChargesApi.setExternalPaid(plan.cycle.id, isPaid);
+      eventBus.emit('scheduled-charges:updated', { houseId: data.houseId });
+      await data.refresh();
+    } catch (error) {
+      Alert.alert('İşlem tamamlanamadı', error?.response?.data?.message || 'Lütfen tekrar deneyin.');
+    } finally {
+      setBusyCycleId(null);
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -69,7 +104,9 @@ export default function RoomoraBills({ navigation }) {
 
         <View style={styles.summary}>
           <Text style={styles.summaryLabel}>TOPLAM FATURA</Text>
-          <Text style={styles.summaryValue}>₺{Number(total || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+          <Text style={styles.summaryValue}>
+            {screenError ? '—' : `₺${Number(total || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </Text>
           <View style={styles.summaryStats}>
             <View>
               <Text style={styles.statLabel}>Aktif</Text>
@@ -113,15 +150,14 @@ export default function RoomoraBills({ navigation }) {
                 houseName: data.houseName,
               })}
             />
-            {data.scheduled.slice(0, 2).map((plan, index) => (
-              <ListRow
+            {data.scheduled.map((plan, index) => (
+              <ScheduledChargeCard
                 key={String(plan.id ?? index)}
-                icon="calendar-outline"
-                title={plan.name || plan.title || plan.description || 'Düzenli gider'}
-                subtitle={`Her ay ${plan.dueDay || plan.collectionStartDay || '-'} tarihinde`}
-                amount={plan.amount || plan.fixedAmount}
-                badge="PLANLI"
-                badgeTone="info"
+                plan={plan}
+                currentUserId={user?.id}
+                busy={Number(busyCycleId) === Number(plan?.cycle?.id)}
+                onToggleShare={toggleShare}
+                onToggleExternal={toggleExternal}
               />
             ))}
           </>
@@ -130,6 +166,8 @@ export default function RoomoraBills({ navigation }) {
         <SectionHeader title="Güncel Faturalar" />
         {data.loading ? (
           <LoadingState label="Faturalar yükleniyor..." />
+        ) : screenError ? (
+          <ErrorState description={screenError} onRetry={data.retry} />
         ) : bills.length === 0 ? (
           <EmptyState
             icon="receipt-outline"

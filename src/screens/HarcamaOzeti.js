@@ -7,6 +7,7 @@ import { getCategoryDisplayName, getCategoryIconName } from '../constants/Expens
 import { useTheme } from '../shared/theme/ThemeProvider';
 import {
   EmptyState,
+  ErrorState,
   ListRow,
   LoadingState,
   PageHeader,
@@ -27,6 +28,7 @@ export default function HarcamaOzeti({ navigation }) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const data = useRoomoraDashboard(user);
+  const screenError = data.errors?.expenses;
   const [period, setPeriod] = useState('month');
 
   const filtered = useMemo(() => {
@@ -64,11 +66,13 @@ export default function HarcamaOzeti({ navigation }) {
         </View>
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>Toplam harcama</Text>
-          <Text style={styles.heroValue}>{money(total)}</Text>
+          <Text style={styles.heroValue}>{screenError ? '—' : money(total)}</Text>
           <Text style={styles.heroMeta}>{filtered.length} işlem</Text>
         </View>
         <SectionHeader title="Kategoriler" />
-        {data.loading ? <LoadingState label="Özet hazırlanıyor..." /> : breakdown.map((item) => (
+        {data.loading ? <LoadingState label="Özet hazırlanıyor..." /> : screenError ? (
+          <ErrorState description={screenError} onRetry={data.retry} />
+        ) : breakdown.map((item) => (
           <ListRow
             key={item.key}
             icon={getCategoryIconName(item.key)}
@@ -77,7 +81,7 @@ export default function HarcamaOzeti({ navigation }) {
             amount={item.amount}
           />
         ))}
-        {!data.loading && !breakdown.length && <EmptyState icon="pie-chart-outline" title="Özetlenecek harcama yok" description="Seçilen dönemde kayıtlı bir harcama bulunmuyor." />}
+        {!data.loading && !screenError && !breakdown.length && <EmptyState icon="pie-chart-outline" title="Özetlenecek harcama yok" description="Seçilen dönemde kayıtlı bir harcama bulunmuyor." />}
       </ScrollView>
     </View>
   );

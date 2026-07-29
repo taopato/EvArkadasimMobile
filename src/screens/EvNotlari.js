@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +29,8 @@ const normalizeBoard = (payload) => {
   }));
 };
 
+const notePreferenceKey = (houseId) => `roomora:notes:${houseId}:view`;
+
 export default function EvNotlari({ route, navigation }) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -56,12 +59,20 @@ export default function EvNotlari({ route, navigation }) {
     try {
       const response = await houseNotesApi.getBoard(houseId);
       const next = normalizeBoard(response?.data);
+      const savedPreference = await AsyncStorage.getItem(notePreferenceKey(houseId))
+        .then((value) => (value ? JSON.parse(value) : null))
+        .catch(() => null);
       setSections(next);
       setSelectedSectionId((current) => (
         next.some((section) => Number(section.id) === Number(current))
           ? current
-          : next[0]?.id ?? null
+          : next.find((section) => Number(section.id) === Number(savedPreference?.sectionId))?.id
+            ?? next[0]?.id
+            ?? null
       ));
+      if (savedPreference?.mode === 'active' || savedPreference?.mode === 'history') {
+        setMode(savedPreference.mode);
+      }
       if (next.length === 0) setShowCreate(true);
     } catch (error) {
       Alert.alert('Hata', error?.response?.data?.message || 'Notlar yüklenemedi.');
@@ -74,6 +85,14 @@ export default function EvNotlari({ route, navigation }) {
     setLoading(true);
     loadBoard();
   }, [houseId]);
+
+  useEffect(() => {
+    if (!houseId || !selectedSectionId) return;
+    AsyncStorage.setItem(
+      notePreferenceKey(houseId),
+      JSON.stringify({ sectionId: selectedSectionId, mode })
+    ).catch(() => {});
+  }, [houseId, mode, selectedSectionId]);
 
   const selectedSection = sections.find(
     (section) => Number(section.id) === Number(selectedSectionId)

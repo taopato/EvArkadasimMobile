@@ -76,7 +76,7 @@ const makeStyles = (theme, bottomInset) =>
       flex: 1,
       minWidth: 0,
       height: 55,
-      borderRadius: 12,
+      borderRadius: theme.radius.sm,
       alignItems: 'center',
       justifyContent: 'center',
       marginHorizontal: 1,

@@ -34,6 +34,14 @@ export const theme = {
     success: { 50: '#edf8f4', 100: '#d8f0e7', 200: '#aee0cc', 500: '#2e7d63', 600: '#006b5b', 700: '#005144' },
     warning: { 50: '#fff8eb', 100: '#f8ead0', 200: '#efd19b', 500: '#d99a2b', 600: '#b87920', 700: '#8f5d18' },
     error: { 50: '#fff0ee', 100: '#f8d9d5', 200: '#efb6ae', 500: '#d96c5f', 600: '#ba1a1a', 700: '#93000a' },
+    balanceHero: {
+      muted: '#d8e0e8',
+      badge: '#355069',
+      badgeText: '#eaf3fb',
+      divider: '#496176',
+      receivable: '#91dec3',
+      payable: '#ffc3bd',
+    },
     pastel: {
       blue:   { bg: '#dbeafe', fg: '#1e3a8a' },
       green:  { bg: '#dcfce7', fg: '#065f46' },
@@ -108,6 +116,14 @@ export const amoledTheme = {
     success: { 50: '#064e3b55', 100: '#14532d66', 200: '#16653488', 500: '#4ba97c', 600: '#3d9169', 700: '#2f7854' },
     warning: { 50: '#7c2d1255', 100: '#78350f66', 200: '#92400e88', 500: '#d99a2b', 600: '#c08526', 700: '#8f5d18' },
     error: { 50: '#7f1d1d55', 100: '#7f1d1d66', 200: '#991b1b88', 500: '#d9776c', 600: '#c25f52', 700: '#93000a' },
+    balanceHero: {
+      muted: '#c4cad2',
+      badge: '#3a4c5f',
+      badgeText: '#f1f5f9',
+      divider: '#4f6073',
+      receivable: '#91dec3',
+      payable: '#ffc3bd',
+    },
     pastel: {
       blue:   { bg: '#1e3a8a26', fg: '#f1f5f9' },
       green:  { bg: '#065f4626', fg: '#f1f5f9' },

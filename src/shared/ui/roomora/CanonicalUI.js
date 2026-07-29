@@ -272,6 +272,25 @@ export function LoadingState({ label = 'Yükleniyor...' }) {
   );
 }
 
+export function ErrorState({
+  title = 'Veriler alınamadı',
+  description = 'Bağlantını kontrol edip tekrar deneyin.',
+  onRetry,
+}) {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme);
+  return (
+    <View style={styles.emptyState}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.colors.error[50] }]}>
+        <Ionicons name="cloud-offline-outline" size={30} color={theme.colors.error[700]} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyDescription}>{description}</Text>
+      {!!onRetry && <PrimaryButton label="Tekrar Dene" icon="refresh" onPress={onRetry} />}
+    </View>
+  );
+}
+
 const makeStyles = (theme) => StyleSheet.create({
   header: {
     minHeight: 64,
@@ -319,7 +338,7 @@ const makeStyles = (theme) => StyleSheet.create({
     fontSize: 14,
   },
   balanceCard: {
-    borderRadius: 16,
+    borderRadius: theme.radius.sm,
     padding: 22,
     marginTop: 16,
     backgroundColor: theme.colors.primary[900],
@@ -327,7 +346,7 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   balanceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balanceEyebrow: {
-    color: '#d8e0e8',
+    color: theme.colors.balanceHero.muted,
     fontFamily: theme.typography.semibold,
     fontSize: 13,
   },
@@ -338,9 +357,9 @@ const makeStyles = (theme) => StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: '#355069',
+    backgroundColor: theme.colors.balanceHero.badge,
   },
-  pendingText: { color: '#eaf3fb', fontFamily: theme.typography.semibold, fontSize: 11 },
+  pendingText: { color: theme.colors.balanceHero.badgeText, fontFamily: theme.typography.semibold, fontSize: 11 },
   balanceValue: {
     color: '#fff',
     fontFamily: theme.typography.extrabold,
@@ -348,18 +367,18 @@ const makeStyles = (theme) => StyleSheet.create({
     lineHeight: 44,
     marginTop: 14,
   },
-  balanceDivider: { height: 1, backgroundColor: '#496176', marginVertical: 18 },
+  balanceDivider: { height: 1, backgroundColor: theme.colors.balanceHero.divider, marginVertical: 18 },
   balanceColumns: { flexDirection: 'row', gap: 28 },
   balanceColumn: { flex: 1 },
-  balanceLabel: { color: '#d8e0e8', fontFamily: theme.typography.medium, fontSize: 14 },
+  balanceLabel: { color: theme.colors.balanceHero.muted, fontFamily: theme.typography.medium, fontSize: 14 },
   receivableValue: {
-    color: '#91dec3',
+    color: theme.colors.balanceHero.receivable,
     fontFamily: theme.typography.bold,
     fontSize: 22,
     marginTop: 4,
   },
   payableValue: {
-    color: '#ffc3bd',
+    color: theme.colors.balanceHero.payable,
     fontFamily: theme.typography.bold,
     fontSize: 22,
     marginTop: 4,
@@ -367,7 +386,7 @@ const makeStyles = (theme) => StyleSheet.create({
   actionTile: {
     flex: 1,
     minHeight: 116,
-    borderRadius: 14,
+    borderRadius: theme.radius.sm,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.surface,
@@ -411,7 +430,7 @@ const makeStyles = (theme) => StyleSheet.create({
   pillTextActive: { color: '#fff' },
   listRow: {
     minHeight: 78,
-    borderRadius: 14,
+    borderRadius: theme.radius.sm,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.surface,
@@ -426,7 +445,7 @@ const makeStyles = (theme) => StyleSheet.create({
   listIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
@@ -452,7 +471,7 @@ const makeStyles = (theme) => StyleSheet.create({
   statusText: { fontFamily: theme.typography.bold, fontSize: 10 },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',

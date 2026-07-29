@@ -30,10 +30,12 @@ export default function GroupListScreen({ navigation, route }) {
   const [houses, setHouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
     if (!user?.id) return;
     refresh ? setRefreshing(true) : setLoading(true);
+    setLoadError('');
     try {
       const response = await houseApi.getUserHouses(Number(user.id));
       const list = Array.isArray(response?.data) ? response.data : [];
@@ -41,6 +43,9 @@ export default function GroupListScreen({ navigation, route }) {
       if (!user?.defaultHouseId && list[0]) {
         await setDefaultHouseId(list[0].id, list[0].name);
       }
+    } catch (error) {
+      setHouses([]);
+      setLoadError(error?.response?.data?.message || 'Evler yüklenemedi.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -88,6 +93,14 @@ export default function GroupListScreen({ navigation, route }) {
 
         {loading ? (
           <LoadingState label="Evlerin yükleniyor..." />
+        ) : loadError ? (
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Evler yüklenemedi"
+            description={loadError}
+            action="Tekrar Dene"
+            onAction={() => load(false)}
+          />
         ) : houses.length === 0 ? (
           <EmptyState
             icon="home-outline"

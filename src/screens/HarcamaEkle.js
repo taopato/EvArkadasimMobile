@@ -153,6 +153,12 @@ export default function AddExpenseScreen({ navigation, route }) {
   };
 
   const amountNum = parseMoneyInput(amount) || 0;
+  const personalTotalForSummary = Object.entries(personal).reduce((total, [userId, value]) => (
+    participantIds.includes(String(userId))
+      ? total + (parseMoneyInput(value) || 0)
+      : total
+  ), 0);
+  const sharedAmountForSummary = Math.max(0, amountNum - personalTotalForSummary);
   const allSelected = members.length > 0 && participantIds.length === members.length;
 
   const toggleParticipant = (memberId) => {
@@ -541,7 +547,7 @@ export default function AddExpenseScreen({ navigation, route }) {
 
         <View style={styles.splitSummary}>
           <Text style={styles.splitSummaryText}>{allSelected ? 'Ortak' : `${participantIds.length} kişi`} · Eşit bölüşüm</Text>
-          <Text style={styles.splitSummaryValue}>Kişi başı {participantIds.length ? formatMoneyInput(String(amountNum / participantIds.length)) : '0,00'} TL</Text>
+          <Text style={styles.splitSummaryValue}>Kişi başı {participantIds.length ? formatMoneyInput(String(sharedAmountForSummary / participantIds.length)) : '0,00'} TL</Text>
         </View>
 
         <TouchableOpacity

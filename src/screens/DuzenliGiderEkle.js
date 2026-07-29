@@ -48,6 +48,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
   }), []);
 
   const [customMonths, setCustomMonths] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!activeHouseId) {
@@ -90,10 +91,12 @@ export default function DuzenliGiderEkle({ navigation, route }) {
   };
 
   const onSave = async () => {
+    if (saving) return;
     try {
       if (!payerUserId) return Alert.alert('Hata', 'Ödeyecek kişiyi seçin.');
       const dueDayNum = Number(selectedDate.getDate());
       if (!(dueDayNum >= 1 && dueDayNum <= 28)) return Alert.alert('Hata', 'Lütfen 1-28 arasında bir gün seçin.');
+      setSaving(true);
 
       const startMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
       const isoStart = `${startMonth}-01T00:00:00Z`;
@@ -177,6 +180,8 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       navigation.goBack();
     } catch (error) {
       Alert.alert('Hata', error?.response?.data?.message || error?.message || 'Kaydedilemedi');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -345,8 +350,13 @@ export default function DuzenliGiderEkle({ navigation, route }) {
             </>
           )}
 
-          <TouchableOpacity style={styles.saveButton} onPress={onSave} activeOpacity={0.9}>
-            <Text style={styles.saveButtonText}>Planı Kaydet</Text>
+          <TouchableOpacity
+            style={[styles.saveButton, saving && { opacity: 0.5 }]}
+            onPress={onSave}
+            disabled={saving}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.saveButtonText}>{saving ? 'Kaydediliyor...' : 'Planı Kaydet'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>

@@ -452,7 +452,8 @@ export function PaymentReportScreen({ route, navigation }) {
   };
   const submit = async () => {
     if (!receiverId || numericAmount <= 0) return Alert.alert('Eksik bilgi', 'Kişi ve ödeme tutarı gereklidir.');
-    if (maxAmount && numericAmount > maxAmount) return Alert.alert('Tutar çok yüksek', `En fazla ${money(maxAmount)} bildirebilirsin.`);
+    if (maxAmount <= 0) return Alert.alert('Açık borç yok', 'Bu kişiye bildirebileceğin açık bir borç bulunmuyor.');
+    if (numericAmount > maxAmount) return Alert.alert('Tutar çok yüksek', `En fazla ${money(maxAmount)} bildirebilirsin.`);
     setSaving(true);
     try {
       await paymentsApi.create({ houseId, borcluUserId: user.id, alacakliUserId: receiverId, tutar: numericAmount, note, paymentMethod: 'Cash' });
@@ -502,7 +503,7 @@ export function PaymentReportScreen({ route, navigation }) {
       ) : null}
       <Text style={styles.fieldLabel}>Açıklama</Text>
       <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Örn. Temmuz ortak gider ödemesi" placeholderTextColor={theme.colors.text.disabled} />
-      <PrimaryButton label={saving ? 'Gönderiliyor...' : 'Ödemeyi Bildir'} icon="paper-plane-outline" onPress={submit} disabled={saving || !receiverId || numericAmount <= 0} />
+      <PrimaryButton label={saving ? 'Gönderiliyor...' : 'Ödemeyi Bildir'} icon="paper-plane-outline" onPress={submit} disabled={saving || !receiverId || numericAmount <= 0 || maxAmount <= 0} />
     </Screen>
   );
 }

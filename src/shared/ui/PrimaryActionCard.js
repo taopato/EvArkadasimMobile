@@ -38,7 +38,7 @@ export default function PrimaryActionCard({
 const makeStyles = (theme) => StyleSheet.create({
   container: {
     minHeight: 60,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 14,
     flexDirection: 'row',

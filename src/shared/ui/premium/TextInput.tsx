@@ -38,7 +38,7 @@ export const PremiumTextInput: React.FC<Props> = ({
           borderColor: theme.colors.neutral[300],
           backgroundColor: theme.colors.surface,
           color: theme.colors.text.primary,
-          borderRadius: r.lg,
+          borderRadius: r.sm,
           paddingHorizontal: s.lg,
           paddingVertical: s.md,
           fontSize: (typo as any).size,

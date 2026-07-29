@@ -24,7 +24,7 @@ module.exports = ({ config }) => {
           image: './src/assets/splash.png',
           imageWidth: 220,
           resizeMode: 'contain',
-          backgroundColor: '#eef4fa',
+          backgroundColor: '#F7F9FC',
         },
       ],
       [

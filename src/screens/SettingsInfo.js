@@ -13,14 +13,18 @@ const notificationDefaults = {
   house: true,
 };
 
+const LEGAL_LAST_UPDATED = '28.07.2026';
+const SUPPORT_EMAIL = 'info.ev.arkadasim@gmail.com';
+
 const legalCopy = {
   privacy: {
     title: 'Gizlilik Politikası',
     sections: [
       ['Topladığımız bilgiler', 'Hesabınızı ve ortak ev kayıtlarını çalıştırmak için ad, e-posta, telefon, profil fotoğrafı ve uygulamaya eklediğiniz finansal kayıtları işleriz.'],
       ['Bilgilerin kullanımı', 'Veriler yalnızca Roomora özelliklerini sunmak, hesabınızı korumak ve kullanıcı desteği sağlamak amacıyla kullanılır.'],
-      ['Paylaşım ve saklama', 'Ev içi kayıtlar yalnızca aynı eve davet edilen üyelerle paylaşılır. Kişisel verileriniz yasal zorunluluk dışında üçüncü taraflara satılmaz.'],
-      ['Haklarınız', 'Profilinizi güncelleyebilir, hesabınızı ve ilişkili kişisel verilerinizi Ayarlar ekranından silebilirsiniz.'],
+      ['Paylaşım ve saklama', 'Ev içi kayıtlar yalnızca aynı eve davet edilen üyelerle paylaşılır. Kişisel verileriniz yasal zorunluluk dışında üçüncü taraflara satılmaz. Hesap ve profil verileri hesabınız aktif olduğu sürece saklanır.'],
+      ['Silme ve kayıt bütünlüğü', 'Hesabınızı Ayarlar ekranından silebilirsiniz. Profil ve iletişim bilgileriniz kaldırılır. Daha önce paylaşılan finansal kayıtlar, diğer ev üyelerinin bakiye ve kayıt bütünlüğünü korumak için anonimleştirilmiş kullanıcıyla ilişkilendirilebilir.'],
+      ['Haklarınız ve iletişim', `Verilerinize erişme, düzeltme veya silme talepleriniz için ${SUPPORT_EMAIL} adresinden bize ulaşabilirsiniz.`],
     ],
   },
   terms: {
@@ -30,6 +34,7 @@ const legalCopy = {
       ['Kullanıcı sorumluluğu', 'Eklediğiniz kayıtların doğruluğundan ve ev grubunuza davet ettiğiniz kişilerden siz sorumlusunuz.'],
       ['Ödeme bildirimleri', 'Uygulamadaki ödeme durumları kullanıcı beyanı ve karşı taraf onayına dayanır. Gerçek para transferi Roomora üzerinden yapılmaz.'],
       ['Hesap güvenliği', 'Giriş bilgilerinizi korumalı ve yetkisiz kullanım şüphesinde şifrenizi yenilemelisiniz.'],
+      ['İletişim', `Hizmet ve hesap talepleriniz için ${SUPPORT_EMAIL} adresinden bize ulaşabilirsiniz.`],
     ],
   },
 };
@@ -133,14 +138,13 @@ export function LegalDocumentScreen({ navigation, route }) {
     <ScreenShell navigation={navigation} title={document.title}>
       {(styles) => (
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.legalUpdated}>Son güncelleme: 26.07.2026</Text>
+          <Text style={styles.legalUpdated}>Son güncelleme: {LEGAL_LAST_UPDATED}</Text>
           {document.sections.map(([title, body]) => (
             <View key={title} style={styles.legalSection}>
               <Text style={styles.legalTitle}>{title}</Text>
               <Text style={styles.legalBody}>{body}</Text>
             </View>
           ))}
-          <Text style={styles.legalNote}>Bu metin yayın öncesinde hukuki kontrolden geçirilmelidir.</Text>
         </ScrollView>
       )}
     </ScreenShell>

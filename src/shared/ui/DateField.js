@@ -83,7 +83,7 @@ const makeStyles = (theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.background,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     padding: 14,
   },
   text: { flex: 1, fontSize: 16 },
@@ -95,6 +95,6 @@ const makeStyles = (theme) => StyleSheet.create({
     padding: 16,
     paddingBottom: 28,
   },
-  doneBtn: { marginTop: 12, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: theme.colors.primary[600] },
+  doneBtn: { marginTop: 12, padding: 14, borderRadius: theme.radius.sm, alignItems: 'center', backgroundColor: theme.colors.primary[600] },
   doneBtnText: { color: theme.colors.text.onPrimary, fontWeight: '700' },
 });

@@ -39,7 +39,7 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
   // Cards
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 8,
+    borderRadius: theme.radius.sm,
     padding: theme.spacing?.lg ?? 16,
     marginBottom: 16,
     shadowColor: '#000',
@@ -65,13 +65,13 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
 
   // Buttons (menu style)
   menuButton: {
-    borderRadius: 8,
+    borderRadius: theme.radius.sm,
     overflow: 'hidden',
     marginBottom: 12,
   },
   buttonContent: {
     padding: theme.spacing?.md ?? 14,
-    borderRadius: 8,
+    borderRadius: theme.radius.sm,
     alignItems: 'flex-start',
   },
   buttonIcon: {
@@ -100,7 +100,7 @@ export const makeCommonStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: theme.radius.sm,
     marginBottom: 10,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,

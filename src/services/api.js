@@ -274,26 +274,9 @@ export const paymentsApi = {
     if (payload.chargeId != null) fd.append('ChargeId', Number(payload.chargeId));
     if (payload.dekontFile) fd.append('Dekont', payload.dekontFile); // File/Blob
 
-    try {
-      return await api.post('/Payments/CreatePayment', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } catch (e1) {
-      // Fallback: bazı ortamlarda CreatePayment devre dışıysa
-      const st = e1?.response?.status;
-      if ([404, 405, 415].includes(st)) {
-        const json = {
-          houseId: Number(payload.houseId),
-          payerUserId: Number(payload.borcluUserId),
-          toUserId: Number(payload.alacakliUserId),
-          amount: Number(payload.tutar),
-          note: payload.note || '',
-          allocations: [],
-        };
-        return await api.post('/Payments/AddPaymentWithAllocations', json);
-      }
-      throw e1;
-    }
+    return api.post('/Payments/CreatePayment', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 
   // Listeleme / bekleyenler / onay-red uçları

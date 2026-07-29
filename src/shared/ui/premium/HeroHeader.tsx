@@ -44,7 +44,7 @@ export const HeroHeader: React.FC<Props> = ({
       <View
         style={{
           marginTop: 16,
-          borderRadius: 12,
+          borderRadius: theme.radius.sm,
           padding: 16,
           backgroundColor: theme.colors.surface,
           borderWidth: 1,
@@ -71,4 +71,3 @@ export const HeroHeader: React.FC<Props> = ({
     </View>
   );
 };
-
