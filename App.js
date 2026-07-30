@@ -100,7 +100,13 @@ function LoadingScreen() {
 }
 
 const linking = {
-  prefixes: ['roomora://', 'evarkadasim://', 'https://evarkadasim.co', 'https://www.evarkadasim.co'],
+  prefixes: [
+    'roomora://',
+    'https://roomora.takosware.com',
+    'evarkadasim://',
+    'https://evarkadasim.co',
+    'https://www.evarkadasim.co',
+  ],
   config: {
     screens: {
       MainTabs: {
