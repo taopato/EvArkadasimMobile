@@ -16,6 +16,12 @@ module.exports = ({ config }) => {
       'expo-web-browser',
       'expo-font',
       'expo-apple-authentication',
+      [
+        'expo-secure-store',
+        {
+          configureAndroidBackup: false,
+        },
+      ],
       '@react-native-community/datetimepicker',
       'expo-status-bar',
       [

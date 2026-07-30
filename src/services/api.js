@@ -3,6 +3,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL as ENV_BASE } from '../shared/config/env';
 import eventBus from '../shared/events/bus';
+import { sessionStore } from '../shared/auth/sessionStore';
 
 /**
  * ENV_BASE örn: https://localhost:7118
@@ -21,7 +22,7 @@ const api = axios.create({
 // Token
 const getAuthToken = async () => {
   try {
-    return await AsyncStorage.getItem('authToken');
+    return await sessionStore.getAccessToken();
   } catch (err) {
     console.error('Token alınırken hata:', err);
     return null;
@@ -54,11 +55,53 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let refreshPromise = null;
+
+const refreshSession = async () => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = await sessionStore.getRefreshToken();
+      if (!refreshToken) throw new Error('Yenileme anahtarı bulunamadı.');
+      const response = await axios.post(`${BASE_URL}/Auth/Refresh`, { refreshToken }, {
+        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = response?.data?.data ?? response?.data ?? {};
+      const accessToken = data.token || data.accessToken;
+      const nextRefreshToken = data.refreshToken;
+      if (!accessToken || !nextRefreshToken) throw new Error('Oturum yenilenemedi.');
+      await sessionStore.setTokens(accessToken, nextRefreshToken);
+      const storedUserRaw = await AsyncStorage.getItem('user');
+      let storedUser = {};
+      try {
+        storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+      } catch {
+        storedUser = {};
+      }
+      const user = {
+        ...storedUser,
+        id: data.id,
+        email: data.email,
+        fullName: data.fullName,
+        phoneNumber: data.phoneNumber,
+        iban: data.iban,
+        profileImageUrl: data.profileImageUrl,
+      };
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      eventBus.emit('auth:refreshed', { token: accessToken, user });
+      return accessToken;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
+
 api.interceptors.response.use(
   (res) => {
     return res;
   },
-  (error) => {
+  async (error) => {
     // Ayrıntılı log (native'de CORS yok; bağlantı sorunlarını görmek için)
     try {
       console.error('🔍 API Error', {
@@ -76,10 +119,18 @@ api.interceptors.response.use(
     if (error?.response?.status === 401) {
       const urlPath = typeof error?.config?.url === 'string' ? error.config.url : '';
       const isAuthRequest = urlPath.startsWith('/Auth/') || urlPath.startsWith('Auth/');
-      if (!isAuthRequest) {
-        AsyncStorage.multiRemove(['authToken', 'user'])
-          .catch(() => {})
-          .finally(() => eventBus.emit('auth:unauthorized'));
+      if (!isAuthRequest && !error.config?._roomoraRetry) {
+        try {
+          const accessToken = await refreshSession();
+          error.config._roomoraRetry = true;
+          error.config.headers = error.config.headers || {};
+          error.config.headers.Authorization = `Bearer ${accessToken}`;
+          return api.request(error.config);
+        } catch {
+          await sessionStore.clearTokens().catch(() => {});
+          await AsyncStorage.removeItem('user').catch(() => {});
+          eventBus.emit('auth:unauthorized');
+        }
       }
     }
     return Promise.reject(error);
@@ -99,6 +150,7 @@ export const authApi = {
       const authHeader = res?.headers?.authorization || res?.headers?.Authorization;
       const tokenFromHeader = typeof authHeader === 'string' ? authHeader.replace(/^[Bb]earer\s+/,'') : undefined;
       const token = tokenFromBody || tokenFromHeader;
+      const refreshToken = data?.refreshToken ?? raw?.refreshToken;
       const nestedUser = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
       const user = nestedUser || (token ? {
         id: data?.id ?? raw?.id ?? 0,
@@ -110,7 +162,7 @@ export const authApi = {
       } : undefined);
 
       // Normalize edilmiş dönüş: LoginScreen daha kolay karar verebilsin
-      return { data: { token, user, raw } };
+      return { data: { token, refreshToken, user, raw } };
     } catch (err) {
       // Axios timeout veya XHR kaynaklı sorunlarda fetch ile fallback denemesi
       try {
@@ -126,6 +178,7 @@ export const authApi = {
         const raw = await res.json().catch(() => ({}));
         const data = raw?.data ?? raw ?? {};
         const token = data?.token || data?.accessToken || undefined;
+        const refreshToken = data?.refreshToken || undefined;
         const user = data?.user || data?.userDto || (token ? {
           id: data?.id ?? raw?.id ?? 0,
           email: data?.email ?? raw?.email,
@@ -134,7 +187,7 @@ export const authApi = {
           iban: data?.iban ?? raw?.iban,
           profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
         } : undefined);
-        return { data: { token, user, raw } };
+        return { data: { token, refreshToken, user, raw } };
       } catch (fallbackErr) {
         throw err;
       }
@@ -150,6 +203,7 @@ export const authApi = {
     const authHeader = res?.headers?.authorization || res?.headers?.Authorization;
     const tokenFromHeader = typeof authHeader === 'string' ? authHeader.replace(/^[Bb]earer\s+/,'') : undefined;
     const token = tokenFromBody || tokenFromHeader;
+    const refreshToken = data?.refreshToken ?? raw?.refreshToken;
     const nestedUser = pickFirst(data, ['user', 'userDto', 'account', 'profile']) || pickFirst(raw, ['user', 'userDto', 'account', 'profile']);
     // Backend LoginResponseDto düz alanlar döner (id/email/fullName), iç içe user objesi yok — yoksa buradan kur.
     const user = nestedUser || (token ? {
@@ -161,7 +215,7 @@ export const authApi = {
       profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
     } : undefined);
 
-    return { data: { token, user, raw } };
+    return { data: { token, refreshToken, user, raw } };
   },
   appleLogin: async (identityToken, fullName) => {
     const res = await api.post('/Auth/AppleLogin', { identityToken, fullName });
@@ -170,6 +224,7 @@ export const authApi = {
 
     const pickFirst = (obj, keys) => keys.map(k => obj?.[k]).find(v => v != null);
     const token = pickFirst(data, ['token', 'accessToken', 'jwt', 'jwtToken']) || pickFirst(raw, ['token', 'accessToken', 'jwt', 'jwtToken']);
+    const refreshToken = data?.refreshToken ?? raw?.refreshToken;
     const user = token ? {
       id: data?.id ?? raw?.id ?? 0,
       email: data?.email ?? raw?.email,
@@ -179,7 +234,7 @@ export const authApi = {
       profileImageUrl: data?.profileImageUrl ?? raw?.profileImageUrl,
     } : undefined;
 
-    return { data: { token, user, raw } };
+    return { data: { token, refreshToken, user, raw } };
   },
   sendVerificationCode: (email, purpose = 'register') => api.post('/Auth/SendVerificationCode', { email, purpose }),
   verifyCodeAndRegister: (email, code, fullName, password, invitationToken) =>
@@ -187,6 +242,7 @@ export const authApi = {
       const raw = res?.data || {};
       const data = raw?.data ?? raw ?? {};
       const token = data?.token || data?.accessToken || raw?.token;
+      const refreshToken = data?.refreshToken || raw?.refreshToken;
       const user = token
         ? {
             ...(data?.user || raw?.user || {}),
@@ -195,8 +251,13 @@ export const authApi = {
             fullName: data?.user?.fullName ?? raw?.user?.fullName ?? data?.fullName ?? raw?.fullName ?? fullName,
           }
         : undefined;
-      return { data: { token, user, raw } };
+      return { data: { token, refreshToken, user, raw } };
     }),
+  refreshSession,
+  logout: async () => {
+    const refreshToken = await sessionStore.getRefreshToken();
+    if (refreshToken) await api.post('/Auth/Logout', { refreshToken });
+  },
   verifyCodeForReset: (email, code) => api.post('/Auth/VerifyCodeForReset', { email, code }),
   resetPassword: (email, code, newPassword) =>
     api.post('/Auth/ResetPassword', { email, code, newPassword }),

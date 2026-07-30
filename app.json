@@ -37,7 +37,7 @@
     },
     "scheme": "roomora",
     "extra": {
-      "EXPO_PUBLIC_API_URL": "https://control.builtwhys.space/roomora-api",
+      "EXPO_PUBLIC_API_URL": "https://api.takosware.com",
       "GOOGLE_WEB_CLIENT_ID": "253722443834-1rium4sbtslb0de4ct9v6k2suetgnpad.apps.googleusercontent.com",
       "GOOGLE_IOS_CLIENT_ID": "",
       "GOOGLE_ANDROID_CLIENT_ID": "",

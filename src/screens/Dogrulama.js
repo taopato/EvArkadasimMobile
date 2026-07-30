@@ -50,7 +50,7 @@ const VerificationScreen = ({ navigation, route }) => {
       const payload = response?.data;
 
       if (payload?.token && payload?.user) {
-        await login(payload.user, payload.token);
+        await login(payload.user, payload.token, payload.refreshToken);
         Alert.alert('Başarılı', 'Hesabınız oluşturuldu!', [{ text: 'Tamam' }]);
       } else {
         Alert.alert(

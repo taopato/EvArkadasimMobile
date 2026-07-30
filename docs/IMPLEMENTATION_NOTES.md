@@ -34,6 +34,8 @@
   partial payment reporting and pending-payment approval.
 - Receipt OCR retains image zoom, item assignment, editing and conversion while
   using the canonical header and page shell.
+- Raw OCR text is not rendered to the user. Parsed receipt rows remain editable
+  by name, quantity and amount before saving or converting to an expense.
 - The expense form supports multi-select participants and automatically
   represents all household members as the shared-house option.
 - Expense history initially renders the latest 10 records and supports period
@@ -48,6 +50,16 @@
   are rendered anywhere that household identity is shown.
 - IBAN management has its own validated screen and no longer opens profile
   editing.
+- Expense detail editing now supports changing the payer, participants and
+  participant-specific personal items. Personal items are disabled for members
+  who are not selected in the expense.
+- Native sessions use secure refresh-token storage and silent token rotation,
+  so reopening Roomora does not require signing in again. Explicit logout
+  revokes the refresh token.
+- Mobile environments use `api.takosware.com` for production and
+  `testapi.takosware.com` for preview/development.
+- The app icon was regenerated from the Roomora mark with corrected optical
+  scale; the login screen uses the same canonical asset.
 
 ## Verification
 

@@ -8,6 +8,7 @@ node_modules/
 dist/
 dist-*/
 .release-check/
+.codex-export-*/
 web-build/
 playwright-report/
 test-results/

@@ -117,7 +117,7 @@ export function VerificationScreen({ route, navigation }) {
     try {
       const response = await authApi.verifyCodeAndRegister(email, code, fullName, password);
       const payload = response?.data;
-      if (payload?.token && payload?.user) await login(payload.user, payload.token);
+      if (payload?.token && payload?.user) await login(payload.user, payload.token, payload.refreshToken);
       else navigation.navigate('Login');
     } catch (error) {
       Alert.alert('Doğrulama başarısız', error?.response?.data?.message ?? 'Kod geçersiz veya süresi dolmuş olabilir.');

@@ -30,19 +30,41 @@ export default function HarcamaDetayi({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expense, setExpense] = useState(null);
-  const [members, setMembers] = useState({});
+  const [members, setMembers] = useState([]);
   const [shares, setShares] = useState([]);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [shared, setShared] = useState('');
   const [note, setNote] = useState('');
+  const [payerId, setPayerId] = useState('');
+  const [participantIds, setParticipantIds] = useState([]);
+  const [personal, setPersonal] = useState({});
 
-  const hydrateForm = useCallback((item) => {
+  const hydrateForm = useCallback((item, availableMembers = []) => {
     setTitle(String(pick(item, ['tur', 'Tur', 'description', 'Description'], 'Harcama')));
     setAmount(formatMoneyInput(String(pick(item, ['tutar', 'Tutar', 'amount', 'Amount'], 0))));
     setShared(formatMoneyInput(String(pick(item, ['ortakHarcamaTutari', 'OrtakHarcamaTutari'], 0))));
     setNote(String(pick(item, ['note', 'Note', 'aciklama', 'Aciklama', 'description', 'Description'], '')));
+    setPayerId(String(pick(item, ['odeyenUserId', 'OdeyenUserId'], '')));
+
+    const itemShares = pick(item, ['shares', 'Shares'], []);
+    const personalItems = pick(item, ['sahsiHarcamalar', 'SahsiHarcamalar'], []);
+    const selected = new Set(
+      [...(Array.isArray(itemShares) ? itemShares : []), ...(Array.isArray(personalItems) ? personalItems : [])]
+        .map((entry) => Number(pick(entry, ['userId', 'UserId'], 0)))
+        .filter(Boolean)
+    );
+    if (!selected.size) availableMembers.forEach((member) => selected.add(member.id));
+    setParticipantIds(Array.from(selected).map(String));
+    setPersonal(
+      (Array.isArray(personalItems) ? personalItems : []).reduce((result, entry) => {
+        const userId = Number(pick(entry, ['userId', 'UserId'], 0));
+        const value = Number(pick(entry, ['tutar', 'Tutar'], 0));
+        if (userId && value > 0) result[String(userId)] = formatMoneyInput(String(value));
+        return result;
+      }, {})
+    );
   }, []);
 
   const load = useCallback(async () => {
@@ -66,21 +88,32 @@ export default function HarcamaDetayi({ navigation, route }) {
       const memberList = memberResult.status === 'fulfilled'
         ? memberResult.value?.data?.data ?? memberResult.value?.data ?? []
         : [];
-      const names = {};
-      (Array.isArray(memberList) ? memberList : []).forEach((member) => {
+      const normalizedMembers = (Array.isArray(memberList) ? memberList : []).map((member) => {
         const id = Number(pick(member, ['userId', 'UserId', 'id'], 0));
-        names[id] = pick(member, ['fullName', 'FullName', 'name', 'Name'], `Kullanıcı ${id}`);
-      });
+        return {
+          id,
+          fullName: pick(member, ['fullName', 'FullName', 'name', 'Name'], `Kullanıcı ${id}`),
+        };
+      }).filter((member) => member.id > 0);
       const totals = new Map();
       (Array.isArray(ledger) ? ledger : []).forEach((line) => {
         const id = Number(pick(line, ['fromUserId', 'FromUserId'], 0));
         const value = Number(pick(line, ['amount', 'Amount'], 0));
         if (id) totals.set(id, (totals.get(id) || 0) + value);
       });
-      setMembers(names);
-      setShares(Array.from(totals, ([userId, value]) => ({ userId, value })));
+      const apiShares = pick(item, ['shares', 'Shares'], []);
+      const normalizedShares = (Array.isArray(apiShares) ? apiShares : [])
+        .map((share) => ({
+          userId: Number(pick(share, ['userId', 'UserId'], 0)),
+          value: Number(pick(share, ['paylasimTutar', 'PaylasimTutar'], 0)),
+        }))
+        .filter((share) => share.userId > 0);
+      setMembers(normalizedMembers);
+      setShares(normalizedShares.length
+        ? normalizedShares
+        : Array.from(totals, ([userId, value]) => ({ userId, value })));
       setExpense(item);
-      if (item) hydrateForm(item);
+      if (item) hydrateForm(item, normalizedMembers);
     } catch {
       setExpense(null);
     } finally {
@@ -90,11 +123,42 @@ export default function HarcamaDetayi({ navigation, route }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const toggleParticipant = (memberId) => {
+    const id = String(memberId);
+    setParticipantIds((current) => {
+      if (current.includes(id)) {
+        if (current.length === 1) return current;
+        setPersonal((values) => {
+          const next = { ...values };
+          delete next[id];
+          return next;
+        });
+        return current.filter((value) => value !== id);
+      }
+      return [...current, id];
+    });
+  };
+
   const save = async () => {
     const totalValue = parseMoneyInput(amount);
     const sharedValue = parseMoneyInput(shared);
-    if (!title.trim() || totalValue <= 0 || sharedValue < 0 || sharedValue > totalValue) {
-      Alert.alert('Bilgileri kontrol et', 'Başlık, toplam tutar ve ortak tutar alanlarını kontrol et.');
+    const personalItems = Object.entries(personal)
+      .filter(([userId]) => participantIds.includes(String(userId)))
+      .map(([userId, value]) => ({ UserId: Number(userId), Tutar: parseMoneyInput(value) || 0 }))
+      .filter((item) => item.Tutar > 0);
+    const personalTotal = personalItems.reduce((sum, item) => sum + item.Tutar, 0);
+    if (
+      !title.trim()
+      || totalValue <= 0
+      || sharedValue < 0
+      || !participantIds.length
+      || !payerId
+      || Math.abs((sharedValue + personalTotal) - totalValue) > 0.01
+    ) {
+      Alert.alert(
+        'Bilgileri kontrol et',
+        'Toplam tutar, ortak tutar ve kişisel kalemlerin toplamı eşleşmeli; ödeyen ile en az bir katılımcı seçilmelidir.'
+      );
       return;
     }
     setSaving(true);
@@ -103,10 +167,12 @@ export default function HarcamaDetayi({ navigation, route }) {
         Tur: title.trim(),
         Tutar: totalValue,
         OrtakHarcamaTutari: sharedValue,
+        OdeyenUserId: Number(payerId),
+        Participants: participantIds.map(Number),
         Aciklama: note.trim(),
         Note: note.trim(),
         Description: note.trim(),
-        SahsiHarcamalar: pick(expense, ['sahsiHarcamalar', 'SahsiHarcamalar'], []),
+        SahsiHarcamalar: personalItems,
       });
       eventBus.emit('expenses:updated', { houseId: Number(houseId) });
       setEditing(false);
@@ -156,6 +222,8 @@ export default function HarcamaDetayi({ navigation, route }) {
 
   const total = Number(pick(expense, ['tutar', 'Tutar', 'amount', 'Amount'], 0));
   const payer = pick(expense, ['odeyenKullaniciAdi', 'OdeyenKullaniciAdi'], 'Bilinmiyor');
+  const memberName = (userId) =>
+    members.find((member) => member.id === Number(userId))?.fullName || `Kullanıcı ${userId}`;
   const dateRaw = pick(expense, ['postDate', 'PostDate', 'kayitTarihi', 'KayitTarihi', 'createdAt', 'CreatedAt']);
   const date = dateRaw ? new Date(dateRaw) : null;
 
@@ -192,8 +260,8 @@ export default function HarcamaDetayi({ navigation, route }) {
               <Text style={styles.sectionTitle}>Nasıl Bölüşüldü?</Text>
               {shares.length ? shares.map((item) => (
                 <View key={String(item.userId)} style={styles.shareRow}>
-                  <View style={styles.avatar}><Text style={styles.avatarText}>{String(members[item.userId] || 'K').charAt(0)}</Text></View>
-                  <Text style={styles.shareName}>{members[item.userId] || `Kullanıcı ${item.userId}`}</Text>
+                  <View style={styles.avatar}><Text style={styles.avatarText}>{memberName(item.userId).charAt(0)}</Text></View>
+                  <Text style={styles.shareName}>{memberName(item.userId)}</Text>
                   <Text style={styles.shareValue}>{money(item.value)}</Text>
                 </View>
               )) : <Text style={styles.muted}>Bu harcama için paylaşım satırı bulunmuyor.</Text>}
@@ -209,6 +277,63 @@ export default function HarcamaDetayi({ navigation, route }) {
             <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} />
             <Field label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
             <Field label="Ortak tutar" value={shared} onChangeText={(value) => setShared(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
+            <Text style={styles.fieldLabel}>Ödemeyi yapan</Text>
+            <View style={styles.chips}>
+              {members.map((member) => {
+                const active = payerId === String(member.id);
+                return (
+                  <TouchableOpacity
+                    key={`payer-${member.id}`}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => setPayerId(String(member.id))}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{member.fullName}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.fieldLabel}>Kimin için?</Text>
+            <View style={styles.chips}>
+              <TouchableOpacity
+                style={[styles.chip, participantIds.length === members.length && styles.chipActive]}
+                onPress={() => setParticipantIds(members.map((member) => String(member.id)))}
+              >
+                <Text style={[styles.chipText, participantIds.length === members.length && styles.chipTextActive]}>Ortak</Text>
+              </TouchableOpacity>
+              {members.map((member) => {
+                const active = participantIds.includes(String(member.id));
+                return (
+                  <TouchableOpacity
+                    key={`participant-${member.id}`}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleParticipant(member.id)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{member.fullName}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.fieldLabel}>Kişisel kalemler</Text>
+            {members.map((member) => {
+              const enabled = participantIds.includes(String(member.id));
+              return (
+                <View key={`personal-${member.id}`} style={[styles.personalRow, !enabled && styles.disabledRow]}>
+                  <Text style={[styles.personalName, !enabled && styles.disabledText]}>{member.fullName}</Text>
+                  <TextInput
+                    editable={enabled}
+                    value={enabled ? personal[String(member.id)] || '' : ''}
+                    onChangeText={(value) => setPersonal((current) => ({
+                      ...current,
+                      [String(member.id)]: formatMoneyInput(value),
+                    }))}
+                    placeholder={enabled ? '0,00' : 'Seçilmedi'}
+                    placeholderTextColor={theme.colors.text.disabled}
+                    keyboardType="decimal-pad"
+                    style={[styles.personalInput, !enabled && styles.personalInputDisabled]}
+                  />
+                </View>
+              );
+            })}
             <Field label="Not" value={note} onChangeText={setNote} multiline styles={styles} />
             <PrimaryButton label={saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'} icon="checkmark" onPress={save} disabled={saving} />
           </View>
@@ -269,4 +394,15 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   fieldLabel: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 13, marginBottom: 7 },
   input: { minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[300], backgroundColor: theme.colors.background, color: theme.colors.text.primary, fontFamily: theme.typography.regular, fontSize: 15, paddingHorizontal: 13 },
   multiline: { height: 88, paddingTop: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  chip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[300], backgroundColor: theme.colors.surface },
+  chipActive: { borderColor: theme.colors.primary[600], backgroundColor: theme.colors.primary[50] },
+  chipText: { color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 13 },
+  chipTextActive: { color: theme.colors.primary[700], fontFamily: theme.typography.bold },
+  personalRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  disabledRow: { opacity: 0.48 },
+  personalName: { flex: 1, color: theme.colors.text.primary, fontFamily: theme.typography.medium, fontSize: 13 },
+  disabledText: { color: theme.colors.text.disabled },
+  personalInput: { width: 112, minHeight: 44, borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 8, paddingHorizontal: 12, color: theme.colors.text.primary, backgroundColor: theme.colors.background, textAlign: 'right' },
+  personalInputDisabled: { backgroundColor: theme.colors.neutral[100] },
 });

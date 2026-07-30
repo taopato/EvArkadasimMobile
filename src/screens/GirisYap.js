@@ -290,6 +290,7 @@ const GirisYap = ({ navigation, route }) => {
       };
 
       const token = findValueByKeyList(data, ['token', 'accessToken', 'jwt', 'jwtToken']);
+      const refreshToken = findValueByKeyList(data, ['refreshToken']);
       let user = findValueByKeyList(data, ['user', 'userDto', 'account', 'profile', 'userInfo']);
 
       if (!user) {
@@ -306,7 +307,7 @@ const GirisYap = ({ navigation, route }) => {
       }
 
       if (token && user) {
-        await login(user, token);
+        await login(user, token, refreshToken);
         await finalizeInvitationIfNeeded();
         await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
         return;
@@ -342,13 +343,14 @@ const GirisYap = ({ navigation, route }) => {
       const apiResponse = await authApi.googleLogin(idToken);
       const payload = apiResponse?.data || {};
       const token = payload?.token;
+      const refreshToken = payload?.refreshToken;
       const user = payload?.user;
 
       if (!token || !user) {
         throw new Error('Google giriş yanıtı eksik.');
       }
 
-      await login(user, token);
+      await login(user, token, refreshToken);
       await finalizeInvitationIfNeeded();
       await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
     } catch (error) {
@@ -364,13 +366,14 @@ const GirisYap = ({ navigation, route }) => {
       const apiResponse = await authApi.appleLogin(identityToken, fullName);
       const payload = apiResponse?.data || {};
       const token = payload?.token;
+      const refreshToken = payload?.refreshToken;
       const user = payload?.user;
 
       if (!token || !user) {
         throw new Error('Apple giriş yanıtı eksik.');
       }
 
-      await login(user, token);
+      await login(user, token, refreshToken);
       await finalizeInvitationIfNeeded();
       await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
     } catch (error) {
@@ -400,7 +403,7 @@ const GirisYap = ({ navigation, route }) => {
         >
           <View style={styles.hero}>
             <View style={[styles.logoTile, shadow(3, 'rgba(23,40,57,0.28)')]}>
-              <Image source={require('../assets/mark-navy.png')} style={{ width: 84, height: 84 }} resizeMode="contain" />
+              <Image source={require('../assets/icon.png')} style={styles.logoImage} resizeMode="contain" />
             </View>
             <Text style={[styles.heading, { color: theme.colors.text.primary }]}>
               Roomora
@@ -477,13 +480,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoTile: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 112,
+    height: 112,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
+  logoImage: { width: 112, height: 112 },
   heading: {
     fontSize: 30,
     fontWeight: '900',
