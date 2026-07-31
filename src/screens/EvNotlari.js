@@ -3,8 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +17,7 @@ import { houseNotesApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 import { shadow } from '../shared/ui/shadow';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 const normalizeBoard = (payload) => {
   const sections = Array.isArray(payload?.sections) ? payload.sections : [];
@@ -183,17 +182,11 @@ export default function EvNotlari({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={isMainTab ? 72 : 12}
-    >
-      <ScrollView
+    <View style={styles.screen}>
+      <KeyboardAwareScreen
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
         contentInsetAdjustmentBehavior="never"
+        bottomOffset={isMainTab ? 72 : 44}
       >
         <PageHeader
           title="Notlar"
@@ -372,8 +365,8 @@ export default function EvNotlari({ route, navigation }) {
             </View>
           </>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 

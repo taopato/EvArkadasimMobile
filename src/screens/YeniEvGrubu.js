@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { houseApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { PageHeader, PrimaryButton } from '../shared/ui/roomora/CanonicalUI';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 export default function YeniEvGrubu({ navigation }) {
   const { user, setDefaultHouseId } = useAuth();
@@ -45,11 +44,8 @@ export default function YeniEvGrubu({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.content}>
+    <View style={styles.screen}>
+      <KeyboardAwareScreen contentContainerStyle={styles.content} bottomOffset={44}>
         <PageHeader
           title="Yeni Ev Oluştur"
           subtitle="Ev arkadaşlarını daha sonra davet edebilirsin"
@@ -79,8 +75,8 @@ export default function YeniEvGrubu({ navigation }) {
             disabled={saving}
           />
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 

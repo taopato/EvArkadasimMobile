@@ -24,6 +24,7 @@ import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
 import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 const QUICK_EXPENSES = [
   { key: 'Market', label: 'Market' },
@@ -351,17 +352,13 @@ export default function AddExpenseScreen({ navigation, route }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
-    >
-      <ScrollView
+    <View style={styles.screen}>
+      <KeyboardAwareScreen
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 4 }]}
-        keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
+        bottomOffset={44}
       >
         <PageHeader title="Harcama Ekle" onBack={() => navigation.goBack()} />
 
@@ -584,7 +581,7 @@ export default function AddExpenseScreen({ navigation, route }) {
         </View>
 
         <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
-      </ScrollView>
+      </KeyboardAwareScreen>
 
       <Modal visible={quickModalVisible} transparent animationType="fade" onRequestClose={() => setQuickModalVisible(false)}>
         <View style={styles.modalBackdrop}>
@@ -628,7 +625,7 @@ export default function AddExpenseScreen({ navigation, route }) {
           </KeyboardAvoidingView>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

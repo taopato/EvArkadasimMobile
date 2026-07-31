@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +17,7 @@ import {
   isValidTurkishIban,
   toCanonicalTurkishIban,
 } from '../shared/validation/profileValidation';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 export default function IbanBilgileri({ navigation }) {
   const { user, updateUser } = useAuth();
@@ -49,11 +48,8 @@ export default function IbanBilgileri({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.content}>
+    <View style={styles.screen}>
+      <KeyboardAwareScreen contentContainerStyle={styles.content} bottomOffset={44}>
         <PageHeader
           title="IBAN Bilgileri"
           subtitle="Ödemeleri kolayca al"
@@ -87,8 +83,8 @@ export default function IbanBilgileri({ navigation }) {
             disabled={saving}
           />
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 

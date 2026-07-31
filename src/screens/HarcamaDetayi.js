@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,6 +14,7 @@ import { useTheme } from '../shared/theme/ThemeProvider';
 import { EmptyState, LoadingState, PageHeader, PrimaryButton, money } from '../shared/ui/roomora/CanonicalUI';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 import eventBus from '../shared/events/bus';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 const pick = (value, keys, fallback = undefined) =>
   keys.map((key) => value?.[key]).find((item) => item !== undefined && item !== null) ?? fallback;
@@ -35,7 +33,6 @@ export default function HarcamaDetayi({ navigation, route }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [shared, setShared] = useState('');
   const [note, setNote] = useState('');
   const [payerId, setPayerId] = useState('');
   const [participantIds, setParticipantIds] = useState([]);
@@ -44,7 +41,6 @@ export default function HarcamaDetayi({ navigation, route }) {
   const hydrateForm = useCallback((item, availableMembers = []) => {
     setTitle(String(pick(item, ['tur', 'Tur', 'description', 'Description'], 'Harcama')));
     setAmount(formatMoneyInput(String(pick(item, ['tutar', 'Tutar', 'amount', 'Amount'], 0))));
-    setShared(formatMoneyInput(String(pick(item, ['ortakHarcamaTutari', 'OrtakHarcamaTutari'], 0))));
     setNote(String(pick(item, ['note', 'Note', 'aciklama', 'Aciklama', 'description', 'Description'], '')));
     setPayerId(String(pick(item, ['odeyenUserId', 'OdeyenUserId'], '')));
 
@@ -141,23 +137,22 @@ export default function HarcamaDetayi({ navigation, route }) {
 
   const save = async () => {
     const totalValue = parseMoneyInput(amount);
-    const sharedValue = parseMoneyInput(shared);
     const personalItems = Object.entries(personal)
       .filter(([userId]) => participantIds.includes(String(userId)))
       .map(([userId, value]) => ({ UserId: Number(userId), Tutar: parseMoneyInput(value) || 0 }))
       .filter((item) => item.Tutar > 0);
     const personalTotal = personalItems.reduce((sum, item) => sum + item.Tutar, 0);
+    const sharedValue = Number(Math.max(totalValue - personalTotal, 0).toFixed(2));
     if (
       !title.trim()
       || totalValue <= 0
-      || sharedValue < 0
       || !participantIds.length
       || !payerId
-      || Math.abs((sharedValue + personalTotal) - totalValue) > 0.01
+      || personalTotal > totalValue
     ) {
       Alert.alert(
         'Bilgileri kontrol et',
-        'Toplam tutar, ortak tutar ve kişisel kalemlerin toplamı eşleşmeli; ödeyen ile en az bir katılımcı seçilmelidir.'
+        'Kişisel kalemler toplam tutarı aşamaz; ödeyen ile en az bir katılımcı seçilmelidir.'
       );
       return;
     }
@@ -228,8 +223,8 @@ export default function HarcamaDetayi({ navigation, route }) {
   const date = dateRaw ? new Date(dateRaw) : null;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.screen}>
+      <KeyboardAwareScreen contentContainerStyle={styles.content} bottomOffset={44}>
         <PageHeader
           title={editing ? 'Harcamayı Düzenle' : 'Harcama Detayı'}
           subtitle={route?.params?.houseName}
@@ -276,7 +271,6 @@ export default function HarcamaDetayi({ navigation, route }) {
           <View style={styles.formCard}>
             <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} />
             <Field label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
-            <Field label="Ortak tutar" value={shared} onChangeText={(value) => setShared(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
             <Text style={styles.fieldLabel}>Ödemeyi yapan</Text>
             <View style={styles.chips}>
               {members.map((member) => {
@@ -334,12 +328,20 @@ export default function HarcamaDetayi({ navigation, route }) {
                 </View>
               );
             })}
+            <View style={styles.splitSummary}>
+              <Text style={styles.splitSummaryLabel}>Ortak bölüşülecek tutar</Text>
+              <Text style={styles.splitSummaryValue}>
+                {money(Math.max(parseMoneyInput(amount) - Object.entries(personal)
+                  .filter(([userId]) => participantIds.includes(String(userId)))
+                  .reduce((sum, [, value]) => sum + (parseMoneyInput(value) || 0), 0), 0))}
+              </Text>
+            </View>
             <Field label="Not" value={note} onChangeText={setNote} multiline styles={styles} />
             <PrimaryButton label={saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'} icon="checkmark" onPress={save} disabled={saving} />
           </View>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 
@@ -405,4 +407,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   disabledText: { color: theme.colors.text.disabled },
   personalInput: { width: 112, minHeight: 44, borderWidth: 1, borderColor: theme.colors.neutral[300], borderRadius: 8, paddingHorizontal: 12, color: theme.colors.text.primary, backgroundColor: theme.colors.background, textAlign: 'right' },
   personalInputDisabled: { backgroundColor: theme.colors.neutral[100] },
+  splitSummary: { minHeight: 52, borderRadius: 8, backgroundColor: theme.colors.primary[50], paddingHorizontal: 14, marginBottom: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  splitSummaryLabel: { flex: 1, color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 13 },
+  splitSummaryValue: { color: theme.colors.primary[800], fontFamily: theme.typography.bold, fontSize: 15 },
 });

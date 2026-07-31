@@ -75,3 +75,18 @@ The E2E flow signs in, checks the five-tab navigation, opens quick expense,
 bills, settings, debt summary, household members, house notes and pending
 payments, verifies no horizontal overflow and fails on browser runtime errors
 or API responses with status 500.
+# 2026-07-31 - iOS form and expense editing hardening
+
+- Added a shared `KeyboardAwareScreen` for iOS and Android form flows.
+- Migrated login, expense create/edit, house notes, IBAN, invitation, password reset, and house creation flows so focused inputs remain above the keyboard.
+- Fixed the premium input wrapper to forward native refs and all `TextInput` props. This restores keyboard type, return key, autofill, password manager, and automatic scroll behavior.
+- Updated login to use the real Roomora icon at a larger size, labeled fields, password visibility control, and a keyboard-safe layout aligned with the canonical Stitch source.
+- Kept payer, participant, and personal-item editing in expense details. Non-participants remain disabled for personal items.
+- Removed manual shared-amount arithmetic from expense editing. Shared amount is now derived from total minus selected personal items before the backend recalculates shares and ledger lines.
+
+Verification:
+
+- `npm run test`
+- `npm run doctor` (20/20)
+- `npx tsc --noEmit`
+- `npm run export:ios`

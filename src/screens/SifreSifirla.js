@@ -7,9 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
 } from 'react-native';
 import { useCommonStyles, makeColorThemes } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
@@ -20,6 +17,7 @@ import {
   normalizeEmail,
   PASSWORD_RULES_TEXT,
 } from '../shared/validation/authValidation';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 const ResetPasswordScreen = ({ route, navigation }) => {
   const { email } = route.params || {};
@@ -61,12 +59,8 @@ const ResetPasswordScreen = ({ route, navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={commonStyles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      <ScrollView contentContainerStyle={commonStyles.content} keyboardShouldPersistTaps="handled">
+    <View style={commonStyles.container}>
+      <KeyboardAwareScreen contentContainerStyle={commonStyles.content} bottomOffset={44}>
         <Text style={commonStyles.title}>Şifre Sıfırla</Text>
         <View style={commonStyles.card}>
           <TextInput
@@ -93,8 +87,8 @@ const ResetPasswordScreen = ({ route, navigation }) => {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Şifreyi Sıfırla</Text>}
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 };
 
