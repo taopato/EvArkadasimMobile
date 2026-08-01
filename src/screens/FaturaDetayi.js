@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { expensesApi } from '../services/api';
+import { expensesApi, houseApi } from '../services/api';
 import {
   getCategoryDisplayName,
   getCategoryIconName,
@@ -65,6 +65,7 @@ export default function FaturaDetayi({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const [bill, setBill] = useState(null);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -81,6 +82,19 @@ export default function FaturaDetayi({ route, navigation }) {
       const response = await expensesApi.getById(billId);
       const data = response?.data?.data ?? response?.data;
       setBill(data || null);
+      const resolvedHouseId = Number(data?.houseId || houseId || 0);
+      if (resolvedHouseId) {
+        try {
+          const memberResponse = await houseApi.getMembers(resolvedHouseId);
+          const rawMembers = memberResponse?.data?.data ?? memberResponse?.data ?? [];
+          setMembers((Array.isArray(rawMembers) ? rawMembers : []).map((member) => ({
+            id: Number(member.userId ?? member.user?.id ?? member.id),
+            name: member.fullName ?? member.name ?? member.user?.fullName ?? 'Ev üyesi',
+          })).filter((member) => member.id > 0));
+        } catch {
+          setMembers([]);
+        }
+      }
     } catch (error) {
       setToast({
         visible: true,
@@ -91,7 +105,7 @@ export default function FaturaDetayi({ route, navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [billId]);
+  }, [billId, houseId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -165,9 +179,16 @@ export default function FaturaDetayi({ route, navigation }) {
   const category = inferCategory(bill);
   const title = getCategoryDisplayName(category);
   const icon = getCategoryIconName(category);
-  const billDate = bill.dueDate || bill.postDate || bill.kayitTarihi || bill.createdDate;
+  const billDate = bill.postDate || bill.kayitTarihi || bill.createdDate;
+  const dueDate = bill.dueDate || billDate;
   const note = bill.note || bill.description;
   const isGenericNote = !note || String(note).trim() === String(bill.tur || '').trim();
+  const shares = (Array.isArray(bill.shares) ? bill.shares : [])
+    .map((share) => ({
+      userId: Number(share.userId ?? share.UserId),
+      amount: Number(share.paylasimTutar ?? share.PaylasimTutar ?? 0),
+    }))
+    .filter((share) => share.userId > 0);
 
   return (
     <View style={styles.screen}>
@@ -203,7 +224,7 @@ export default function FaturaDetayi({ route, navigation }) {
           <Text style={styles.amount}>{formatAmount(bill.tutar ?? bill.amount)}</Text>
           <View style={styles.datePill}>
             <Ionicons name="calendar-outline" size={15} color={theme.colors.primary[100]} />
-            <Text style={styles.datePillText}>{formatDate(billDate)}</Text>
+            <Text style={styles.datePillText}>Son ödeme {formatDate(dueDate)}</Text>
           </View>
         </View>
 
@@ -212,7 +233,30 @@ export default function FaturaDetayi({ route, navigation }) {
           <DetailRow icon="receipt-outline" label="Fatura türü" value={title} styles={styles} theme={theme} />
           <DetailRow icon="person-outline" label="Ödemeyi yapan" value={bill.odeyenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
           <DetailRow icon="create-outline" label="Kaydı oluşturan" value={bill.kaydedenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
-          <DetailRow icon="calendar-number-outline" label="Kayıt tarihi" value={formatDate(bill.kayitTarihi || bill.createdDate)} styles={styles} theme={theme} last />
+          <DetailRow icon="calendar-outline" label="Fatura tarihi" value={formatDate(billDate)} styles={styles} theme={theme} />
+          <DetailRow icon="calendar-number-outline" label="Son ödeme tarihi" value={formatDate(dueDate)} styles={styles} theme={theme} last />
+        </View>
+
+        <View style={styles.shareCard}>
+          <View style={styles.shareHeader}>
+            <Text style={styles.sectionTitle}>Paylaşım</Text>
+            <Text style={styles.shareCount}>{shares.length} kişi</Text>
+          </View>
+          {shares.length > 0 ? shares.map((share, index) => {
+            const member = members.find((item) => item.id === share.userId);
+            const name = member?.name || `Ev üyesi #${share.userId}`;
+            return (
+              <View key={share.userId} style={[styles.shareRow, index > 0 && styles.shareDivider]}>
+                <View style={styles.shareAvatar}>
+                  <Text style={styles.shareAvatarText}>{name.trim().charAt(0).toUpperCase()}</Text>
+                </View>
+                <Text style={styles.shareName} numberOfLines={1}>{name}</Text>
+                <Text style={styles.shareAmount}>{formatAmount(share.amount)}</Text>
+              </View>
+            );
+          }) : (
+            <Text style={styles.shareEmpty}>Bu fatura için paylaşım bilgisi bulunamadı.</Text>
+          )}
         </View>
 
         {!isGenericNote && (
@@ -317,6 +361,23 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   detailBody: { flex: 1, marginLeft: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   detailLabel: { color: theme.colors.text.secondary, fontSize: 13 },
   detailValue: { flex: 1, color: theme.colors.text.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  shareCard: {
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    padding: 16,
+    marginBottom: 12,
+  },
+  shareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  shareCount: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '700' },
+  shareRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  shareDivider: { borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  shareAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
+  shareAvatarText: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '800' },
+  shareName: { flex: 1, color: theme.colors.text.primary, fontSize: 13, fontWeight: '700' },
+  shareAmount: { color: theme.colors.primary[700], fontSize: 13, fontWeight: '800' },
+  shareEmpty: { color: theme.colors.text.secondary, fontSize: 13, lineHeight: 18, paddingVertical: 10 },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',

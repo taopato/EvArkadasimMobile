@@ -14,7 +14,7 @@ const notificationDefaults = {
 };
 
 const LEGAL_LAST_UPDATED = '28.07.2026';
-const SUPPORT_EMAIL = 'info.ev.arkadasim@gmail.com';
+const SUPPORT_EMAIL = 'destek@takosware.com';
 
 const legalCopy = {
   privacy: {

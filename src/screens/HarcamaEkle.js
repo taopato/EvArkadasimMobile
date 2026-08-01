@@ -20,7 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../context/AuthContext';
 import { houseApi, expensesApi, receiptsApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { PageHeader } from '../shared/ui/roomora/CanonicalUI';
+import { money, PageHeader } from '../shared/ui/roomora/CanonicalUI';
 import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
@@ -544,7 +544,9 @@ export default function AddExpenseScreen({ navigation, route }) {
 
         <View style={styles.splitSummary}>
           <Text style={styles.splitSummaryText}>{allSelected ? 'Ortak' : `${participantIds.length} kişi`} · Eşit bölüşüm</Text>
-          <Text style={styles.splitSummaryValue}>Kişi başı {participantIds.length ? formatMoneyInput(String(sharedAmountForSummary / participantIds.length)) : '0,00'} TL</Text>
+          <Text style={styles.splitSummaryValue}>
+            Kişi başı {money(participantIds.length ? Number((sharedAmountForSummary / participantIds.length).toFixed(2)) : 0)}
+          </Text>
         </View>
 
         <TouchableOpacity

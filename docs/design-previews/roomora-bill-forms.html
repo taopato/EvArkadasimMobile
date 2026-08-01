@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roomora Fatura Formları</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --primary: #2f6fa8;
+      --primary-dark: #24567f;
+      --primary-soft: #eaf3fb;
+      --background: #f7f9fc;
+      --surface: #ffffff;
+      --text: #172839;
+      --muted: #5f6872;
+      --disabled: #95a3b1;
+      --border: #d8e0e8;
+      --line: #f0f4f8;
+      --success: #006b5b;
+    }
+    body {
+      margin: 0;
+      padding: 32px;
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+      background: #dfe6ed;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+    .screen {
+      position: relative;
+      width: 390px;
+      height: 844px;
+      overflow: hidden;
+      background: var(--background);
+      box-shadow: 0 18px 44px rgba(23, 40, 57, .16);
+    }
+    .statusbar {
+      height: 34px;
+      padding: 10px 20px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .header {
+      height: 58px;
+      padding: 0 14px;
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      align-items: center;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .back {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      font-size: 29px;
+      line-height: 1;
+    }
+    .header-copy { text-align: center; }
+    .header h1 { margin: 0; font-size: 18px; line-height: 22px; font-weight: 750; }
+    .header p { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 13px; }
+    .content {
+      height: calc(100% - 92px);
+      padding: 14px 16px 94px;
+      overflow: hidden;
+    }
+    .amount-card {
+      padding: 14px 16px;
+      background: var(--primary-soft);
+      border: 1px solid #c9deef;
+      border-radius: 8px;
+    }
+    .amount-label {
+      margin: 0 0 2px;
+      color: var(--primary-dark);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .amount {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .amount .currency { color: var(--primary-dark); font-size: 24px; font-weight: 700; }
+    .amount strong { color: var(--text); font-size: 31px; line-height: 36px; font-weight: 750; }
+    .section { margin-top: 14px; }
+    .section-head {
+      margin: 0 0 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title { margin: 0; font-size: 13px; line-height: 17px; font-weight: 750; }
+    .section-meta { color: var(--primary); font-size: 11px; font-weight: 650; }
+    .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+    .chip {
+      min-height: 34px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .chip.selected {
+      color: var(--primary-dark);
+      border-color: #9fc5e4;
+      background: var(--primary-soft);
+    }
+    .chip .check {
+      width: 15px;
+      height: 15px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--primary);
+      border-radius: 50%;
+      font-size: 10px;
+    }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field-label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 700; }
+    .field {
+      min-height: 48px;
+      padding: 0 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 550;
+    }
+    .field-icon { color: var(--primary); font-size: 17px; }
+    .person-row {
+      min-height: 54px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .avatar {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: var(--primary-dark);
+      background: var(--primary-soft);
+      border: 1px solid #c9deef;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .person-copy { flex: 1; }
+    .person-copy strong { display: block; font-size: 13px; line-height: 16px; }
+    .person-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .chevron { color: var(--disabled); font-size: 20px; }
+    .summary {
+      margin-top: 9px;
+      min-height: 42px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--primary-soft);
+      border-radius: 8px;
+      color: var(--primary-dark);
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .summary strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .footer-action {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 12px 16px 22px;
+      background: rgba(247, 249, 252, .97);
+      border-top: 1px solid var(--border);
+    }
+    .primary-button {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #fff;
+      background: var(--primary);
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 750;
+      box-shadow: 0 6px 14px rgba(47, 111, 168, .2);
+    }
+    .segment {
+      height: 42px;
+      padding: 4px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: var(--line);
+      border-radius: 8px;
+    }
+    .segment div {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .segment .active {
+      color: var(--primary-dark);
+      background: var(--surface);
+      box-shadow: 0 2px 7px rgba(23, 40, 57, .08);
+    }
+    .schedule-card {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1px 1fr;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .schedule-card .divider { height: 38px; background: var(--border); }
+    .schedule-item span { display: block; color: var(--muted); font-size: 10px; }
+    .schedule-item strong { display: block; margin-top: 4px; font-size: 13px; }
+    .schedule-item.right { text-align: right; }
+    .visibility-note {
+      margin-top: 9px;
+      padding: 9px 11px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: var(--primary-dark);
+      background: var(--primary-soft);
+      border-left: 3px solid var(--primary);
+      border-radius: 6px;
+      font-size: 10px;
+      line-height: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="screen" id="invoice-edit">
+    <div class="statusbar"><span>9:41</span><span>● ●● 100%</span></div>
+    <header class="header">
+      <div class="back">‹</div>
+      <div class="header-copy"><h1>Faturayı Düzenle</h1><p>Kadıköy Evi</p></div>
+      <div></div>
+    </header>
+    <div class="content">
+      <section class="amount-card">
+        <p class="amount-label">Fatura tutarı</p>
+        <div class="amount"><span class="currency">₺</span><strong>450,50</strong></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Fatura türü</h2></div>
+        <div class="chips">
+          <div class="chip selected"><span class="check">✓</span>Elektrik</div>
+          <div class="chip">Su</div><div class="chip">İnternet</div><div class="chip">Doğalgaz</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Ödemeyi yapan</h2><span class="section-meta">Değiştir</span></div>
+        <div class="person-row">
+          <div class="avatar">TÇ</div>
+          <div class="person-copy"><strong>Tarık Çetintürk</strong><span>Ödemeyi yapan kişi</span></div>
+          <span class="chevron">›</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Kimlerle paylaşılacak?</h2><span class="section-meta">3 kişi</span></div>
+        <div class="chips">
+          <div class="chip selected"><span class="check">✓</span>Tarık</div>
+          <div class="chip selected"><span class="check">✓</span>Tufan</div>
+          <div class="chip selected"><span class="check">✓</span>Berdan</div>
+        </div>
+        <div class="summary"><span>Eşit bölüşüm</span><strong>Kişi başı ₺150,17</strong></div>
+      </section>
+
+      <section class="section field-grid">
+        <div><span class="field-label">Fatura tarihi</span><div class="field"><span>12.07.2026</span><span class="field-icon">▣</span></div></div>
+        <div><span class="field-label">Son ödeme</span><div class="field"><span>15.07.2026</span><span class="field-icon">▣</span></div></div>
+      </section>
+
+      <section class="section">
+        <span class="field-label">Not <span style="color:var(--disabled);font-weight:500">(isteğe bağlı)</span></span>
+        <div class="field"><span style="color:var(--muted)">Temmuz ayı elektrik faturası</span></div>
+      </section>
+    </div>
+    <div class="footer-action"><div class="primary-button"><span>✓</span>Değişiklikleri Kaydet</div></div>
+  </main>
+
+  <main class="screen" id="recurring-add">
+    <div class="statusbar"><span>9:41</span><span>● ●● 100%</span></div>
+    <header class="header">
+      <div class="back">‹</div>
+      <div class="header-copy"><h1>Düzenli Gider Ekle</h1><p>Kadıköy Evi</p></div>
+      <div></div>
+    </header>
+    <div class="content">
+      <section class="section" style="margin-top:0">
+        <div class="section-head"><h2 class="section-title">Plan türü</h2></div>
+        <div class="segment"><div class="active">Sabit aylık</div><div>Taksitli gider</div></div>
+      </section>
+
+      <section class="section amount-card">
+        <p class="amount-label">Aylık tutar</p>
+        <div class="amount"><span class="currency">₺</span><strong>15.000,00</strong></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Gider türü</h2></div>
+        <div class="chips">
+          <div class="chip selected"><span class="check">✓</span>Kira</div>
+          <div class="chip">İnternet</div><div class="chip">Aidat</div><div class="chip">Diğer</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Ödemeyi yapacak kişi</h2><span class="section-meta">Değiştir</span></div>
+        <div class="person-row">
+          <div class="avatar">TÇ</div>
+          <div class="person-copy"><strong>Tarık Çetintürk</strong><span>Her ay ödemeyi yönetecek</span></div>
+          <span class="chevron">›</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Paylaşılacak kişiler</h2><span class="section-meta">Tümü seçili</span></div>
+        <div class="chips">
+          <div class="chip selected"><span class="check">✓</span>Tarık</div>
+          <div class="chip selected"><span class="check">✓</span>Tufan</div>
+          <div class="chip selected"><span class="check">✓</span>Berdan</div>
+        </div>
+        <div class="summary"><span>3 kişi · Eşit bölüşüm</span><strong>Kişi başı ₺5.000,00</strong></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 class="section-title">Ödeme planı</h2></div>
+        <div class="schedule-card">
+          <div class="schedule-item"><span>Her ay ödeme günü</span><strong>15. gün</strong></div>
+          <div class="divider"></div>
+          <div class="schedule-item right"><span>Başlangıç</span><strong>Temmuz 2026</strong></div>
+        </div>
+        <div class="visibility-note"><span>◷</span><span>Bu gider ödeme gününden 5 gün önce görünür ve dönem sonunda kapanır.</span></div>
+      </section>
+    </div>
+    <div class="footer-action"><div class="primary-button"><span>＋</span>Düzenli Gideri Kaydet</div></div>
+  </main>
+</body>
+</html>

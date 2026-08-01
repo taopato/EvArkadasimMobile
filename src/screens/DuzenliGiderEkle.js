@@ -34,7 +34,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     return new Date(now.getFullYear(), now.getMonth(), 15);
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempMonthOffset, setTempMonthOffset] = useState(0);
+  const [tempMonthOffset, setTempMonthOffset] = useState(() => new Date().getMonth());
   const [tempDay, setTempDay] = useState('15');
 
   const calendarMonths = useMemo(() => Array.from({ length: 12 }).map((_, index) => {
@@ -86,7 +86,6 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     const monthDate = new Date(now.getFullYear(), tempMonthOffset, 1);
     const nextDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), Number(tempDay));
     setSelectedDate(nextDate);
-    setCollectionStartDay(String(Math.max(1, Number(tempDay) - 5)));
     setShowDatePicker(false);
   };
 
@@ -191,6 +190,19 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     </TouchableOpacity>
   );
 
+  const enteredAmount = mode === 'installment'
+    ? parseMoneyInput(totalAmount)
+    : parseMoneyInput(fixedAmount);
+  const perPersonAmount = participants.length
+    ? Number((enteredAmount / participants.length).toFixed(2))
+    : 0;
+  const formatCurrency = (value) => new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
   return (
     <View style={styles.screen}>
       <KeyboardAwareScrollView
@@ -205,15 +217,44 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       >
         <PageHeader title="Düzenli Gider Ekle" subtitle={activeHouseName} onBack={() => navigation.goBack()} />
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Plan tipi</Text>
-          <View style={styles.rowWrap}>
-            <Chip title="Dönemsel sabit" active={mode === 'recurring'} onPress={() => setMode('recurring')} />
-            <Chip title="Taksitli" active={mode === 'installment'} onPress={() => setMode('installment')} />
-            <Chip title="Tek seferlik" active={mode === 'irregular'} onPress={() => setMode('irregular')} />
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Plan türü</Text>
+          <View style={styles.segment}>
+            <TouchableOpacity
+              style={[styles.segmentItem, mode === 'recurring' && styles.segmentItemActive]}
+              onPress={() => setMode('recurring')}
+            >
+              <Text style={[styles.segmentText, mode === 'recurring' && styles.segmentTextActive]}>Sabit aylık</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segmentItem, mode === 'installment' && styles.segmentItemActive]}
+              onPress={() => setMode('installment')}
+            >
+              <Text style={[styles.segmentText, mode === 'installment' && styles.segmentTextActive]}>Taksitli gider</Text>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          <Text style={styles.sectionTitle}>Kategori</Text>
+        <View style={styles.amountCard}>
+          <Text style={styles.amountLabel}>{mode === 'installment' ? 'KALAN TOPLAM TUTAR' : 'AYLIK TUTAR'}</Text>
+          <View style={styles.amountRow}>
+            <Text style={styles.amountCurrency}>₺</Text>
+            <TextInput
+              style={styles.amountInput}
+              value={mode === 'installment' ? totalAmount : fixedAmount}
+              onChangeText={(text) => (mode === 'installment'
+                ? setTotalAmount(formatMoneyInput(text))
+                : setFixedAmount(formatMoneyInput(text)))}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+              placeholder="0,00"
+              placeholderTextColor={theme.colors.primary[300]}
+            />
+          </View>
+        </View>
+
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Gider türü</Text>
           <View style={styles.rowWrap}>
             {[
               ['Rent', 'Kira'],
@@ -226,8 +267,10 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               <Chip key={key} title={label} active={type === key} onPress={() => setType(key)} />
             ))}
           </View>
+        </View>
 
-          <Text style={styles.sectionTitle}>Ödeyecek kişi</Text>
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Ödemeyi yapacak kişi</Text>
           <View style={styles.rowWrap}>
             {members.map((member) => (
               <Chip
@@ -238,40 +281,11 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               />
             ))}
           </View>
-
-          {(mode === 'recurring' || mode === 'irregular') && (
-            <>
-              <Text style={styles.label}>{mode === 'recurring' ? 'Aylık tutar (TL)' : 'Tutar (TL)'}</Text>
-              <TextInput
-                style={styles.input}
-                value={fixedAmount}
-                onChangeText={(text) => setFixedAmount(formatMoneyInput(text))}
-                keyboardType="decimal-pad"
-                inputMode="decimal"
-                placeholder="20.000"
-                placeholderTextColor={theme.colors.text.disabled}
-              />
-            </>
-          )}
+        </View>
 
           {mode === 'installment' && (
-            <>
-              <Text style={styles.label}>Kalan toplam tutar (TL)</Text>
-              <TextInput
-                style={styles.input}
-                value={totalAmount}
-                onChangeText={(text) => setTotalAmount(formatMoneyInput(text))}
-                keyboardType="decimal-pad"
-                inputMode="decimal"
-                placeholder="120.000"
-                placeholderTextColor={theme.colors.text.disabled}
-              />
-            </>
-          )}
-
-          {mode === 'installment' && (
-            <>
-              <Text style={styles.label}>Kalan taksit sayısı</Text>
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Kalan taksit sayısı</Text>
               <View style={styles.rowWrap}>
                 {['3', '6', '12'].map((count) => (
                   <Chip
@@ -310,29 +324,14 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               <Text style={styles.helperText}>
                 Plan daha önce başladıysa yalnızca kalan tutarı ve kalan ay sayısını gir.
               </Text>
-            </>
+            </View>
           )}
 
-          <Text style={styles.label}>{mode === 'irregular' ? 'Tarih seç' : 'Başlangıç tarihi ve ödeme günü'}</Text>
-          <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)} activeOpacity={0.88}>
-            <Text style={styles.dateButtonText}>{selectedDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
-            <Text style={styles.dateHint}>Takvimden seç</Text>
-          </TouchableOpacity>
-
-          {mode === 'recurring' && (
-            <>
-              <Text style={styles.label}>Borçlarım görünürlük aralığı</Text>
-              <View style={styles.collectionRow}>
-                <Text style={styles.collectionHint}>
-                  Ödeme gününden 5 gün önce görünür, ödeme gününün sonunda otomatik kapanır.
-                </Text>
-              </View>
-            </>
-          )}
-
-          {(mode === 'installment' || mode === 'recurring') && (
-            <>
-              <Text style={styles.label}>{mode === 'recurring' ? 'Kira payına dahil kişiler' : 'Katılımcılar'}</Text>
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeadingRow}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>Paylaşılacak kişiler</Text>
+            <Text style={styles.sectionMeta}>{participants.length} kişi</Text>
+          </View>
               <View style={styles.rowWrap}>
                 {members.map((member) => {
                   const id = String(member.userId);
@@ -347,8 +346,32 @@ export default function DuzenliGiderEkle({ navigation, route }) {
                   );
                 })}
               </View>
-            </>
+          <View style={styles.splitSummary}>
+            <Text style={styles.splitSummaryText}>{participants.length} kişi · Eşit bölüşüm</Text>
+            <Text style={styles.splitSummaryValue}>Kişi başı {formatCurrency(perPersonAmount)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Ödeme planı</Text>
+          <TouchableOpacity style={styles.scheduleCard} onPress={() => setShowDatePicker(true)} activeOpacity={0.88}>
+            <View style={styles.scheduleItem}>
+              <Text style={styles.scheduleLabel}>Her ay ödeme günü</Text>
+              <Text style={styles.scheduleValue}>{selectedDate.getDate()}. gün</Text>
+            </View>
+            <View style={styles.scheduleDivider} />
+            <View style={[styles.scheduleItem, styles.scheduleItemRight]}>
+              <Text style={styles.scheduleLabel}>Başlangıç</Text>
+              <Text style={styles.scheduleValue}>{selectedDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}</Text>
+            </View>
+          </TouchableOpacity>
+          {mode === 'recurring' && (
+            <View style={styles.visibilityNote}>
+              <Text style={styles.visibilityIcon}>◷</Text>
+              <Text style={styles.visibilityText}>Bu gider ödeme gününden 5 gün önce görünür ve dönem sonunda kapanır.</Text>
+            </View>
           )}
+        </View>
 
           <TouchableOpacity
             style={[styles.saveButton, saving && { opacity: 0.5 }]}
@@ -356,9 +379,8 @@ export default function DuzenliGiderEkle({ navigation, route }) {
             disabled={saving}
             activeOpacity={0.9}
           >
-            <Text style={styles.saveButtonText}>{saving ? 'Kaydediliyor...' : 'Planı Kaydet'}</Text>
+            <Text style={styles.saveButtonText}>{saving ? 'Kaydediliyor...' : 'Düzenli Gideri Kaydet'}</Text>
           </TouchableOpacity>
-        </View>
       </KeyboardAwareScrollView>
 
       <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
@@ -411,31 +433,57 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
 const makeStyles = (theme, insets) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
-  scrollContent: { paddingHorizontal: 20, paddingTop: insets.top + 4, paddingBottom: 220 },
-  card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200], borderRadius: 8, padding: 16 },
-  label: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 14, marginTop: 12, marginBottom: 7 },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text.primary, marginBottom: 10 },
-  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: insets.top + 4, paddingBottom: insets.bottom + 36 },
+  sectionBlock: { marginBottom: 14 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.text.primary, marginBottom: 10 },
+  sectionTitleInline: { marginBottom: 0 },
+  sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  sectionMeta: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '700' },
+  segment: {
+    minHeight: 44,
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: theme.colors.neutral[100],
+  },
+  segmentItem: { flex: 1, minHeight: 36, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  segmentItemActive: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[200],
+  },
+  segmentText: { color: theme.colors.text.secondary, fontSize: 13, fontWeight: '700' },
+  segmentTextActive: { color: theme.colors.primary[700], fontWeight: '800' },
+  amountCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[200],
+    backgroundColor: theme.colors.primary[50],
+    padding: 16,
+    marginBottom: 14,
+  },
+  amountLabel: { color: theme.colors.primary[700], fontSize: 11, fontWeight: '800' },
+  amountRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  amountCurrency: { color: theme.colors.primary[700], fontSize: 28, fontWeight: '700', marginRight: 7 },
+  amountInput: { flex: 1, color: theme.colors.text.primary, fontSize: 34, fontWeight: '800', paddingVertical: 4 },
+  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
   chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: theme.colors.neutral[100],
-    marginRight: 8,
-    marginBottom: 8,
+    minHeight: 36,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    backgroundColor: theme.colors.surface,
   },
-  chipActive: { backgroundColor: theme.colors.primary[600] },
-  chipText: { color: theme.colors.text.primary, fontWeight: '700' },
-  chipTextActive: { color: theme.colors.text.onPrimary },
-  customMonthRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  chipActive: { borderColor: theme.colors.primary[300], backgroundColor: theme.colors.primary[50] },
+  chipText: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '700' },
+  chipTextActive: { color: theme.colors.primary[700] },
+  customMonthRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 9 },
   customMonthInput: { width: 80, marginBottom: 0, textAlign: 'center' },
   customMonthLabel: { color: theme.colors.text.secondary, fontWeight: '600' },
-  helperText: { color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17, marginTop: -2, marginBottom: 8 },
-  collectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  collectionPrefix: { color: theme.colors.text.secondary, fontWeight: '700' },
-  collectionHint: { flex: 1, color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17 },
-  dayInput: { width: 58, marginBottom: 0, textAlign: 'center', paddingHorizontal: 8 },
+  helperText: { color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
@@ -445,22 +493,44 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 12,
   },
-  dateButton: {
+  splitSummary: {
+    minHeight: 44,
+    marginTop: 9,
     borderRadius: 8,
-    padding: 14,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.primary[50],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  splitSummaryText: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '700' },
+  splitSummaryValue: { color: theme.colors.primary[700], fontSize: 13, fontWeight: '800' },
+  scheduleCard: {
+    minHeight: 72,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.surface,
-    marginBottom: 14,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  dateButtonText: { color: theme.colors.text.primary, fontSize: 15, fontWeight: '800' },
-  dateHint: { color: theme.colors.text.secondary, marginTop: 4 },
+  scheduleItem: { flex: 1 },
+  scheduleItemRight: { paddingLeft: 13 },
+  scheduleDivider: { width: 1, height: 40, backgroundColor: theme.colors.neutral[200] },
+  scheduleLabel: { color: theme.colors.text.secondary, fontSize: 11, fontWeight: '600', marginBottom: 5 },
+  scheduleValue: { color: theme.colors.text.primary, fontSize: 13, fontWeight: '800' },
+  visibilityNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 9, paddingHorizontal: 2 },
+  visibilityIcon: { color: theme.colors.primary[600], fontSize: 15, lineHeight: 18 },
+  visibilityText: { flex: 1, color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17 },
   saveButton: {
     marginTop: 6,
+    minHeight: 52,
     backgroundColor: theme.colors.primary[600],
     borderRadius: 8,
-    paddingVertical: 15,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveButtonText: { color: theme.colors.text.onPrimary, fontWeight: '900', fontSize: 16 },
   modalBackdrop: {
@@ -470,8 +540,8 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   },
   modalCard: {
     backgroundColor: theme.colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 18,
     maxHeight: '88%',
   },
@@ -483,7 +553,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 8,
   },
   dayCellActive: { backgroundColor: theme.colors.primary[600] },
@@ -495,7 +565,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     marginRight: 8,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
   },
@@ -504,7 +574,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     backgroundColor: theme.colors.primary[600],
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
   },
