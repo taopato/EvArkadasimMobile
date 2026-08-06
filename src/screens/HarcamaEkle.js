@@ -25,6 +25,7 @@ import Toast from '../components/Toast';
 import { toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
+import MoneyInput from '../shared/ui/roomora/MoneyInput';
 
 const QUICK_EXPENSES = [
   { key: 'Market', label: 'Market' },
@@ -362,21 +363,7 @@ export default function AddExpenseScreen({ navigation, route }) {
       >
         <PageHeader title="Harcama Ekle" onBack={() => navigation.goBack()} />
 
-        <View style={styles.amountHero}>
-          <Text style={styles.amountLabel}>TUTAR</Text>
-          <View style={styles.amountRow}>
-            <Text style={styles.amountCurrency}>₺</Text>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0,00"
-              placeholderTextColor={theme.colors.text.disabled}
-              keyboardType="decimal-pad"
-              inputMode="decimal"
-              value={amount}
-              onChangeText={(text) => setAmount(formatMoneyInput(text))}
-            />
-          </View>
-        </View>
+        <MoneyInput label="Tutar" value={amount} onChangeText={(text) => setAmount(formatMoneyInput(text))} />
 
         <View style={styles.quickSection}>
           <View style={styles.quickHeader}>
@@ -555,7 +542,7 @@ export default function AddExpenseScreen({ navigation, route }) {
           disabled={!amountNum || !categoryKey || !payerId || loading}
           activeOpacity={0.9}
         >
-          {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.saveButtonText}>Harcamayı Kaydet</Text></>}
+          {loading ? <ActivityIndicator color={theme.colors.text.onPrimary} /> : <><Ionicons name="checkmark-circle" size={20} color={theme.colors.text.onPrimary} /><Text style={styles.saveButtonText}>Harcamayı Kaydet</Text></>}
         </TouchableOpacity>
 
         <View style={styles.receiptCard}>
@@ -635,11 +622,6 @@ const makeStyles = (theme) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 36 },
-  amountHero: { alignItems: 'center', paddingTop: 6, paddingBottom: 14, marginBottom: 6 },
-  amountLabel: { color: theme.colors.text.secondary, fontFamily: theme.typography.semibold, fontSize: 11 },
-  amountRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: theme.colors.primary[200] },
-  amountCurrency: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 26 },
-  amountInput: { minWidth: 120, maxWidth: 230, color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 34, textAlign: 'center', paddingHorizontal: 8 },
   card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200], padding: 16, borderRadius: 8, marginBottom: 12 },
   fieldBlock: { marginBottom: 12 },
   selectionCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.neutral[200], padding: 14, borderRadius: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },

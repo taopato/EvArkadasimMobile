@@ -24,6 +24,7 @@ import { useTheme } from '../shared/theme/ThemeProvider';
 import DateField from '../shared/ui/DateField';
 import Toast from '../components/Toast';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
+import MoneyInput from '../shared/ui/roomora/MoneyInput';
 
 const BILL_TYPES = [
   { key: 'Electricity', icon: 'flash-outline', label: 'Elektrik', hint: 'Aylık tutar değişebilir' },
@@ -271,23 +272,12 @@ export default function FaturaEkle({ route, navigation }) {
           extraScrollHeight={110}
           keyboardOpeningTime={0}
         >
-          <View style={styles.amountCard}>
-            <Text style={styles.amountLabel}>FATURA TUTARI</Text>
-            <View style={styles.amountInputRow}>
-              <Text style={styles.currency}>₺</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={amount}
-                onChangeText={(value) => setAmount(formatMoneyInput(value))}
-                placeholder="0,00"
-                placeholderTextColor={theme.colors.primary[300]}
-                keyboardType="decimal-pad"
-                inputMode="decimal"
-                inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
-                maxLength={12}
-              />
-            </View>
-          </View>
+          <MoneyInput
+            label="Fatura tutarı"
+            value={amount}
+            onChangeText={(value) => setAmount(formatMoneyInput(value))}
+            inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
+          />
 
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionTitle}>Fatura türü</Text>

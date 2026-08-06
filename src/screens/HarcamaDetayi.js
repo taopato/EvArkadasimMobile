@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { expensesApi, houseApi, ledgerApi } from '../services/api';
 import { useTheme } from '../shared/theme/ThemeProvider';
@@ -15,6 +16,7 @@ import { EmptyState, LoadingState, PageHeader, PrimaryButton, money } from '../s
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
 import eventBus from '../shared/events/bus';
 import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
+import MoneyInput from '../shared/ui/roomora/MoneyInput';
 
 const pick = (value, keys, fallback = undefined) =>
   keys.map((key) => value?.[key]).find((item) => item !== undefined && item !== null) ?? fallback;
@@ -31,7 +33,8 @@ export default function HarcamaDetayi({ navigation, route }) {
   const [expense, setExpense] = useState(initialExpense);
   const [members, setMembers] = useState([]);
   const [shares, setShares] = useState([]);
-  const [editing, setEditing] = useState(false);
+  const dedicatedEdit = route?.name === 'HarcamaDuzenle' || route?.params?.startEditing === true;
+  const [editing, setEditing] = useState(dedicatedEdit);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -121,7 +124,9 @@ export default function HarcamaDetayi({ navigation, route }) {
   useEffect(() => {
     if (initialExpense) hydrateForm(initialExpense, []);
   }, [hydrateForm, initialExpense]);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => {
+    load();
+  }, [load]));
 
   const toggleParticipant = (memberId) => {
     const id = String(memberId);
@@ -174,9 +179,12 @@ export default function HarcamaDetayi({ navigation, route }) {
         SahsiHarcamalar: personalItems,
       });
       eventBus.emit('expenses:updated', { houseId: Number(houseId) });
-      setEditing(false);
-      await load();
-      Alert.alert('Harcama güncellendi');
+      if (dedicatedEdit) {
+        navigation.goBack();
+      } else {
+        setEditing(false);
+        await load();
+      }
     } catch (error) {
       Alert.alert('Güncellenemedi', error?.response?.data?.message || 'Lütfen tekrar dene.');
     } finally {
@@ -242,8 +250,8 @@ export default function HarcamaDetayi({ navigation, route }) {
         <PageHeader
           title={editing ? 'Harcamayı Düzenle' : 'Harcama Detayı'}
           subtitle={route?.params?.houseName}
-          onBack={() => editing ? setEditing(false) : navigation.goBack()}
-          rightIcon={editing ? undefined : 'trash-outline'}
+          onBack={() => dedicatedEdit || !editing ? navigation.goBack() : setEditing(false)}
+          rightIcon="trash-outline"
           onRightPress={remove}
         />
 
@@ -251,7 +259,7 @@ export default function HarcamaDetayi({ navigation, route }) {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIcon}>
-                <Ionicons name="cart-outline" size={30} color="#fff" />
+                <Ionicons name="cart-outline" size={30} color={theme.colors.text.onPrimary} />
               </View>
               <Text style={styles.heroAmount}>{money(total)}</Text>
               <Text style={styles.heroTitle}>{title}</Text>
@@ -295,15 +303,25 @@ export default function HarcamaDetayi({ navigation, route }) {
               </View>
             )}
 
-            <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => navigation.navigate('HarcamaDuzenle', {
+                expenseId,
+                houseId,
+                houseName: route?.params?.houseName,
+                initialExpense: expense,
+                startEditing: true,
+              })}
+            >
               <Ionicons name="pencil-outline" size={19} color={theme.colors.primary[700]} />
               <Text style={styles.editText}>Düzenle</Text>
             </TouchableOpacity>
           </>
         ) : (
-          <View style={styles.formCard}>
-            <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} />
-            <Field label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" styles={styles} />
+          <View style={styles.editContent}>
+            <MoneyInput label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
+            <View style={styles.formCard}>
+            <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} theme={theme} />
             <Text style={styles.fieldLabel}>Ödemeyi yapan</Text>
             <View style={styles.chips}>
               {members.map((member) => {
@@ -369,7 +387,8 @@ export default function HarcamaDetayi({ navigation, route }) {
                   .reduce((sum, [, value]) => sum + (parseMoneyInput(value) || 0), 0), 0))}
               </Text>
             </View>
-            <Field label="Not" value={note} onChangeText={setNote} multiline styles={styles} />
+            <Field label="Not" value={note} onChangeText={setNote} multiline styles={styles} theme={theme} />
+            </View>
             <PrimaryButton label={saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'} icon="checkmark" onPress={save} disabled={saving} />
           </View>
         )}
@@ -388,13 +407,13 @@ function InfoRow({ icon, label, value, styles, theme }) {
   );
 }
 
-function Field({ label, styles, multiline, ...props }) {
+function Field({ label, styles, theme, multiline, ...props }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...props}
-        placeholderTextColor="#95a3b1"
+        placeholderTextColor={theme.colors.text.disabled}
         style={[styles.input, multiline && styles.multiline]}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
@@ -428,7 +447,8 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   muted: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 13, paddingVertical: 8 },
   editButton: { minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.primary[300], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.surface },
   editText: { color: theme.colors.primary[700], fontFamily: theme.typography.bold, fontSize: 15 },
-  formCard: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, padding: 16, marginTop: 14 },
+  editContent: { gap: 12, paddingTop: 8 },
+  formCard: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, padding: 16 },
   field: { marginBottom: 15 },
   fieldLabel: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 13, marginBottom: 7 },
   input: { minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[300], backgroundColor: theme.colors.background, color: theme.colors.text.primary, fontFamily: theme.typography.regular, fontSize: 15, paddingHorizontal: 13 },

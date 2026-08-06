@@ -28,6 +28,7 @@ import {
   SectionHeader,
   money,
 } from '../../shared/ui/roomora/CanonicalUI';
+import MoneyInput from '../../shared/ui/roomora/MoneyInput';
 
 const unwrap = (response) => response?.data?.data ?? response?.data ?? {};
 const arrayOf = (value) => (Array.isArray(value) ? value : []);
@@ -494,8 +495,7 @@ export function PaymentReportScreen({ route, navigation }) {
       {maxAmount > 0 && <SummaryHero title="Seçili açık borç" value={maxAmount} subtitle={`Ödeme sonrası kalan: ${money(Math.max(0, maxAmount - numericAmount))}`} tone="surface" />}
       <Text style={styles.fieldLabel}>Ödeme yapılacak kişi</Text>
       <View style={styles.pills}>{members.map((member) => <Pill key={String(member.id)} label={member.name} active={member.id === receiverId} onPress={() => setReceiverId(member.id)} />)}</View>
-      <Text style={styles.fieldLabel}>Ödediğin tutar</Text>
-      <View style={styles.amountInputWrap}><Text style={styles.currency}>₺</Text><TextInput style={styles.amountInput} value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" placeholder="0,00" placeholderTextColor={theme.colors.text.disabled} /></View>
+      <MoneyInput label="Ödediğin tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
       {maxAmount > 0 && numericAmount !== maxAmount ? (
         <TouchableOpacity style={styles.fullPaymentButton} onPress={() => setAmount(formatMoneyInput(String(maxAmount)))}>
           <Text style={styles.fullPaymentText}>Borcun tamamını kullan: {money(maxAmount)}</Text>

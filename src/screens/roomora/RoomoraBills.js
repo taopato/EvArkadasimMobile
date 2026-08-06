@@ -209,19 +209,19 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     marginBottom: 12,
   },
   summaryLabel: {
-    color: '#d8e0e8',
+    color: theme.colors.balanceHero.muted,
     fontFamily: theme.typography.semibold,
     fontSize: 13,
   },
   summaryValue: {
-    color: '#fff',
+    color: theme.colors.text.onPrimary,
     fontFamily: theme.typography.extrabold,
     fontSize: 34,
     marginTop: 8,
   },
   summaryStats: { flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 18 },
-  statLabel: { color: '#d8e0e8', fontFamily: theme.typography.regular, fontSize: 12 },
-  statValue: { color: '#fff', fontFamily: theme.typography.bold, fontSize: 18, marginTop: 2 },
+  statLabel: { color: theme.colors.balanceHero.muted, fontFamily: theme.typography.regular, fontSize: 12 },
+  statValue: { color: theme.colors.text.onPrimary, fontFamily: theme.typography.bold, fontSize: 18, marginTop: 2 },
   statDivider: { width: 1, height: 35, backgroundColor: theme.colors.balanceHero.divider },
   plannedAction: {
     height: 44,

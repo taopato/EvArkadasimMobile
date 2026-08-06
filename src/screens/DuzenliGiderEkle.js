@@ -13,6 +13,7 @@ import { houseApi, expensesApi, scheduledChargesApi } from '../services/api';
 import eventBus from '../shared/events/bus';
 import { getCategoryDisplayName, toExpenseCategory } from '../constants/ExpenseEnums';
 import { formatMoneyInput, parseMoneyInput } from '../shared/format/money';
+import MoneyInput from '../shared/ui/roomora/MoneyInput';
 
 export default function DuzenliGiderEkle({ navigation, route }) {
   const { user } = useAuth();
@@ -114,9 +115,9 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
       const startMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
       const isoStart = `${startMonth}-01T00:00:00Z`;
-      const safeTur = getCategoryDisplayName(type);
+      const safeTur = mode === 'installment' ? expenseName.trim() : getCategoryDisplayName(type);
       const displayName = expenseName.trim() || safeTur;
-      const categoryEnum = toExpenseCategory(type);
+      const categoryEnum = toExpenseCategory(mode === 'installment' ? 'Other' : type);
       const descriptionSafe = note.trim() || displayName;
 
       if (participants.length === 0) {
@@ -268,23 +269,13 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.amountCard}>
-          <Text style={styles.amountLabel}>{mode === 'installment' ? 'KALAN TOPLAM TUTAR' : 'AYLIK TUTAR'}</Text>
-          <View style={styles.amountRow}>
-            <Text style={styles.amountCurrency}>₺</Text>
-            <TextInput
-              style={styles.amountInput}
-              value={mode === 'installment' ? totalAmount : fixedAmount}
-              onChangeText={(text) => (mode === 'installment'
-                ? setTotalAmount(formatMoneyInput(text))
-                : setFixedAmount(formatMoneyInput(text)))}
-              keyboardType="decimal-pad"
-              inputMode="decimal"
-              placeholder="0,00"
-              placeholderTextColor={theme.colors.primary[300]}
-            />
-          </View>
-        </View>
+        <MoneyInput
+          label={mode === 'installment' ? 'Kalan toplam tutar' : 'Aylık tutar'}
+          value={mode === 'installment' ? totalAmount : fixedAmount}
+          onChangeText={(text) => (mode === 'installment'
+            ? setTotalAmount(formatMoneyInput(text))
+            : setFixedAmount(formatMoneyInput(text)))}
+        />
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Gider adı</Text>
@@ -319,7 +310,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           />
         </View>
 
-        <View style={styles.sectionBlock}>
+        {mode !== 'installment' && <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Gider türü</Text>
           <View style={styles.rowWrap}>
             {[
@@ -333,7 +324,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               <Chip key={key} title={label} active={type === key} onPress={() => setType(key)} />
             ))}
           </View>
-        </View>
+        </View>}
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Ödemeyi yapacak kişi</Text>

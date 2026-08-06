@@ -234,6 +234,7 @@ function ThemedNavigator() {
             <Stack.Screen name="Borclar" component={DebtsScreen} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="Alacaklarim" component={ReceivablesScreen} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="HarcamaDetayi" component={HarcamaDetayi} options={{ title: '', headerShown: false }} />
+            <Stack.Screen name="HarcamaDuzenle" component={HarcamaDetayi} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="HarcamaEkle" component={HarcamaEkle} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="FisDetayi" component={FisDetayi} options={{ title: '', headerShown: false }} />
             <Stack.Screen name="FisGecmisi" component={FisGecmisi} options={{ title: '', headerShown: false }} />
