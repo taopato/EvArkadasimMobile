@@ -90,3 +90,31 @@ Verification:
 - `npm run doctor` (20/20)
 - `npx tsc --noEmit`
 - `npm run export:ios`
+
+# 2026-08-06 - Stitch batch 30 bill and expense screens
+
+- Adapted the final Stitch `Fatura Detayı`, `Faturayı Düzenle`, `Düzenli Gider
+  Ekle`, `Taksitli Gider Ekle` and `Harcama Detayı` designs to the existing
+  React Native navigation and API contracts.
+- Kept bill create/edit in one `FaturaEkle` screen and fixed/instalment plans in
+  one `DuzenliGiderEkle` screen to avoid duplicate routes and API logic.
+- Bill details now render real API shares and only expose payment reporting when
+  the signed-in member has a share owed to another payer. The payment screen
+  remains the source of truth for the current net balance.
+- Expense details now render participant-specific personal items and retain
+  editing for payer, participants and personal amounts.
+- Instalment plans now require a useful expense name, accept the remaining total
+  and remaining instalment count, and calculate the displayed per-person amount
+  from the monthly instalment rather than the whole remaining balance.
+- Scheduled plan month selection now covers the next 12 months, including the
+  following calendar year.
+- Bill forms include a whole-house participant shortcut and label the previewed
+  equal split as approximate; persisted share rows continue to come from the
+  backend's cent-accurate calculation.
+
+Verification:
+
+- `npm test` (passed)
+- `npx expo export --platform android --output-dir .codex-export-ui-check` (passed)
+- `npx expo export --platform ios --output-dir .codex-export-ui-check-ios` (passed)
+- `npx expo-doctor` (19/20; six Expo packages have newer expected patch releases)

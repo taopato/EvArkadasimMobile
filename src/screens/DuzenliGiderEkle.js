@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Modal,
+  View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Modal, Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +26,8 @@ export default function DuzenliGiderEkle({ navigation, route }) {
   const [members, setMembers] = useState([]);
   const [mode, setMode] = useState(route?.params?.defaultMode || 'recurring');
   const [type, setType] = useState('Rent');
+  const [expenseName, setExpenseName] = useState('');
+  const [note, setNote] = useState('');
   const [payerUserId, setPayerUserId] = useState('');
   const [fixedAmount, setFixedAmount] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -34,18 +38,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     return new Date(now.getFullYear(), now.getMonth(), 15);
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempMonthOffset, setTempMonthOffset] = useState(() => new Date().getMonth());
-  const [tempDay, setTempDay] = useState('15');
-
-  const calendarMonths = useMemo(() => Array.from({ length: 12 }).map((_, index) => {
-    const now = new Date();
-    const date = new Date(now.getFullYear(), index, 1);
-    return {
-      key: index,
-      date,
-      label: date.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }),
-    };
-  }), []);
+  const [draftDate, setDraftDate] = useState(selectedDate);
 
   const [customMonths, setCustomMonths] = useState('');
   const [saving, setSaving] = useState(false);
@@ -81,12 +74,34 @@ export default function DuzenliGiderEkle({ navigation, route }) {
     }
   }, [mode, members, participants.length]);
 
+  const normalizePlanDate = (date) => new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    Math.min(date.getDate(), 28)
+  );
+
+  const openDatePicker = () => {
+    setDraftDate(selectedDate);
+    setShowDatePicker(true);
+  };
+
   const applySelectedDate = () => {
-    const now = new Date();
-    const monthDate = new Date(now.getFullYear(), tempMonthOffset, 1);
-    const nextDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), Number(tempDay));
-    setSelectedDate(nextDate);
+    setSelectedDate(normalizePlanDate(draftDate));
     setShowDatePicker(false);
+  };
+
+  const handleDateChange = (event, date) => {
+    if (event?.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+    if (!date) return;
+    const next = normalizePlanDate(date);
+    setDraftDate(next);
+    if (Platform.OS === 'android') {
+      setSelectedDate(next);
+      setShowDatePicker(false);
+    }
   };
 
   const onSave = async () => {
@@ -100,21 +115,33 @@ export default function DuzenliGiderEkle({ navigation, route }) {
       const startMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
       const isoStart = `${startMonth}-01T00:00:00Z`;
       const safeTur = getCategoryDisplayName(type);
+      const displayName = expenseName.trim() || safeTur;
       const categoryEnum = toExpenseCategory(type);
-      const descriptionSafe = `${safeTur} | Başlangıç ${selectedDate.toLocaleDateString('tr-TR')}`;
+      const descriptionSafe = note.trim() || displayName;
+
+      if (participants.length === 0) {
+        return Alert.alert('Eksik bilgi', 'Giderin paylaşılacağı en az bir kişi seçin.');
+      }
 
       if (mode === 'installment') {
         const total = parseMoneyInput(totalAmount);
         if (!(total > 0)) return Alert.alert('Hata', 'Toplam tutar sıfırdan büyük olmalı.');
+        const months = Number(installmentCount);
+        if (!Number.isInteger(months) || months < 1 || months > 60) {
+          return Alert.alert('Eksik bilgi', 'Kalan taksit sayısı 1 ile 60 arasında olmalı.');
+        }
+        if (!expenseName.trim()) {
+          return Alert.alert('Eksik bilgi', 'Taksitli gider için bir gider adı yazın.');
+        }
 
         await expensesApi.create({
           mode: 'installment',
-          tur: safeTur,
+          tur: displayName,
           category: categoryEnum,
           categoryId: categoryEnum,
           CategoryId: categoryEnum,
           tutar: total,
-          installmentCount: Number(installmentCount),
+          installmentCount: months,
           dueDay: dueDayNum,
           startMonth: isoStart,
           houseId: activeHouseId,
@@ -122,6 +149,8 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           kaydedenUserId: Number(user?.id),
           cardholderUserId: Number(payerUserId),
           participants: participants.length ? participants.map((id) => Number(id)) : [],
+          note: note.trim(),
+          Note: note.trim(),
           description: descriptionSafe,
           Description: descriptionSafe,
           Aciklama: descriptionSafe,
@@ -139,7 +168,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
 
         await scheduledChargesApi.create({
           houseId: activeHouseId,
-          title: safeTur,
+          title: displayName,
           type: type === 'Electricity' ? 'Electric' : type,
           payerUserId: Number(payerUserId),
           fixedAmount: monthly,
@@ -147,6 +176,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           collectionStartDay: collectionDay,
           startMonth,
           participantUserIds: scheduledParticipants.map((id) => Number(id)),
+          note: note.trim(),
         });
 
         Alert.alert('Başarılı', 'Dönemsel ödeme planı oluşturuldu.');
@@ -169,6 +199,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           description: descriptionSafe,
           Description: descriptionSafe,
           Aciklama: descriptionSafe,
+          Note: note.trim(),
         });
 
         Alert.alert('Başarılı', 'Tek seferlik gider oluşturuldu.');
@@ -193,8 +224,10 @@ export default function DuzenliGiderEkle({ navigation, route }) {
   const enteredAmount = mode === 'installment'
     ? parseMoneyInput(totalAmount)
     : parseMoneyInput(fixedAmount);
+  const installmentMonths = Math.max(Number(installmentCount) || 1, 1);
+  const periodAmount = mode === 'installment' ? enteredAmount / installmentMonths : enteredAmount;
   const perPersonAmount = participants.length
-    ? Number((enteredAmount / participants.length).toFixed(2))
+    ? Number((periodAmount / participants.length).toFixed(2))
     : 0;
   const formatCurrency = (value) => new Intl.NumberFormat('tr-TR', {
     style: 'currency',
@@ -251,6 +284,39 @@ export default function DuzenliGiderEkle({ navigation, route }) {
               placeholderTextColor={theme.colors.primary[300]}
             />
           </View>
+        </View>
+
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Gider adı</Text>
+          <View style={styles.nameInputRow}>
+            <Ionicons name="bag-handle-outline" size={20} color={theme.colors.primary[700]} />
+            <TextInput
+              style={styles.nameInput}
+              value={expenseName}
+              onChangeText={setExpenseName}
+              placeholder={mode === 'installment' ? 'Örn. Buzdolabı' : 'Örn. Temmuz kirası'}
+              placeholderTextColor={theme.colors.text.disabled}
+              maxLength={80}
+              returnKeyType="done"
+            />
+          </View>
+          <Text style={styles.helperText}>
+            {mode === 'installment' ? 'Satın alınan ürünü veya gideri kısa bir adla belirt.' : 'Boş bırakırsan seçtiğin gider türü kullanılır.'}
+          </Text>
+        </View>
+
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Not <Text style={styles.optionalText}>(isteğe bağlı)</Text></Text>
+          <TextInput
+            style={[styles.input, styles.noteInput]}
+            value={note}
+            onChangeText={setNote}
+            placeholder={mode === 'installment' ? 'Örn. Kalan 4 taksit' : 'Örn. Ev sahibine havale edilecek'}
+            placeholderTextColor={theme.colors.text.disabled}
+            multiline
+            maxLength={240}
+            textAlignVertical="top"
+          />
         </View>
 
         <View style={styles.sectionBlock}>
@@ -347,14 +413,17 @@ export default function DuzenliGiderEkle({ navigation, route }) {
                 })}
               </View>
           <View style={styles.splitSummary}>
-            <Text style={styles.splitSummaryText}>{participants.length} kişi · Eşit bölüşüm</Text>
+            <View style={styles.splitSummaryCopy}>
+              <Text style={styles.splitSummaryText}>{participants.length} kişi · Eşit bölüşüm</Text>
+              {mode === 'installment' && <Text style={styles.splitSummaryHint}>Aylık taksit {formatCurrency(periodAmount)}</Text>}
+            </View>
             <Text style={styles.splitSummaryValue}>Kişi başı {formatCurrency(perPersonAmount)}</Text>
           </View>
         </View>
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Ödeme planı</Text>
-          <TouchableOpacity style={styles.scheduleCard} onPress={() => setShowDatePicker(true)} activeOpacity={0.88}>
+          <TouchableOpacity style={styles.scheduleCard} onPress={openDatePicker} activeOpacity={0.88}>
             <View style={styles.scheduleItem}>
               <Text style={styles.scheduleLabel}>Her ay ödeme günü</Text>
               <Text style={styles.scheduleValue}>{selectedDate.getDate()}. gün</Text>
@@ -379,43 +448,40 @@ export default function DuzenliGiderEkle({ navigation, route }) {
             disabled={saving}
             activeOpacity={0.9}
           >
-            <Text style={styles.saveButtonText}>{saving ? 'Kaydediliyor...' : 'Düzenli Gideri Kaydet'}</Text>
+            <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.text.onPrimary} />
+            <Text style={styles.saveButtonText}>{saving ? 'Kaydediliyor...' : mode === 'installment' ? 'Taksit Planını Kaydet' : 'Düzenli Gideri Kaydet'}</Text>
           </TouchableOpacity>
       </KeyboardAwareScrollView>
 
-      <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+      {showDatePicker && Platform.OS === 'ios' && (
+      <Modal visible transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Tarih seç</Text>
-
-            <Text style={styles.modalLabel}>Ay</Text>
-            <View style={styles.monthGrid}>
-              {calendarMonths.map((month) => (
-                <Chip
-                  key={String(month.key)}
-                  title={month.label}
-                  active={tempMonthOffset === month.key}
-                  onPress={() => setTempMonthOffset(month.key)}
-                />
-              ))}
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Ödeme tarihini seç</Text>
+                <Text style={styles.modalSubtitle}>Her ay bu tarihte hatırlatılır</Text>
+              </View>
+              <TouchableOpacity style={styles.modalClose} onPress={() => setShowDatePicker(false)}>
+                <Ionicons name="close" size={21} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.modalLabel}>Gün</Text>
-            <View style={styles.dayGrid}>
-              {Array.from({ length: 28 }).map((_, index) => {
-                const day = String(index + 1);
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[styles.dayCell, tempDay === day && styles.dayCellActive]}
-                    onPress={() => setTempDay(day)}
-                  >
-                    <Text style={[styles.dayCellText, tempDay === day && styles.dayCellTextActive]}>{day}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.selectedDateCard}>
+              <Ionicons name="calendar-outline" size={20} color={theme.colors.primary[700]} />
+              <Text style={styles.selectedDateText}>
+                {draftDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Text>
             </View>
-
+            <DateTimePicker
+              value={draftDate}
+              mode="date"
+              display="inline"
+              locale="tr-TR"
+              themeVariant={theme.mode === 'light' ? 'light' : 'dark'}
+              accentColor={theme.colors.primary[600]}
+              onChange={handleDateChange}
+            />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowDatePicker(false)}>
                 <Text style={styles.secondaryBtnText}>İptal</Text>
@@ -427,6 +493,15 @@ export default function DuzenliGiderEkle({ navigation, route }) {
           </View>
         </View>
       </Modal>
+      )}
+      {showDatePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={draftDate}
+          mode="date"
+          display="calendar"
+          onChange={handleDateChange}
+        />
+      )}
     </View>
   );
 }
@@ -466,6 +541,18 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   amountRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   amountCurrency: { color: theme.colors.primary[700], fontSize: 28, fontWeight: '700', marginRight: 7 },
   amountInput: { flex: 1, color: theme.colors.text.primary, fontSize: 34, fontWeight: '800', paddingVertical: 4 },
+  nameInputRow: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  nameInput: { flex: 1, minHeight: 48, color: theme.colors.text.primary, fontSize: 15, fontWeight: '600' },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
   chip: {
@@ -484,6 +571,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   customMonthInput: { width: 80, marginBottom: 0, textAlign: 'center' },
   customMonthLabel: { color: theme.colors.text.secondary, fontWeight: '600' },
   helperText: { color: theme.colors.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 8 },
+  optionalText: { color: theme.colors.text.secondary, fontSize: 12, fontWeight: '600' },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
@@ -493,6 +581,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 12,
   },
+  noteInput: { minHeight: 84, paddingTop: 12, marginBottom: 0, backgroundColor: theme.colors.surface },
   splitSummary: {
     minHeight: 44,
     marginTop: 9,
@@ -505,6 +594,8 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     gap: 8,
   },
   splitSummaryText: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '700' },
+  splitSummaryCopy: { flex: 1 },
+  splitSummaryHint: { color: theme.colors.text.secondary, fontSize: 11, marginTop: 2 },
   splitSummaryValue: { color: theme.colors.primary[700], fontSize: 13, fontWeight: '800' },
   scheduleCard: {
     minHeight: 72,
@@ -529,23 +620,32 @@ const makeStyles = (theme, insets) => StyleSheet.create({
     minHeight: 52,
     backgroundColor: theme.colors.primary[600],
     borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
   saveButtonText: { color: theme.colors.text.onPrimary, fontWeight: '900', fontSize: 16 },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(16, 34, 51, 0.34)',
     justifyContent: 'flex-end',
   },
   modalCard: {
     backgroundColor: theme.colors.background,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 18,
-    maxHeight: '88%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: insets.bottom + 18,
   },
-  modalTitle: { fontSize: 20, fontWeight: '900', color: theme.colors.text.primary, marginBottom: 12 },
+  modalHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: theme.colors.neutral[300], alignSelf: 'center', marginBottom: 14 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalTitle: { fontSize: 19, fontWeight: '900', color: theme.colors.text.primary },
+  modalSubtitle: { color: theme.colors.text.secondary, fontSize: 12, marginTop: 3 },
+  modalClose: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.colors.neutral[100], alignItems: 'center', justifyContent: 'center' },
+  selectedDateCard: { minHeight: 48, borderRadius: 10, backgroundColor: theme.colors.primary[50], flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, marginBottom: 6 },
+  selectedDateText: { color: theme.colors.primary[800], fontSize: 14, fontWeight: '800' },
   modalLabel: { fontSize: 14, fontWeight: '800', color: theme.colors.text.secondary, marginBottom: 8, marginTop: 6 },
   dayGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
   dayCell: {

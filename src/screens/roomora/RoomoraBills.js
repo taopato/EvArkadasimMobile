@@ -189,6 +189,7 @@ export default function RoomoraBills({ navigation }) {
               billId: item.id,
               houseId: data.houseId,
               houseName: data.houseName,
+              initialBill: item._raw || item,
             })}
           />
         ))}
@@ -202,7 +203,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   content: { paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: 32 },
   summary: {
     borderRadius: 8,
-    backgroundColor: theme.colors.primary[600],
+    backgroundColor: theme.colors.primary[900],
     padding: 20,
     marginTop: 14,
     marginBottom: 12,
@@ -221,7 +222,7 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   summaryStats: { flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 18 },
   statLabel: { color: '#d8e0e8', fontFamily: theme.typography.regular, fontSize: 12 },
   statValue: { color: '#fff', fontFamily: theme.typography.bold, fontSize: 18, marginTop: 2 },
-  statDivider: { width: 1, height: 35, backgroundColor: theme.colors.primary[400] },
+  statDivider: { width: 1, height: 35, backgroundColor: theme.colors.balanceHero.divider },
   plannedAction: {
     height: 44,
     borderRadius: 8,

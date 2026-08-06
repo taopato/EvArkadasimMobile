@@ -22,12 +22,13 @@ const pick = (value, keys, fallback = undefined) =>
 export default function HarcamaDetayi({ navigation, route }) {
   const expenseId = route?.params?.expenseId ?? route?.params?.billId;
   const houseId = route?.params?.houseId;
+  const initialExpense = route?.params?.initialExpense || null;
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialExpense);
   const [saving, setSaving] = useState(false);
-  const [expense, setExpense] = useState(null);
+  const [expense, setExpense] = useState(initialExpense);
   const [members, setMembers] = useState([]);
   const [shares, setShares] = useState([]);
   const [editing, setEditing] = useState(false);
@@ -68,7 +69,7 @@ export default function HarcamaDetayi({ navigation, route }) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!initialExpense) setLoading(true);
     try {
       const [expenseResult, ledgerResult, memberResult] = await Promise.allSettled([
         expensesApi.getById(expenseId),
@@ -115,8 +116,11 @@ export default function HarcamaDetayi({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  }, [expenseId, houseId, hydrateForm]);
+  }, [expenseId, houseId, hydrateForm, initialExpense]);
 
+  useEffect(() => {
+    if (initialExpense) hydrateForm(initialExpense, []);
+  }, [hydrateForm, initialExpense]);
   useEffect(() => { load(); }, [load]);
 
   const toggleParticipant = (memberId) => {
@@ -221,6 +225,16 @@ export default function HarcamaDetayi({ navigation, route }) {
     members.find((member) => member.id === Number(userId))?.fullName || `Kullanıcı ${userId}`;
   const dateRaw = pick(expense, ['postDate', 'PostDate', 'kayitTarihi', 'KayitTarihi', 'createdAt', 'CreatedAt']);
   const date = dateRaw ? new Date(dateRaw) : null;
+  const personalItems = (Array.isArray(pick(expense, ['sahsiHarcamalar', 'SahsiHarcamalar'], []))
+    ? pick(expense, ['sahsiHarcamalar', 'SahsiHarcamalar'], [])
+    : [])
+    .map((item) => ({
+      userId: Number(pick(item, ['userId', 'UserId'], 0)),
+      value: Number(pick(item, ['tutar', 'Tutar'], 0)),
+      name: pick(item, ['kullaniciAdi', 'KullaniciAdi'], ''),
+    }))
+    .filter((item) => item.userId > 0 && item.value > 0);
+  const visibleNote = note && note.trim() !== title.trim() ? note : '';
 
   return (
     <View style={styles.screen}>
@@ -248,7 +262,7 @@ export default function HarcamaDetayi({ navigation, route }) {
               <Text style={styles.sectionTitle}>Harcama Bilgileri</Text>
               <InfoRow icon="person-outline" label="Ödeyen" value={payer} styles={styles} theme={theme} />
               <InfoRow icon="people-outline" label="Bölüşüm" value={`${Math.max(shares.length, 1)} kişi`} styles={styles} theme={theme} />
-              {!!note && <InfoRow icon="document-text-outline" label="Not" value={note} styles={styles} theme={theme} />}
+              {!!visibleNote && <InfoRow icon="document-text-outline" label="Not" value={visibleNote} styles={styles} theme={theme} />}
             </View>
 
             <View style={styles.card}>
@@ -261,6 +275,25 @@ export default function HarcamaDetayi({ navigation, route }) {
                 </View>
               )) : <Text style={styles.muted}>Bu harcama için paylaşım satırı bulunmuyor.</Text>}
             </View>
+
+            {personalItems.length > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Kişisel kalemler</Text>
+                <Text style={styles.sectionDescription}>Yalnızca ilgili kişinin payına eklenen tutarlar</Text>
+                {personalItems.map((item) => (
+                  <View key={`personal-detail-${item.userId}`} style={styles.shareRow}>
+                    <View style={styles.personalIcon}>
+                      <Ionicons name="person-outline" size={16} color={theme.colors.warning[700]} />
+                    </View>
+                    <View style={styles.personalBody}>
+                      <Text style={styles.shareName}>{item.name || memberName(item.userId)}</Text>
+                      <Text style={styles.personalCaption}>Kişisel harcama</Text>
+                    </View>
+                    <Text style={styles.shareValue}>{money(item.value)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
               <Ionicons name="pencil-outline" size={19} color={theme.colors.primary[700]} />
@@ -372,22 +405,26 @@ function Field({ label, styles, multiline, ...props }) {
 const makeStyles = (theme, insets) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.background },
   content: { paddingTop: insets.top + 6, paddingHorizontal: 18, paddingBottom: insets.bottom + 28 },
-  hero: { alignItems: 'center', paddingVertical: 28 },
-  heroIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.primary[600], alignItems: 'center', justifyContent: 'center' },
-  heroAmount: { color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 34, marginTop: 14 },
+  hero: { alignItems: 'center', paddingVertical: 18 },
+  heroIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.colors.primary[600], alignItems: 'center', justifyContent: 'center' },
+  heroAmount: { color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 31, marginTop: 10 },
   heroTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 17, marginTop: 6 },
   heroDate: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 12, marginTop: 4 },
-  card: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, padding: 16, marginBottom: 14 },
-  sectionTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 17, marginBottom: 10 },
-  infoRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
-  infoIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: theme.colors.primary[50], alignItems: 'center', justifyContent: 'center' },
+  card: { borderRadius: 8, borderWidth: 1, borderColor: theme.colors.neutral[200], backgroundColor: theme.colors.surface, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 10 },
+  sectionTitle: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 15, marginBottom: 6 },
+  sectionDescription: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 12, marginTop: -5, marginBottom: 7 },
+  infoRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  infoIcon: { width: 30, height: 30, borderRadius: 7, backgroundColor: theme.colors.primary[50], alignItems: 'center', justifyContent: 'center' },
   infoLabel: { flex: 1, color: theme.colors.text.secondary, fontFamily: theme.typography.medium, fontSize: 13 },
   infoValue: { maxWidth: '48%', color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 13, textAlign: 'right' },
-  shareRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.primary[100], alignItems: 'center', justifyContent: 'center' },
+  shareRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  avatar: { width: 29, height: 29, borderRadius: 15, backgroundColor: theme.colors.primary[100], alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: theme.colors.primary[700], fontFamily: theme.typography.bold },
   shareName: { flex: 1, color: theme.colors.text.primary, fontFamily: theme.typography.medium, fontSize: 14 },
   shareValue: { color: theme.colors.text.primary, fontFamily: theme.typography.bold, fontSize: 14 },
+  personalIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.warning[50], alignItems: 'center', justifyContent: 'center' },
+  personalBody: { flex: 1 },
+  personalCaption: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 11, marginTop: 2 },
   muted: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 13, paddingVertical: 8 },
   editButton: { minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.primary[300], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.surface },
   editText: { color: theme.colors.primary[700], fontFamily: theme.typography.bold, fontSize: 15 },

@@ -158,6 +158,7 @@ export default function RoomoraExpenses({ navigation }) {
               expenseId: item.id,
               houseId: data.houseId,
               houseName: data.houseName,
+              initialExpense: item._raw || item,
             })}
           />
         ))}

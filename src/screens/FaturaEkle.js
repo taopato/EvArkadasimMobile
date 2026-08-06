@@ -72,6 +72,7 @@ export default function FaturaEkle({ route, navigation }) {
   const houseId = Number(params.houseId || user?.defaultHouseId || 0);
   const isEditing = Boolean(params.isEditing && params.billId);
   const billId = Number(params.billId || 0);
+  const initialBill = params.initialBill || null;
 
   const [amount, setAmount] = useState('');
   const [billDate, setBillDate] = useState(todayISO());
@@ -81,11 +82,25 @@ export default function FaturaEkle({ route, navigation }) {
   const [members, setMembers] = useState([]);
   const [participantIds, setParticipantIds] = useState([]);
   const [responsibleUserId, setResponsibleUserId] = useState(Number(user?.id) || null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialBill);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
   const selectedType = BILL_TYPES.find((item) => item.key === billType) || BILL_TYPES[0];
+
+  useEffect(() => {
+    if (!initialBill || !isEditing) return;
+    setAmount(formatMoneyInput(String(initialBill.tutar ?? initialBill.amount ?? '')));
+    const rawDate = initialBill.postDate || initialBill.dueDate || initialBill.kayitTarihi || initialBill.createdDate;
+    if (rawDate) setBillDate(String(rawDate).slice(0, 10));
+    const rawDueDate = initialBill.dueDate || initialBill.postDate || initialBill.kayitTarihi || initialBill.createdDate;
+    if (rawDueDate) setDueDate(String(rawDueDate).slice(0, 10));
+    setBillType(categoryFromBill(initialBill));
+    setResponsibleUserId(Number(initialBill.odeyenUserId) || Number(user?.id) || null);
+    const rawNote = initialBill.note || initialBill.description || '';
+    const title = String(initialBill.tur || '').trim();
+    setNote(rawNote && rawNote !== title ? rawNote : '');
+  }, [initialBill, isEditing, user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -333,6 +348,16 @@ export default function FaturaEkle({ route, navigation }) {
               <Text style={styles.sectionMeta}>{participantIds.length} kişi</Text>
             </View>
             <View style={styles.participantWrap}>
+              <TouchableOpacity
+                style={[styles.participantChip, participantIds.length === members.length && styles.participantChipSelected]}
+                onPress={() => setParticipantIds(members.map((member) => String(member.userId)))}
+                activeOpacity={0.85}
+              >
+                {participantIds.length === members.length && <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary[600]} />}
+                <Text style={[styles.participantText, participantIds.length === members.length && styles.participantTextSelected]}>
+                  Tüm ev
+                </Text>
+              </TouchableOpacity>
               {members.map((member) => {
                 const selected = participantIds.includes(String(member.userId));
                 return (
@@ -353,7 +378,7 @@ export default function FaturaEkle({ route, navigation }) {
             <View style={styles.splitSummary}>
               <Text style={styles.splitSummaryText}>Eşit bölüşüm</Text>
               <Text style={styles.splitSummaryValue}>
-                Kişi başı {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(perPersonAmount)}
+                Yaklaşık kişi başı {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(perPersonAmount)}
               </Text>
             </View>
           </View>
