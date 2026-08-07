@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React from 'react';
-import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
+import { LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import {
   HankenGrotesk_400Regular,
   HankenGrotesk_500Medium,
@@ -71,6 +72,10 @@ import {
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Font/oturum kontrolü bitene kadar markalı native splash ekranı ekranda kalsın;
+// çıplak bir spinner/blank frame hiç görünmesin.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -89,15 +94,6 @@ LogBox.ignoreLogs([
   'AsyncStorage has been extracted from react-native core',
   'Require cycle:',
 ]);
-
-function LoadingScreen() {
-  const { theme } = useTheme();
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
-      <ActivityIndicator size="large" color={theme.colors.primary[600]} />
-    </View>
-  );
-}
 
 const linking = {
   prefixes: [
@@ -169,8 +165,16 @@ function ThemedNavigator() {
   const { user, loading } = useAuth();
   const colors = theme.colors;
 
+  React.useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [loading]);
+
   if (loading) {
-    return <LoadingScreen />;
+    // Oturum kontrolü sürerken hiçbir şey render etme; native splash ekranı
+    // (App.js başında preventAutoHideAsync ile açık tutuluyor) ekranda kalır.
+    return null;
   }
 
   return (

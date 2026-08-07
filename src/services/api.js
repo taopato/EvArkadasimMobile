@@ -275,10 +275,8 @@ export const authApi = {
 
 // ---------------- HOUSES ----------------
 export const houseApi = {
-  getAll: () => api.get('/Houses'),
   create: (name, creatorUserId) => api.post('/Houses', { name, creatorUserId }),
   getById: (id) => api.get(`/Houses/${id}`),
-  addMember: (houseId, userId) => api.post(`/Houses/${houseId}/members`, { houseId, userId }),
   removeMember: (houseId, userId) => api.delete(`/Houses/${houseId}/members/${userId}`),
   sendInvitation: (houseId, email) => api.post(`/Houses/${houseId}/invitations`, { email }),
   acceptInvitation: (userIdOrInvitationCode, invitationCode) => {
@@ -299,7 +297,6 @@ export const houseApi = {
 
   // Debts
   getUserDebts: (userId, houseId) => api.get(`/Houses/GetUserDebts/${userId}/${houseId}`),
-  getHouseDebts: (houseId) => api.get(`/Houses/GetUserDebts/${houseId}`),
   getUserDebtBetween: (houseId, userAId, userBId) =>
     api.get(`/Houses/GetUserDebtBetween/${houseId}?userAId=${userAId}&userBId=${userBId}`),
 
@@ -413,21 +410,10 @@ export const houseNotesApi = {
   createItem: (sectionId, content) => api.post(`/HouseNotes/sections/${sectionId}/items`, { content }),
   completeItem: (itemId) => api.post(`/HouseNotes/items/${itemId}/complete`),
   deleteItem: (itemId) => api.delete(`/HouseNotes/items/${itemId}`),
+  updateSection: (sectionId, title) => api.put(`/HouseNotes/sections/${sectionId}`, { title }),
   deleteSection: (sectionId) => api.delete(`/HouseNotes/sections/${sectionId}`),
 };
 
-
-// -------- GetUserDebts (Expenses Controller) için güvenli helper --------
-export const getUserDebtsSafe = async (userId, houseId) => {
-  const uid = Number(userId);
-  const hid = Number(houseId);
-  try {
-    return await api.get(`/Expenses/GetUserDebts/${uid}/${hid}`);
-  } catch (e1) {
-    if (e1?.response?.status !== 404) throw e1;
-    return await api.get('/Expenses/GetUserDebts', { params: { userId: uid, houseId: hid } });
-  }
-};
 
 // ---------------- CHARGES (Planlı Giderler) - Kaldırıldı, sadece Expenses API kullanılacak ----------------
 // chargesApi kaldırıldı - sadece expensesApi kullanılacak

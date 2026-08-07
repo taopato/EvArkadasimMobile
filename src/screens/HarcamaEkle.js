@@ -363,7 +363,7 @@ export default function AddExpenseScreen({ navigation, route }) {
       >
         <PageHeader title="Harcama Ekle" onBack={() => navigation.goBack()} />
 
-        <MoneyInput label="Tutar" value={amount} onChangeText={(text) => setAmount(formatMoneyInput(text))} />
+        <MoneyInput label="HARCAMA TUTARI" value={amount} onChangeText={(text) => setAmount(formatMoneyInput(text))} />
 
         <View style={styles.quickSection}>
           <View style={styles.quickHeader}>

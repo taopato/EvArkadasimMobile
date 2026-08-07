@@ -319,7 +319,7 @@ export default function HarcamaDetayi({ navigation, route }) {
           </>
         ) : (
           <View style={styles.editContent}>
-            <MoneyInput label="Toplam tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
+            <MoneyInput label="HARCAMA TUTARI" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
             <View style={styles.formCard}>
             <Field label="Harcama adı" value={title} onChangeText={setTitle} styles={styles} theme={theme} />
             <Text style={styles.fieldLabel}>Ödemeyi yapan</Text>

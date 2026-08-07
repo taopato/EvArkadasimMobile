@@ -16,9 +16,9 @@ export default function MoneyInput({
   const [focused, setFocused] = useState(false);
 
   return (
-    <View style={[styles.container, focused && styles.containerFocused]}>
+    <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.row}>
+      <View style={[styles.row, focused && styles.rowFocused]}>
         <Text style={styles.currency}>₺</Text>
         <TextInput
           testID={testID}
@@ -44,47 +44,48 @@ export default function MoneyInput({
 
 const makeStyles = (theme) => StyleSheet.create({
   container: {
-    minHeight: 94,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.neutral[200],
-    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
     marginBottom: 14,
-    paddingHorizontal: 16,
-    paddingTop: 13,
-    paddingBottom: 10,
-  },
-  containerFocused: {
-    borderColor: theme.colors.primary[500],
-    borderWidth: 2,
-    paddingHorizontal: 15,
-    paddingTop: 12,
-    paddingBottom: 9,
+    paddingVertical: 8,
   },
   label: {
-    color: theme.colors.primary[700],
-    fontFamily: theme.typography.bold,
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.semibold,
     fontSize: 11,
+    letterSpacing: 0,
     textTransform: 'uppercase',
+    textAlign: 'center',
+    marginBottom: 6,
   },
   row: {
-    minHeight: 52,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.neutral[200],
+    paddingBottom: 6,
+    minWidth: 160,
+  },
+  rowFocused: {
     borderBottomWidth: 2,
-    borderBottomColor: theme.colors.primary[100],
+    borderBottomColor: theme.colors.primary[500],
   },
   currency: {
-    color: theme.colors.text.primary,
-    fontFamily: theme.typography.bold,
-    fontSize: 25,
-    marginRight: 7,
+    color: theme.colors.text.secondary,
+    fontFamily: theme.typography.medium,
+    fontSize: 20,
+    marginRight: 4,
+    marginBottom: 6,
   },
   input: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 40,
     color: theme.colors.text.primary,
     fontFamily: theme.typography.extrabold,
-    fontSize: 32,
-    paddingVertical: 3,
+    fontSize: 44,
+    lineHeight: 52,
+    textAlign: 'left',
+    paddingVertical: 0,
   },
 });

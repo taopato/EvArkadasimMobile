@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeProvider';
-import { shadow } from '../shadow';
+import { shadow, hexToRgba } from '../shadow';
 
 export const money = (value) =>
   new Intl.NumberFormat('tr-TR', {
@@ -61,9 +61,38 @@ export function PageHeader({
   onBack,
   rightIcon,
   onRightPress,
+  centered = false,
+  menuIcon,
+  onMenuPress,
 }) {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
+
+  if (centered) {
+    return (
+      <View style={styles.header}>
+        <View style={styles.headerSide}>
+          {onBack ? (
+            <TouchableOpacity style={styles.iconButton} onPress={onBack} activeOpacity={0.82}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, styles.headerTitleCentered]} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={[styles.headerSubtitle, styles.headerTitleCentered]} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        <View style={[styles.headerSide, styles.headerSideEnd]}>
+          {menuIcon ? (
+            <TouchableOpacity style={styles.iconButton} onPress={onMenuPress} activeOpacity={0.82}>
+              <Ionicons name={menuIcon} size={23} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.header}>
       <View style={styles.headerLeading}>
@@ -240,7 +269,7 @@ export function PrimaryButton({ label, icon = 'add', onPress, disabled, danger =
       disabled={disabled}
       activeOpacity={0.86}
     >
-      <Ionicons name={icon} size={20} color="#fff" />
+      <Ionicons name={icon} size={20} color={theme.colors.text.onPrimary} />
       <Text style={styles.primaryButtonText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -301,6 +330,10 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   headerLeading: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerText: { flex: 1 },
+  headerSide: { width: 44, alignItems: 'flex-start', justifyContent: 'center' },
+  headerSideEnd: { alignItems: 'flex-end' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitleCentered: { textAlign: 'center' },
   headerTitle: {
     color: theme.colors.text.primary,
     fontFamily: theme.typography.extrabold,
@@ -361,7 +394,7 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   pendingText: { color: theme.colors.balanceHero.badgeText, fontFamily: theme.typography.semibold, fontSize: 11 },
   balanceValue: {
-    color: '#fff',
+    color: theme.colors.text.onPrimary,
     fontFamily: theme.typography.extrabold,
     fontSize: 36,
     lineHeight: 44,
@@ -427,7 +460,7 @@ const makeStyles = (theme) => StyleSheet.create({
     fontFamily: theme.typography.semibold,
     fontSize: 13,
   },
-  pillTextActive: { color: '#fff' },
+  pillTextActive: { color: theme.colors.text.onPrimary },
   listRow: {
     minHeight: 78,
     borderRadius: theme.radius.sm,
@@ -478,10 +511,10 @@ const makeStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: theme.colors.primary[600],
-    ...shadow(2, 'rgba(47,111,168,0.22)'),
+    ...shadow(2, hexToRgba(theme.colors.primary[600], 0.22)),
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.text.onPrimary,
     fontFamily: theme.typography.bold,
     fontSize: 15,
   },

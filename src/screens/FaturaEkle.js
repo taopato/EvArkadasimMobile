@@ -273,7 +273,7 @@ export default function FaturaEkle({ route, navigation }) {
           keyboardOpeningTime={0}
         >
           <MoneyInput
-            label="Fatura tutarı"
+            label="FATURA TUTARI"
             value={amount}
             onChangeText={(value) => setAmount(formatMoneyInput(value))}
             inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
@@ -453,18 +453,6 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: theme.colors.text.secondary, marginTop: 12 },
   content: { padding: 16, paddingBottom: insets.bottom + 36 },
-  amountCard: {
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 14,
-    backgroundColor: theme.colors.primary[50],
-    borderWidth: 1,
-    borderColor: theme.colors.primary[200],
-  },
-  amountLabel: { color: theme.colors.primary[700], fontSize: 11, fontWeight: '800' },
-  amountInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  currency: { color: theme.colors.primary[700], fontSize: 28, fontWeight: '700', marginRight: 7 },
-  amountInput: { flex: 1, color: theme.colors.text.primary, fontSize: 34, fontWeight: '800', paddingVertical: 4 },
   sectionBlock: { marginBottom: 14 },
   sectionTitle: { color: theme.colors.text.primary, fontSize: 14, fontWeight: '800', marginBottom: 11 },
   sectionTitleInline: { marginBottom: 0 },

@@ -270,7 +270,7 @@ export default function DuzenliGiderEkle({ navigation, route }) {
         </View>
 
         <MoneyInput
-          label={mode === 'installment' ? 'Kalan toplam tutar' : 'Aylık tutar'}
+          label={mode === 'installment' ? 'KALAN TOPLAM TUTAR' : 'AYLIK TUTAR'}
           value={mode === 'installment' ? totalAmount : fixedAmount}
           onChangeText={(text) => (mode === 'installment'
             ? setTotalAmount(formatMoneyInput(text))
@@ -520,18 +520,6 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   },
   segmentText: { color: theme.colors.text.secondary, fontSize: 13, fontWeight: '700' },
   segmentTextActive: { color: theme.colors.primary[700], fontWeight: '800' },
-  amountCard: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.primary[200],
-    backgroundColor: theme.colors.primary[50],
-    padding: 16,
-    marginBottom: 14,
-  },
-  amountLabel: { color: theme.colors.primary[700], fontSize: 11, fontWeight: '800' },
-  amountRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  amountCurrency: { color: theme.colors.primary[700], fontSize: 28, fontWeight: '700', marginRight: 7 },
-  amountInput: { flex: 1, color: theme.colors.text.primary, fontSize: 34, fontWeight: '800', paddingVertical: 4 },
   nameInputRow: {
     minHeight: 50,
     borderWidth: 1,

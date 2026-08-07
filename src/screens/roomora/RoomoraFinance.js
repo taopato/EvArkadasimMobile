@@ -466,6 +466,12 @@ export function PaymentReportScreen({ route, navigation }) {
   return (
     <Screen>
       <PageHeader title="Ödeme Bildir" subtitle="Kısmi veya tam ödeme yapabilirsin" onBack={() => navigation.goBack()} />
+      <MoneyInput label="ÖDEME TUTARI" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
+      {maxAmount > 0 && numericAmount !== maxAmount ? (
+        <TouchableOpacity style={styles.fullPaymentButton} onPress={() => setAmount(formatMoneyInput(String(maxAmount)))}>
+          <Text style={styles.fullPaymentText}>Borcun tamamını kullan: {money(maxAmount)}</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={styles.balanceOverview}>
         <View style={styles.balanceOverviewItem}>
           <Text style={styles.balanceOverviewLabel}>Toplam borcun</Text>
@@ -495,12 +501,6 @@ export function PaymentReportScreen({ route, navigation }) {
       {maxAmount > 0 && <SummaryHero title="Seçili açık borç" value={maxAmount} subtitle={`Ödeme sonrası kalan: ${money(Math.max(0, maxAmount - numericAmount))}`} tone="surface" />}
       <Text style={styles.fieldLabel}>Ödeme yapılacak kişi</Text>
       <View style={styles.pills}>{members.map((member) => <Pill key={String(member.id)} label={member.name} active={member.id === receiverId} onPress={() => setReceiverId(member.id)} />)}</View>
-      <MoneyInput label="Ödediğin tutar" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
-      {maxAmount > 0 && numericAmount !== maxAmount ? (
-        <TouchableOpacity style={styles.fullPaymentButton} onPress={() => setAmount(formatMoneyInput(String(maxAmount)))}>
-          <Text style={styles.fullPaymentText}>Borcun tamamını kullan: {money(maxAmount)}</Text>
-        </TouchableOpacity>
-      ) : null}
       <Text style={styles.fieldLabel}>Açıklama</Text>
       <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Örn. Temmuz ortak gider ödemesi" placeholderTextColor={theme.colors.text.disabled} />
       <PrimaryButton label={saving ? 'Gönderiliyor...' : 'Ödemeyi Bildir'} icon="paper-plane-outline" onPress={submit} disabled={saving || !receiverId || numericAmount <= 0 || maxAmount <= 0} />
