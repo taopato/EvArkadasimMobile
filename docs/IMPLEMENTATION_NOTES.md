@@ -56,8 +56,8 @@
 - Native sessions use secure refresh-token storage and silent token rotation,
   so reopening Roomora does not require signing in again. Explicit logout
   revokes the refresh token.
-- Mobile environments use `api.takosware.com` for production and
-  `testapi.takosware.com` for preview/development.
+- Mobile environments use `api-roomora.takosware.com` for production and
+  `testapi-roomora.takosware.com` for preview/development.
 - The app icon was regenerated from the Roomora mark with corrected optical
   scale; the login screen uses the same canonical asset.
 

@@ -21,13 +21,13 @@ Suggested review flow:
 5. Open Settings -> Profile Information to update optional profile fields.
 6. Open Settings -> Delete My Account to view the permanent account deletion flow.
 
-Receipt scanning is optional. Camera/photo permission is requested only after the reviewer selects receipt scanning or profile photo upload. No purchase or subscription is required. The production backend is available at `https://api.evarkadasim.co`.
+Receipt scanning is optional. Camera/photo permission is requested only after the reviewer selects receipt scanning or profile photo upload. No purchase or subscription is required. The production backend is available at `https://api-roomora.takosware.com`.
 
-Privacy policy: `https://api.evarkadasim.co/privacy.html`
+Privacy policy: `https://api-roomora.takosware.com/privacy.html`
 
-Support: `https://api.evarkadasim.co/support.html`
+Support: `https://api-roomora.takosware.com/support.html`
 
-External account deletion: `https://api.evarkadasim.co/account-deletion.html`
+External account deletion: `https://api-roomora.takosware.com/account-deletion.html`
 
 ## Google Play App Access
 

@@ -11,7 +11,7 @@
       "channel": "development",
       "environment": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://testapi.takosware.com"
+        "EXPO_PUBLIC_API_URL": "https://testapi-roomora.takosware.com"
       }
     },
     "preview": {
@@ -19,7 +19,7 @@
       "channel": "preview",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://testapi.takosware.com"
+        "EXPO_PUBLIC_API_URL": "https://testapi-roomora.takosware.com"
       },
       "android": {
         "buildType": "apk"
@@ -30,7 +30,7 @@
       "channel": "production",
       "environment": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.takosware.com"
+        "EXPO_PUBLIC_API_URL": "https://api-roomora.takosware.com"
       },
       "android": {
         "buildType": "app-bundle"

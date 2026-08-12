@@ -14,8 +14,8 @@ Last audited: 2026-07-15
 - [x] Privacy, account deletion, and support pages exist in the backend project
 - [x] Default palette for a fresh install is Sky Blue
 - [x] Domain tests, Expo Doctor, web export, and critical web flow pass locally
-- [ ] BLOCKER: restore `https://api.evarkadasim.co` and verify TLS from an external network
-- [ ] BLOCKER: configure production SMTP so verification, password reset, invitation, and deletion emails work
+- [x] `https://api-roomora.takosware.com` and public legal pages are available over TLS from an external network
+- [x] Production SMTP is configured for verification, password reset, invitation, and deletion emails
 - [ ] BLOCKER: configure production OCR secret or disable receipt OCR before review
 - [ ] Upgrade the build machine from Node `20.18.1` to a supported Node LTS (`>=20.19.4`; Node 22 LTS recommended)
 - [ ] Complete real-device tests on at least one current iPhone and two Android screen sizes
@@ -24,10 +24,10 @@ The app must not be submitted while the production API or review account is unav
 
 ## Production URLs
 
-- Privacy policy: `https://api.evarkadasim.co/privacy.html`
-- Account deletion: `https://api.evarkadasim.co/account-deletion.html`
-- Support: `https://api.evarkadasim.co/support.html`
-- API: `https://api.evarkadasim.co/api`
+- Privacy policy: `https://api-roomora.takosware.com/privacy.html`
+- Account deletion: `https://api-roomora.takosware.com/account-deletion.html`
+- Support: `https://api-roomora.takosware.com/support.html`
+- API: `https://api-roomora.takosware.com/api`
 
 All four URLs must return a valid HTTPS response without VPN, local DNS, or a self-signed certificate.
 
