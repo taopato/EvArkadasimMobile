@@ -11,6 +11,7 @@ import {
 import { formatMoneyInput, parseMoneyInput } from '../src/shared/format/money.js';
 import { normalizeExpenseCategoryKey } from '../src/constants/ExpenseEnums.js';
 import { getTokenUserId, isTokenExpired, normalizeAuthUser } from '../src/shared/auth/session.js';
+import { getPaymentOutcome } from '../src/shared/finance/paymentOutcome.js';
 
 assert.equal(getTurkishMobileDigits('0554 361 75 75'), '5543617575');
 assert.equal(getTurkishMobileDigits('+90 (554) 361 75 75'), '5543617575');
@@ -51,5 +52,26 @@ assert.deepEqual(normalizeAuthUser({ email: 'test@example.com' }, validToken), {
 assert.equal(normalizeAuthUser({ id: 7 }, validToken).id, 7);
 assert.equal(isTokenExpired(validToken), false);
 assert.equal(isTokenExpired(makeToken({ exp: 1 })), true);
+
+assert.deepEqual(getPaymentOutcome(3000, 2500), {
+  remainingDebt: 500,
+  resultingCredit: 0,
+  closesDebt: false,
+});
+assert.deepEqual(getPaymentOutcome(3000, 3000), {
+  remainingDebt: 0,
+  resultingCredit: 0,
+  closesDebt: true,
+});
+assert.deepEqual(getPaymentOutcome(3000, 3500), {
+  remainingDebt: 0,
+  resultingCredit: 500,
+  closesDebt: true,
+});
+assert.deepEqual(getPaymentOutcome(0, 500), {
+  remainingDebt: 0,
+  resultingCredit: 500,
+  closesDebt: false,
+});
 
 console.log('Roomora domain tests passed.');
