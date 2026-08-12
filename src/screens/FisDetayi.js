@@ -1359,15 +1359,6 @@ function FisDetayiInner({ route, navigation }) {
           ) : null}
         </View>
 
-        {receipt?.rawOcrText ? (
-          <View style={styles.section} onTouchStart={deactivateImageInteraction}>
-            <Text style={styles.sectionTitle}>OCR sonucu</Text>
-            <View style={styles.rawCard}>
-              <Text style={styles.rawText}>{receipt.rawOcrText}</Text>
-            </View>
-          </View>
-        ) : null}
-
         {!isConverted ? (
           <>
             <View style={styles.section} onTouchStart={deactivateImageInteraction}>

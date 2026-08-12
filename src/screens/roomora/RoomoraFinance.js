@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { houseApi, paymentsApi } from '../../services/api';
 import { formatMoneyInput, parseMoneyInput } from '../../shared/format/money';
+import { getPaymentOutcome } from '../../shared/finance/paymentOutcome';
 import { resolveMediaUrl } from '../../shared/config/env';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import {
@@ -28,6 +29,7 @@ import {
   SectionHeader,
   money,
 } from '../../shared/ui/roomora/CanonicalUI';
+import MoneyInput from '../../shared/ui/roomora/MoneyInput';
 
 const unwrap = (response) => response?.data?.data ?? response?.data ?? {};
 const arrayOf = (value) => (Array.isArray(value) ? value : []);
@@ -445,14 +447,24 @@ export function PaymentReportScreen({ route, navigation }) {
   }, [houseId, receiverId, user?.id]);
   const selectedDebt = debtData.debts.find((item) => item.id === receiverId);
   const numericAmount = parseMoneyInput(amount) || 0;
-  const maxAmount = numberOf(route?.params?.maxAmount) || numberOf(selectedDebt?.amount);
+  const openDebtAmount = numberOf(selectedDebt?.amount)
+    || (numberOf(route?.params?.toUserId) === receiverId ? numberOf(route?.params?.maxAmount) : 0);
+  const { remainingDebt, resultingCredit } = getPaymentOutcome(openDebtAmount, numericAmount);
+  const paymentResult = numericAmount <= 0
+    ? 'Tutarı yazdığında ödeme sonrası bakiye burada görünür.'
+    : openDebtAmount <= 0
+      ? `Onaylandığında ${money(numericAmount)} alacağın oluşur.`
+      : remainingDebt > 0
+        ? `Onaylandığında kalan borcun ${money(remainingDebt)} olur.`
+        : resultingCredit > 0
+          ? `Borcun kapanır ve ${money(resultingCredit)} alacağın oluşur.`
+          : 'Onaylandığında bu kişiye olan borcun tamamen kapanır.';
   const selectDebt = (item) => {
     setReceiverId(item.id);
     setAmount(formatMoneyInput(String(item.amount)));
   };
   const submit = async () => {
     if (!receiverId || numericAmount <= 0) return Alert.alert('Eksik bilgi', 'Kişi ve ödeme tutarı gereklidir.');
-    if (maxAmount && numericAmount > maxAmount) return Alert.alert('Tutar çok yüksek', `En fazla ${money(maxAmount)} bildirebilirsin.`);
     setSaving(true);
     try {
       await paymentsApi.create({ houseId, borcluUserId: user.id, alacakliUserId: receiverId, tutar: numericAmount, note, paymentMethod: 'Cash' });
@@ -463,7 +475,13 @@ export function PaymentReportScreen({ route, navigation }) {
   };
   return (
     <Screen>
-      <PageHeader title="Ödeme Bildir" subtitle="Kısmi veya tam ödeme yapabilirsin" onBack={() => navigation.goBack()} />
+      <PageHeader title="Ödeme Bildir" subtitle="Kısmi, tam veya serbest ödeme yap" onBack={() => navigation.goBack()} />
+      <MoneyInput label="ÖDEME TUTARI" value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} />
+      {openDebtAmount > 0 && numericAmount !== openDebtAmount ? (
+        <TouchableOpacity style={styles.fullPaymentButton} onPress={() => setAmount(formatMoneyInput(String(openDebtAmount)))}>
+          <Text style={styles.fullPaymentText}>Tüm borcu öde: {money(openDebtAmount)}</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={styles.balanceOverview}>
         <View style={styles.balanceOverviewItem}>
           <Text style={styles.balanceOverviewLabel}>Toplam borcun</Text>
@@ -490,16 +508,20 @@ export function PaymentReportScreen({ route, navigation }) {
           ))}
         </>
       )}
-      {maxAmount > 0 && <SummaryHero title="Seçili açık borç" value={maxAmount} subtitle={`Ödeme sonrası kalan: ${money(Math.max(0, maxAmount - numericAmount))}`} tone="surface" />}
       <Text style={styles.fieldLabel}>Ödeme yapılacak kişi</Text>
       <View style={styles.pills}>{members.map((member) => <Pill key={String(member.id)} label={member.name} active={member.id === receiverId} onPress={() => setReceiverId(member.id)} />)}</View>
-      <Text style={styles.fieldLabel}>Ödediğin tutar</Text>
-      <View style={styles.amountInputWrap}><Text style={styles.currency}>₺</Text><TextInput style={styles.amountInput} value={amount} onChangeText={(value) => setAmount(formatMoneyInput(value))} keyboardType="decimal-pad" placeholder="0,00" placeholderTextColor={theme.colors.text.disabled} /></View>
-      {maxAmount > 0 && numericAmount !== maxAmount ? (
-        <TouchableOpacity style={styles.fullPaymentButton} onPress={() => setAmount(formatMoneyInput(String(maxAmount)))}>
-          <Text style={styles.fullPaymentText}>Borcun tamamını kullan: {money(maxAmount)}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {!!receiverId && (
+        <View style={styles.paymentResultCard}>
+          <View style={styles.paymentResultIcon}>
+            <Ionicons name="swap-horizontal" size={20} color={theme.colors.primary[700]} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.paymentResultLabel}>Ödeme sonrası</Text>
+            <Text style={styles.paymentResultText}>{paymentResult}</Text>
+            {openDebtAmount > 0 && <Text style={styles.paymentResultDebt}>Mevcut borcun: {money(openDebtAmount)}</Text>}
+          </View>
+        </View>
+      )}
       <Text style={styles.fieldLabel}>Açıklama</Text>
       <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Örn. Temmuz ortak gider ödemesi" placeholderTextColor={theme.colors.text.disabled} />
       <PrimaryButton label={saving ? 'Gönderiliyor...' : 'Ödemeyi Bildir'} icon="paper-plane-outline" onPress={submit} disabled={saving || !receiverId || numericAmount <= 0} />
@@ -548,4 +570,9 @@ const createStyles = (theme) => StyleSheet.create({
   amountInput: { flex: 1, color: theme.colors.text.primary, fontFamily: theme.typography.extrabold, fontSize: 28, paddingHorizontal: 10 },
   fullPaymentButton: { minHeight: 40, justifyContent: 'center', alignItems: 'flex-end' },
   fullPaymentText: { color: theme.colors.primary[700], fontFamily: theme.typography.semibold, fontSize: 13 },
+  paymentResultCard: { flexDirection: 'row', gap: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.primary[200], backgroundColor: theme.colors.primary[50], padding: 14, marginTop: 2 },
+  paymentResultIcon: { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface },
+  paymentResultLabel: { color: theme.colors.primary[700], fontFamily: theme.typography.bold, fontSize: 12 },
+  paymentResultText: { color: theme.colors.text.primary, fontFamily: theme.typography.semibold, fontSize: 14, marginTop: 3, lineHeight: 20 },
+  paymentResultDebt: { color: theme.colors.text.secondary, fontFamily: theme.typography.regular, fontSize: 12, marginTop: 5 },
 });

@@ -18,6 +18,7 @@ import {
   ActionTile,
   BalanceCard,
   EmptyState,
+  ErrorState,
   ListRow,
   LoadingState,
   PageHeader,
@@ -45,6 +46,7 @@ export default function RoomoraHome({ navigation }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const data = useRoomoraDashboard(user);
+  const screenError = data.errors?.expenses || data.errors?.debt;
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
   const firstName = String(user?.fullName || 'Kullanıcı').trim().split(/\s+/)[0];
   const recent = data.expenses.slice(0, 4);
@@ -116,6 +118,8 @@ export default function RoomoraHome({ navigation }) {
 
         {data.loading ? (
           <LoadingState label="Ev özeti hazırlanıyor..." />
+        ) : screenError ? (
+          <ErrorState description={screenError} onRetry={data.retry} />
         ) : !data.houseId ? (
           <EmptyState
             icon="home-outline"

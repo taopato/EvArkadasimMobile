@@ -1,5 +1,15 @@
 import { Platform } from 'react-native';
 
+// Bir hex rengi (#rrggbb) verilen alpha ile rgba() string'ine çevirir.
+export const hexToRgba = (hex, alpha = 1) => {
+  const clean = String(hex).replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const r = parseInt(full.substring(0, 2), 16);
+  const g = parseInt(full.substring(2, 4), 16);
+  const b = parseInt(full.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 // Cross-platform shadow helper
 // level: 0 (none), 1 (small), 2 (medium), 3 (large)
 export const shadow = (level = 1, color = 'rgba(0,0,0,0.2)') => {

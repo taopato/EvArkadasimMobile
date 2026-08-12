@@ -3,6 +3,8 @@ import React, { createContext, useCallback, useContext, useState, useEffect, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import eventBus from '../shared/events/bus';
 import { isTokenExpired, normalizeAuthUser } from '../shared/auth/session';
+import { sessionStore } from '../shared/auth/sessionStore';
+import { authApi } from '../services/api';
 
 const AuthContext = createContext();
 const favoriteHouseStorageKey = (userId) => `roomora:favorite-house:${userId}`;
@@ -48,28 +50,44 @@ export const AuthProvider = ({ children }) => {
     const onUnauthorized = () => {
       applySession(null, null);
     };
+    const onRefreshed = ({ token: nextToken, user: nextUser }) => {
+      const mergedUser = {
+        ...(userRef.current || {}),
+        ...(nextUser || {}),
+      };
+      applySession(normalizeAuthUser(mergedUser, nextToken), nextToken);
+    };
     eventBus.on('auth:unauthorized', onUnauthorized);
-    return () => eventBus.off('auth:unauthorized', onUnauthorized);
+    eventBus.on('auth:refreshed', onRefreshed);
+    return () => {
+      eventBus.off('auth:unauthorized', onUnauthorized);
+      eventBus.off('auth:refreshed', onRefreshed);
+    };
   }, [applySession]);
 
   const checkToken = useCallback(async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('authToken');
+      let storedToken = await sessionStore.getAccessToken();
       const storedUser = await AsyncStorage.getItem('user');
       
       if (storedToken && storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
         if (isTokenExpired(storedToken)) {
-          await AsyncStorage.removeItem('authToken');
-          await AsyncStorage.removeItem('user');
-          applySession(null, null);
-          return;
+          try {
+            storedToken = await authApi.refreshSession();
+          } catch {
+            await sessionStore.clearTokens();
+            await AsyncStorage.removeItem('user');
+            applySession(null, null);
+            return;
+          }
         }
 
         try {
           const normalizedUser = normalizeAuthUser(JSON.parse(storedUser), storedToken);
           const userData = await restoreFavoriteHouse(normalizedUser);
           if (!userData?.id) {
-            await AsyncStorage.multiRemove(['authToken', 'user']);
+            await sessionStore.clearTokens();
+            await AsyncStorage.removeItem('user');
             applySession(null, null);
             return;
           }
@@ -78,13 +96,14 @@ export const AuthProvider = ({ children }) => {
         } catch (parseError) {
           console.error('Kullanıcı verisi parse hatası:', parseError);
           // Geçersiz veri varsa temizle
-          await AsyncStorage.multiRemove(['authToken', 'user']);
+          await sessionStore.clearTokens();
+          await AsyncStorage.removeItem('user');
           applySession(null, null);
         }
       } else if (!storedToken && storedUser) {
         await AsyncStorage.removeItem('user');
       } else if (storedToken && !storedUser) {
-        await AsyncStorage.removeItem('authToken');
+        await sessionStore.clearTokens();
       }
     } catch (error) {
       console.error('Token kontrolü hatası:', error);
@@ -97,7 +116,7 @@ export const AuthProvider = ({ children }) => {
     checkToken();
   }, [checkToken]);
 
-  const login = useCallback(async (userData, authToken) => {
+  const login = useCallback(async (userData, authToken, refreshToken) => {
     try {
       if (!authToken || isTokenExpired(authToken)) {
         throw new Error('Geçersiz veya süresi dolmuş oturum belirteci.');
@@ -108,7 +127,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Oturum yanıtında kullanıcı kimliği bulunamadı.');
       }
 
-      await AsyncStorage.setItem('authToken', authToken);
+      await sessionStore.setTokens(authToken, refreshToken);
       await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
 
       applySession(normalizedUser, authToken);
@@ -155,8 +174,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
-      // Token ve kullanıcı bilgilerini temizle
-      await AsyncStorage.removeItem('authToken');
+      await authApi.logout().catch(() => {});
+      await sessionStore.clearTokens();
       await AsyncStorage.removeItem('user');
       
       applySession(null, null);

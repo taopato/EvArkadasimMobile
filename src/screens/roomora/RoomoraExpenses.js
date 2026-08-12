@@ -15,6 +15,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import useRoomoraDashboard from '../../hooks/useRoomoraDashboard';
 import {
   EmptyState,
+  ErrorState,
   ListRow,
   LoadingState,
   PageHeader,
@@ -38,6 +39,7 @@ export default function RoomoraExpenses({ navigation }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const data = useRoomoraDashboard(user);
+  const screenError = data.errors?.expenses;
   const [filter, setFilter] = useState('all');
   const [period, setPeriod] = useState('month');
   const [search, setSearch] = useState('');
@@ -84,7 +86,7 @@ export default function RoomoraExpenses({ navigation }) {
           <Text style={styles.totalLabel}>Bu ay görüntülenen gider</Text>
           <View style={styles.totalRow}>
             <View>
-              <Text style={styles.totalValue}>{money(total)}</Text>
+          <Text style={styles.totalValue}>{screenError ? '—' : money(total)}</Text>
               <Text style={styles.totalSub}>{items.length} işlem</Text>
             </View>
             <View style={styles.totalIcon}>
@@ -135,6 +137,8 @@ export default function RoomoraExpenses({ navigation }) {
 
         {data.loading ? (
           <LoadingState label="Giderler yükleniyor..." />
+        ) : screenError ? (
+          <ErrorState description={screenError} onRetry={data.retry} />
         ) : items.length === 0 ? (
           <EmptyState
             icon="wallet-outline"
@@ -154,6 +158,7 @@ export default function RoomoraExpenses({ navigation }) {
               expenseId: item.id,
               houseId: data.houseId,
               houseName: data.houseName,
+              initialExpense: item._raw || item,
             })}
           />
         ))}

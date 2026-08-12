@@ -12,14 +12,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { expensesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { expensesApi, houseApi } from '../services/api';
 import {
   getCategoryDisplayName,
   getCategoryIconName,
   normalizeExpenseCategoryKey,
 } from '../constants/ExpenseEnums';
 import { useTheme } from '../shared/theme/ThemeProvider';
-import { shadow } from '../shared/ui/shadow';
 import Toast from '../components/Toast';
 
 const formatAmount = (amount) => new Intl.NumberFormat('tr-TR', {
@@ -60,12 +60,14 @@ const DetailRow = ({ icon, label, value, styles, theme, last }) => (
 );
 
 export default function FaturaDetayi({ route, navigation }) {
-  const { billId, houseId, houseName } = route?.params || {};
+  const { billId, houseId, houseName, initialBill = null } = route?.params || {};
+  const { user } = useAuth();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(theme, insets), [theme, insets]);
-  const [bill, setBill] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [bill, setBill] = useState(initialBill);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(!initialBill);
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -76,11 +78,24 @@ export default function FaturaDetayi({ route, navigation }) {
       setLoading(false);
       return;
     }
-    if (!silent) setLoading(true);
+    if (!silent && !initialBill) setLoading(true);
     try {
       const response = await expensesApi.getById(billId);
       const data = response?.data?.data ?? response?.data;
       setBill(data || null);
+      const resolvedHouseId = Number(data?.houseId || houseId || 0);
+      if (resolvedHouseId) {
+        try {
+          const memberResponse = await houseApi.getMembers(resolvedHouseId);
+          const rawMembers = memberResponse?.data?.data ?? memberResponse?.data ?? [];
+          setMembers((Array.isArray(rawMembers) ? rawMembers : []).map((member) => ({
+            id: Number(member.userId ?? member.user?.id ?? member.id),
+            name: member.fullName ?? member.name ?? member.user?.fullName ?? 'Ev üyesi',
+          })).filter((member) => member.id > 0));
+        } catch {
+          setMembers([]);
+        }
+      }
     } catch (error) {
       setToast({
         visible: true,
@@ -91,7 +106,7 @@ export default function FaturaDetayi({ route, navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [billId]);
+  }, [billId, houseId, initialBill]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -165,9 +180,20 @@ export default function FaturaDetayi({ route, navigation }) {
   const category = inferCategory(bill);
   const title = getCategoryDisplayName(category);
   const icon = getCategoryIconName(category);
-  const billDate = bill.dueDate || bill.postDate || bill.kayitTarihi || bill.createdDate;
+  const billDate = bill.postDate || bill.kayitTarihi || bill.createdDate;
+  const dueDate = bill.dueDate || billDate;
   const note = bill.note || bill.description;
   const isGenericNote = !note || String(note).trim() === String(bill.tur || '').trim();
+  const shares = (Array.isArray(bill.shares) ? bill.shares : [])
+    .map((share) => ({
+      userId: Number(share.userId ?? share.UserId),
+      amount: Number(share.paylasimTutar ?? share.PaylasimTutar ?? 0),
+    }))
+    .filter((share) => share.userId > 0);
+  const payerId = Number(bill.odeyenUserId || 0);
+  const currentUserId = Number(user?.id || 0);
+  const currentShare = shares.find((share) => share.userId === currentUserId);
+  const canReportPayment = payerId > 0 && currentUserId > 0 && payerId !== currentUserId && Number(currentShare?.amount || 0) > 0;
 
   return (
     <View style={styles.screen}>
@@ -191,19 +217,15 @@ export default function FaturaDetayi({ route, navigation }) {
         )}
       >
         <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroIcon}>
-              <Ionicons name={icon} size={24} color={theme.colors.text.onPrimary} />
-            </View>
-            <View style={styles.heroIdentity}>
-              <Text style={styles.heroTitle}>{title} Faturası</Text>
-              <Text style={styles.heroSubtitle} numberOfLines={1}>{houseName || 'Aktif ev'}</Text>
-            </View>
+          <View style={styles.heroIcon}>
+            <Ionicons name={icon} size={30} color={theme.colors.primary[700]} />
           </View>
           <Text style={styles.amount}>{formatAmount(bill.tutar ?? bill.amount)}</Text>
+          <Text style={styles.heroTitle}>{title} Faturası</Text>
+          <Text style={styles.heroSubtitle} numberOfLines={1}>{houseName || 'Aktif ev'}</Text>
           <View style={styles.datePill}>
-            <Ionicons name="calendar-outline" size={15} color={theme.colors.primary[100]} />
-            <Text style={styles.datePillText}>{formatDate(billDate)}</Text>
+            <Ionicons name="calendar-outline" size={15} color={theme.colors.warning[700]} />
+            <Text style={styles.datePillText}>Son ödeme {formatDate(dueDate)}</Text>
           </View>
         </View>
 
@@ -212,7 +234,33 @@ export default function FaturaDetayi({ route, navigation }) {
           <DetailRow icon="receipt-outline" label="Fatura türü" value={title} styles={styles} theme={theme} />
           <DetailRow icon="person-outline" label="Ödemeyi yapan" value={bill.odeyenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
           <DetailRow icon="create-outline" label="Kaydı oluşturan" value={bill.kaydedenKullaniciAdi || 'Belirtilmedi'} styles={styles} theme={theme} />
-          <DetailRow icon="calendar-number-outline" label="Kayıt tarihi" value={formatDate(bill.kayitTarihi || bill.createdDate)} styles={styles} theme={theme} last />
+          <DetailRow icon="calendar-outline" label="Fatura tarihi" value={formatDate(billDate)} styles={styles} theme={theme} />
+          <DetailRow icon="calendar-number-outline" label="Son ödeme tarihi" value={formatDate(dueDate)} styles={styles} theme={theme} last />
+        </View>
+
+        <View style={styles.shareCard}>
+          <View style={styles.shareHeader}>
+            <Text style={styles.sectionTitle}>Paylaşım</Text>
+            <Text style={styles.shareCount}>{shares.length} kişi</Text>
+          </View>
+          {shares.length > 0 ? shares.map((share, index) => {
+            const member = members.find((item) => item.id === share.userId);
+            const name = member?.name || `Ev üyesi #${share.userId}`;
+            return (
+              <View key={share.userId} style={[styles.shareRow, index > 0 && styles.shareDivider]}>
+                <View style={styles.shareAvatar}>
+                  <Text style={styles.shareAvatarText}>{name.trim().charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={styles.shareBody}>
+                  <Text style={styles.shareName} numberOfLines={1}>{name}{share.userId === currentUserId ? ' (Sen)' : ''}</Text>
+                  <Text style={styles.shareRole}>{share.userId === payerId ? 'Ödemeyi yapan' : 'Faturadaki payı'}</Text>
+                </View>
+                <Text style={styles.shareAmount}>{formatAmount(share.amount)}</Text>
+              </View>
+            );
+          }) : (
+            <Text style={styles.shareEmpty}>Bu fatura için paylaşım bilgisi bulunamadı.</Text>
+          )}
         </View>
 
         {!isGenericNote && (
@@ -225,6 +273,21 @@ export default function FaturaDetayi({ route, navigation }) {
           </View>
         )}
 
+        {canReportPayment && (
+          <TouchableOpacity
+            style={styles.paymentButton}
+            onPress={() => navigation.navigate('OdemeEkle', {
+              houseId: houseId || bill.houseId,
+              houseName,
+              toUserId: payerId,
+            })}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.text.onPrimary} />
+            <Text style={styles.paymentButtonText}>Ödeme Bildir</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.editButton}
@@ -233,6 +296,7 @@ export default function FaturaDetayi({ route, navigation }) {
               houseId: houseId || bill.houseId,
               houseName,
               isEditing: true,
+              initialBill: bill,
             })}
             activeOpacity={0.88}
           >
@@ -288,19 +352,18 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   content: { padding: 18, paddingBottom: insets.bottom + 36 },
   heroCard: {
     borderRadius: 8,
-    backgroundColor: theme.colors.primary[900],
-    padding: 18,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
     marginBottom: 14,
-    ...shadow(2, 'rgba(10,29,45,0.22)'),
+    alignItems: 'center',
   },
-  heroTop: { flexDirection: 'row', alignItems: 'center' },
-  heroIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  heroIdentity: { flex: 1, marginLeft: 12 },
-  heroTitle: { color: theme.colors.text.onPrimary, fontSize: 17, fontWeight: '800' },
-  heroSubtitle: { color: theme.colors.primary[200], fontSize: 13, marginTop: 2 },
-  amount: { color: theme.colors.text.onPrimary, fontSize: 34, fontWeight: '800', marginTop: 22 },
-  datePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-  datePillText: { color: theme.colors.primary[100], fontSize: 13, fontWeight: '600' },
+  heroIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
+  heroTitle: { color: theme.colors.text.primary, fontSize: 18, fontWeight: '800', marginTop: 7 },
+  heroSubtitle: { color: theme.colors.text.secondary, fontSize: 13, marginTop: 3 },
+  amount: { color: theme.colors.text.primary, fontSize: 35, fontWeight: '800', marginTop: 18 },
+  datePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 13, borderRadius: 16, backgroundColor: theme.colors.warning[50], paddingHorizontal: 11, paddingVertical: 6 },
+  datePillText: { color: theme.colors.warning[700], fontSize: 12, fontWeight: '700' },
   detailCard: {
     borderRadius: 8,
     backgroundColor: theme.colors.surface,
@@ -317,6 +380,25 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   detailBody: { flex: 1, marginLeft: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   detailLabel: { color: theme.colors.text.secondary, fontSize: 13 },
   detailValue: { flex: 1, color: theme.colors.text.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  shareCard: {
+    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.neutral[200],
+    padding: 16,
+    marginBottom: 12,
+  },
+  shareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  shareCount: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '700' },
+  shareRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  shareDivider: { borderTopWidth: 1, borderTopColor: theme.colors.neutral[100] },
+  shareAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary[50] },
+  shareAvatarText: { color: theme.colors.primary[700], fontSize: 12, fontWeight: '800' },
+  shareBody: { flex: 1 },
+  shareName: { color: theme.colors.text.primary, fontSize: 13, fontWeight: '700' },
+  shareRole: { color: theme.colors.text.secondary, fontSize: 11, marginTop: 2 },
+  shareAmount: { color: theme.colors.primary[700], fontSize: 13, fontWeight: '800' },
+  shareEmpty: { color: theme.colors.text.secondary, fontSize: 13, lineHeight: 18, paddingVertical: 10 },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -330,6 +412,17 @@ const makeStyles = (theme, insets) => StyleSheet.create({
   noteBody: { flex: 1, marginLeft: 10 },
   noteLabel: { color: theme.colors.success[700], fontSize: 12, fontWeight: '800' },
   noteText: { color: theme.colors.text.primary, fontSize: 14, lineHeight: 20, marginTop: 3 },
+  paymentButton: {
+    minHeight: 52,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary[600],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  paymentButtonText: { color: theme.colors.text.onPrimary, fontSize: 15, fontWeight: '800' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   editButton: {
     flex: 1,

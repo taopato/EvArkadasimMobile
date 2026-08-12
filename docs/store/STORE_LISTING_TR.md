@@ -27,6 +27,6 @@ ev arkadaşı, ortak harcama, gider paylaşımı, fatura, borç takibi, alışve
 
 ## Destek ve Yasal URL'ler
 
-- Destek: `https://API-ALAN-ADINIZ/support.html`
-- Gizlilik: `https://API-ALAN-ADINIZ/privacy.html`
-- Hesap silme: `https://API-ALAN-ADINIZ/account-deletion.html`
+- Destek: `https://api-roomora.takosware.com/support.html`
+- Gizlilik: `https://api-roomora.takosware.com/privacy.html`
+- Hesap silme: `https://api-roomora.takosware.com/account-deletion.html`

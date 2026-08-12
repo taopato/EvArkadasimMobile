@@ -1,9 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +13,7 @@ import { houseApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { shadow } from '../shared/ui/shadow';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 
 export default function DavetEt({ navigation, route }) {
   const { user } = useAuth();
@@ -46,11 +44,8 @@ export default function DavetEt({ navigation, route }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.container}>
+      <KeyboardAwareScreen contentContainerStyle={styles.content} bottomOffset={44}>
         <View style={styles.topBar}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.82}>
             <Ionicons name="chevron-back" size={26} color={theme.colors.text.primary} />
@@ -87,8 +82,8 @@ export default function DavetEt({ navigation, route }) {
             <Text style={styles.secondaryText}>Vazgeç</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
+    </View>
   );
 }
 

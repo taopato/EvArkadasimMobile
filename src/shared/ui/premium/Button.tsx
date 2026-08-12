@@ -51,9 +51,9 @@ export const PremiumButton: React.FC<ButtonProps> = ({
       case 'small':
         return { pv: s.xs + 4, ph: s.sm + 4, br: r.sm };
       case 'large':
-        return { pv: s.lg, ph: s.xl, br: r.lg };
+        return { pv: s.lg, ph: s.xl, br: r.sm };
       default:
-        return { pv: s.md, ph: s.lg, br: r.md };
+        return { pv: s.md, ph: s.lg, br: r.sm };
     }
   };
 

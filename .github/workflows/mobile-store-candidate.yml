@@ -1,0 +1,46 @@
+name: Mobile Store Candidate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-store-candidate
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    if: vars.MOBILE_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: mobile-staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release checks
+        run: npm run release:check
+
+      - name: Configure App Store Connect submission
+        env:
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+        run: node scripts/configure-eas-submit.mjs
+
+      - name: Build and submit store candidates
+        run: eas build --platform all --profile production --auto-submit --non-interactive --no-wait

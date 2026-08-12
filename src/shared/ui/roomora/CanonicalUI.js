@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../theme/ThemeProvider';
-import { shadow } from '../shadow';
+import { shadow, hexToRgba } from '../shadow';
 
 export const money = (value) =>
   new Intl.NumberFormat('tr-TR', {
@@ -61,9 +61,38 @@ export function PageHeader({
   onBack,
   rightIcon,
   onRightPress,
+  centered = false,
+  menuIcon,
+  onMenuPress,
 }) {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
+
+  if (centered) {
+    return (
+      <View style={styles.header}>
+        <View style={styles.headerSide}>
+          {onBack ? (
+            <TouchableOpacity style={styles.iconButton} onPress={onBack} activeOpacity={0.82}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, styles.headerTitleCentered]} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={[styles.headerSubtitle, styles.headerTitleCentered]} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        <View style={[styles.headerSide, styles.headerSideEnd]}>
+          {menuIcon ? (
+            <TouchableOpacity style={styles.iconButton} onPress={onMenuPress} activeOpacity={0.82}>
+              <Ionicons name={menuIcon} size={23} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.header}>
       <View style={styles.headerLeading}>
@@ -240,7 +269,7 @@ export function PrimaryButton({ label, icon = 'add', onPress, disabled, danger =
       disabled={disabled}
       activeOpacity={0.86}
     >
-      <Ionicons name={icon} size={20} color="#fff" />
+      <Ionicons name={icon} size={20} color={theme.colors.text.onPrimary} />
       <Text style={styles.primaryButtonText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -272,6 +301,25 @@ export function LoadingState({ label = 'Yükleniyor...' }) {
   );
 }
 
+export function ErrorState({
+  title = 'Veriler alınamadı',
+  description = 'Bağlantını kontrol edip tekrar deneyin.',
+  onRetry,
+}) {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme);
+  return (
+    <View style={styles.emptyState}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.colors.error[50] }]}>
+        <Ionicons name="cloud-offline-outline" size={30} color={theme.colors.error[700]} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyDescription}>{description}</Text>
+      {!!onRetry && <PrimaryButton label="Tekrar Dene" icon="refresh" onPress={onRetry} />}
+    </View>
+  );
+}
+
 const makeStyles = (theme) => StyleSheet.create({
   header: {
     minHeight: 64,
@@ -282,6 +330,10 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   headerLeading: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerText: { flex: 1 },
+  headerSide: { width: 44, alignItems: 'flex-start', justifyContent: 'center' },
+  headerSideEnd: { alignItems: 'flex-end' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitleCentered: { textAlign: 'center' },
   headerTitle: {
     color: theme.colors.text.primary,
     fontFamily: theme.typography.extrabold,
@@ -319,7 +371,7 @@ const makeStyles = (theme) => StyleSheet.create({
     fontSize: 14,
   },
   balanceCard: {
-    borderRadius: 16,
+    borderRadius: theme.radius.sm,
     padding: 22,
     marginTop: 16,
     backgroundColor: theme.colors.primary[900],
@@ -327,7 +379,7 @@ const makeStyles = (theme) => StyleSheet.create({
   },
   balanceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balanceEyebrow: {
-    color: '#d8e0e8',
+    color: theme.colors.balanceHero.muted,
     fontFamily: theme.typography.semibold,
     fontSize: 13,
   },
@@ -338,28 +390,28 @@ const makeStyles = (theme) => StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: '#355069',
+    backgroundColor: theme.colors.balanceHero.badge,
   },
-  pendingText: { color: '#eaf3fb', fontFamily: theme.typography.semibold, fontSize: 11 },
+  pendingText: { color: theme.colors.balanceHero.badgeText, fontFamily: theme.typography.semibold, fontSize: 11 },
   balanceValue: {
-    color: '#fff',
+    color: theme.colors.text.onPrimary,
     fontFamily: theme.typography.extrabold,
     fontSize: 36,
     lineHeight: 44,
     marginTop: 14,
   },
-  balanceDivider: { height: 1, backgroundColor: '#496176', marginVertical: 18 },
+  balanceDivider: { height: 1, backgroundColor: theme.colors.balanceHero.divider, marginVertical: 18 },
   balanceColumns: { flexDirection: 'row', gap: 28 },
   balanceColumn: { flex: 1 },
-  balanceLabel: { color: '#d8e0e8', fontFamily: theme.typography.medium, fontSize: 14 },
+  balanceLabel: { color: theme.colors.balanceHero.muted, fontFamily: theme.typography.medium, fontSize: 14 },
   receivableValue: {
-    color: '#91dec3',
+    color: theme.colors.balanceHero.receivable,
     fontFamily: theme.typography.bold,
     fontSize: 22,
     marginTop: 4,
   },
   payableValue: {
-    color: '#ffc3bd',
+    color: theme.colors.balanceHero.payable,
     fontFamily: theme.typography.bold,
     fontSize: 22,
     marginTop: 4,
@@ -367,7 +419,7 @@ const makeStyles = (theme) => StyleSheet.create({
   actionTile: {
     flex: 1,
     minHeight: 116,
-    borderRadius: 14,
+    borderRadius: theme.radius.sm,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.surface,
@@ -408,10 +460,10 @@ const makeStyles = (theme) => StyleSheet.create({
     fontFamily: theme.typography.semibold,
     fontSize: 13,
   },
-  pillTextActive: { color: '#fff' },
+  pillTextActive: { color: theme.colors.text.onPrimary },
   listRow: {
     minHeight: 78,
-    borderRadius: 14,
+    borderRadius: theme.radius.sm,
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.surface,
@@ -426,7 +478,7 @@ const makeStyles = (theme) => StyleSheet.create({
   listIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
@@ -452,17 +504,17 @@ const makeStyles = (theme) => StyleSheet.create({
   statusText: { fontFamily: theme.typography.bold, fontSize: 10 },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: theme.colors.primary[600],
-    ...shadow(2, 'rgba(47,111,168,0.22)'),
+    ...shadow(2, hexToRgba(theme.colors.primary[600], 0.22)),
   },
   primaryButtonText: {
-    color: '#fff',
+    color: theme.colors.text.onPrimary,
     fontFamily: theme.typography.bold,
     fontSize: 15,
   },

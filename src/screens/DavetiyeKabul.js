@@ -110,7 +110,7 @@ export default function DavetiyeKabul({ navigation, route }) {
       if (!data.token || !data.user) {
         throw new Error(data?.raw?.message || 'Kayıt tamamlanamadı.');
       }
-      await login(data.user, data.token);
+      await login(data.user, data.token, data.refreshToken);
       Alert.alert('Başarılı', 'Hesabınız oluşturuldu ve eve katıldınız.');
       await finishJoin(data?.raw?.joinedHouseId || data?.raw?.data?.joinedHouseId);
     } catch (error) {

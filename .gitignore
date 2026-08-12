@@ -8,12 +8,15 @@ node_modules/
 dist/
 dist-*/
 .release-check/
+.codex-export-*/
 web-build/
 playwright-report/
 test-results/
 blob-report/
 
 # Native
+android/
+ios/
 *.orig.*
 *.jks
 *.p8
@@ -23,6 +26,7 @@ blob-report/
 
 # Metro
 .metro-health-check*
+docs/expo-go-qr.png
 
 # debug
 npm-debug.*

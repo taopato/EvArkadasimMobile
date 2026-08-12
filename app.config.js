@@ -16,15 +16,25 @@ module.exports = ({ config }) => {
       'expo-web-browser',
       'expo-font',
       'expo-apple-authentication',
+      [
+        'expo-secure-store',
+        {
+          configureAndroidBackup: false,
+        },
+      ],
       '@react-native-community/datetimepicker',
       'expo-status-bar',
       [
         'expo-splash-screen',
         {
-          image: './src/assets/splash.png',
-          imageWidth: 220,
+          image: './src/assets/mark-navy.png',
+          imageWidth: 132,
           resizeMode: 'contain',
-          backgroundColor: '#eef4fa',
+          backgroundColor: '#F7F9FC',
+          dark: {
+            image: './src/assets/mark-white.png',
+            backgroundColor: '#12181D',
+          },
         },
       ],
       [

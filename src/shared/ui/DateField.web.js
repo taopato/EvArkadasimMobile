@@ -46,7 +46,7 @@ const makeStyles = (theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.neutral[200],
     backgroundColor: theme.colors.background,
-    borderRadius: 12,
+    borderRadius: theme.radius.sm,
     padding: 14,
   },
 });

@@ -64,12 +64,6 @@ export default function ScheduledChargeCard({
           <Text style={styles.amountLabel}>Aylık tutar</Text>
           <Text style={styles.amount}>{money(plan?.fixedAmount)}</Text>
         </View>
-        {cycle && (
-          <View style={styles.progressTextWrap}>
-            <Text style={styles.progressValue}>{cycle.paidCount}/{cycle.totalShareCount}</Text>
-            <Text style={styles.progressLabel}>pay tamamlandı</Text>
-          </View>
-        )}
       </View>
 
       {!cycle?.isCollectionOpen && !cycle?.externalPaid ? (
@@ -163,9 +157,6 @@ const makeStyles = (theme) => StyleSheet.create({
   amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 14 },
   amountLabel: { color: theme.colors.text.secondary, fontSize: 11, fontWeight: '700' },
   amount: { color: theme.colors.text.primary, fontSize: 20, fontWeight: '900', marginTop: 2 },
-  progressTextWrap: { alignItems: 'flex-end' },
-  progressValue: { color: theme.colors.primary[700], fontSize: 15, fontWeight: '900' },
-  progressLabel: { color: theme.colors.text.secondary, fontSize: 11, marginTop: 1 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 13 },
   infoText: { color: theme.colors.text.secondary, fontSize: 12, flex: 1 },
   divider: { height: 1, backgroundColor: theme.colors.neutral[200], marginTop: 14, marginBottom: 5 },

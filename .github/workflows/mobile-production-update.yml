@@ -1,0 +1,57 @@
+name: Mobile Production OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollout_percentage:
+        description: "Ilk dagitim yuzdesi (1-100)"
+        required: true
+        default: "10"
+
+concurrency:
+  group: mobile-production-ota
+  cancel-in-progress: false
+
+jobs:
+  publish-production:
+    if: vars.MOBILE_OTA_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: mobile-production
+
+    steps:
+      - name: Validate rollout
+        env:
+          ROLLOUT: ${{ inputs.rollout_percentage }}
+        run: |
+          if [[ ! "$ROLLOUT" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
+            echo "Dagitim yuzdesi 1-100 arasinda olmalidir." >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm run release:check
+
+      - name: Publish production update
+        env:
+          ROLLOUT: ${{ inputs.rollout_percentage }}
+        run: eas update --channel production --environment production --rollout-percentage "$ROLLOUT" --message "${{ github.sha }}" --non-interactive

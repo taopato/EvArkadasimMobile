@@ -8,18 +8,19 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { authApi, houseApi } from '../services/api';
 import { useCommonStyles } from '../shared/ui/CommonStyles';
 import { useTheme } from '../shared/theme/ThemeProvider';
 import { TextInput as ThemedTextInput } from '../shared/ui/TextInput';
+import KeyboardAwareScreen from '../shared/ui/KeyboardAwareScreen';
 import { Button as ThemedButton } from '../shared/ui/Button';
 import { GOOGLE_CLIENT_IDS } from '../shared/config/env';
 import { isValidEmail, normalizeEmail } from '../shared/validation/authValidation';
@@ -200,6 +201,7 @@ const GirisYap = ({ navigation, route }) => {
   const invitationEmail = route?.params?.invitationEmail || '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const finalizeInvitationIfNeeded = async () => {
@@ -290,6 +292,7 @@ const GirisYap = ({ navigation, route }) => {
       };
 
       const token = findValueByKeyList(data, ['token', 'accessToken', 'jwt', 'jwtToken']);
+      const refreshToken = findValueByKeyList(data, ['refreshToken']);
       let user = findValueByKeyList(data, ['user', 'userDto', 'account', 'profile', 'userInfo']);
 
       if (!user) {
@@ -306,7 +309,7 @@ const GirisYap = ({ navigation, route }) => {
       }
 
       if (token && user) {
-        await login(user, token);
+        await login(user, token, refreshToken);
         await finalizeInvitationIfNeeded();
         await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
         return;
@@ -342,13 +345,14 @@ const GirisYap = ({ navigation, route }) => {
       const apiResponse = await authApi.googleLogin(idToken);
       const payload = apiResponse?.data || {};
       const token = payload?.token;
+      const refreshToken = payload?.refreshToken;
       const user = payload?.user;
 
       if (!token || !user) {
         throw new Error('Google giriş yanıtı eksik.');
       }
 
-      await login(user, token);
+      await login(user, token, refreshToken);
       await finalizeInvitationIfNeeded();
       await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
     } catch (error) {
@@ -364,13 +368,14 @@ const GirisYap = ({ navigation, route }) => {
       const apiResponse = await authApi.appleLogin(identityToken, fullName);
       const payload = apiResponse?.data || {};
       const token = payload?.token;
+      const refreshToken = payload?.refreshToken;
       const user = payload?.user;
 
       if (!token || !user) {
         throw new Error('Apple giriş yanıtı eksik.');
       }
 
-      await login(user, token);
+      await login(user, token, refreshToken);
       await finalizeInvitationIfNeeded();
       await ensureDefaultHouse(Number(user?.id ?? user?.userId ?? 0));
     } catch (error) {
@@ -383,13 +388,9 @@ const GirisYap = ({ navigation, route }) => {
 
   return (
     <View style={[CommonStyles.container, { backgroundColor: theme.colors.background }]}>
-      <KeyboardAwareScrollView
+      <KeyboardAwareScreen
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid
-        extraScrollHeight={20}
-        keyboardOpeningTime={0}
+        bottomOffset={48}
       >
         <View
           style={[
@@ -400,7 +401,7 @@ const GirisYap = ({ navigation, route }) => {
         >
           <View style={styles.hero}>
             <View style={[styles.logoTile, shadow(3, 'rgba(23,40,57,0.28)')]}>
-              <Image source={require('../assets/mark-navy.png')} style={{ width: 84, height: 84 }} resizeMode="contain" />
+              <Image source={require('../assets/icon.png')} style={styles.logoImage} resizeMode="contain" />
             </View>
             <Text style={[styles.heading, { color: theme.colors.text.primary }]}>
               Roomora
@@ -425,32 +426,54 @@ const GirisYap = ({ navigation, route }) => {
               },
             ]}
           >
+            <Text style={[styles.fieldLabel, { color: theme.colors.text.primary }]}>E-posta adresi</Text>
             <ThemedTextInput
               style={{ marginBottom: 12 }}
-              placeholder="E-posta"
+              placeholder="ornek@email.com"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
               keyboardType="email-address"
+              returnKeyType="next"
             />
-            <ThemedTextInput
-              style={{ marginBottom: 12 }}
-              placeholder="Şifre"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordLabelRow}>
+              <Text style={[styles.fieldLabel, { color: theme.colors.text.primary }]}>Şifre</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')}>
+                <Text style={[styles.forgotLink, { color: theme.colors.primary[700] }]}>Şifremi unuttum</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordField}>
+              <ThemedTextInput
+                style={styles.passwordInput}
+                placeholder="Şifreni gir"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                textContentType="password"
+                autoComplete="current-password"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <TouchableOpacity
+                accessibilityLabel={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                style={styles.passwordToggle}
+                onPress={() => setShowPassword((current) => !current)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={21}
+                  color={theme.colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
 
             <ThemedButton title="Giriş Yap" onPress={handleLogin} loading={loading} />
 
             <GoogleLoginButton onSuccess={handleGoogleSuccess} theme={theme} styles={styles} />
             <AppleSignInButton onSuccess={handleAppleSuccess} />
-
-            <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')}>
-              <Text style={[styles.link, { color: theme.colors.text.secondary }]}>
-                Şifremi unuttum
-              </Text>
-            </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('SignupScreen')}>
               <Text style={[styles.link, { color: theme.colors.primary[600] }]}>
@@ -459,7 +482,7 @@ const GirisYap = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardAwareScreen>
     </View>
   );
 };
@@ -477,13 +500,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoTile: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 124,
+    height: 124,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
+  logoImage: { width: 124, height: 124 },
   heading: {
     fontSize: 30,
     fontWeight: '900',
@@ -508,6 +533,38 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1,
     borderRadius: 8,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 7,
+  },
+  passwordLabelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  forgotLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 7,
+  },
+  passwordField: {
+    marginBottom: 12,
+    position: 'relative',
+  },
+  passwordInput: {
+    marginBottom: 0,
+    paddingRight: 48,
+  },
+  passwordToggle: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 6,
+    top: 5,
+    width: 44,
   },
   googleButton: {
     marginTop: 12,

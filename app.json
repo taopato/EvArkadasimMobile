@@ -1,16 +1,22 @@
 {
   "expo": {
     "name": "Roomora",
-    "slug": "roomora",
+    "slug": "ev-arkadasim",
     "owner": "takopato4",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8fe79228-2598-461f-ba30-83843385bbc7"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./src/assets/icon.png",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.taopato.roomora",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "usesAppleSignIn": true,
       "config": {
         "usesNonExemptEncryption": false
@@ -31,7 +37,7 @@
     },
     "scheme": "roomora",
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://192.168.1.106:5118",
+      "EXPO_PUBLIC_API_URL": "https://api-roomora.takosware.com",
       "GOOGLE_WEB_CLIENT_ID": "253722443834-1rium4sbtslb0de4ct9v6k2suetgnpad.apps.googleusercontent.com",
       "GOOGLE_IOS_CLIENT_ID": "",
       "GOOGLE_ANDROID_CLIENT_ID": "",

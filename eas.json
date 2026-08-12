@@ -1,14 +1,25 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": true
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://testapi-roomora.takosware.com"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.evarkadasim.co"
+        "EXPO_PUBLIC_API_URL": "https://testapi-roomora.takosware.com"
       },
       "android": {
         "buildType": "apk"
@@ -17,11 +28,20 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
+      "environment": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.evarkadasim.co"
+        "EXPO_PUBLIC_API_URL": "https://api-roomora.takosware.com"
       },
       "android": {
         "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
       }
     }
   }
